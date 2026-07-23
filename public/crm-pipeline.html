@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>FlowCRM — Pipeline</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{
+      --green:#27ae60;--blue:#2980b9;--purple:#8e44ad;--amber:#f39c12;--red:#e74c3c;--teal:#16a085;
+      --sidebar:#0f172a;--text:#1e293b;--muted:#64748b;--border:#e2e8f0;--bg:#f1f5f9;
+    }
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);display:flex;min-height:100vh}
+
+    /* SIDEBAR */
+    .sidebar{width:230px;min-height:100vh;background:var(--sidebar);display:flex;flex-direction:column;flex-shrink:0}
+    .sb-brand{padding:20px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.07)}
+    .sb-icon{width:34px;height:34px;background:linear-gradient(135deg,var(--green),#1abc9c);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px}
+    .sb-name{font-size:17px;font-weight:800;color:#fff}.sb-name span{color:var(--green)}
+    .sb-nav{flex:1;padding:14px 10px}
+    .sb-section{font-size:10px;font-weight:700;color:#334155;letter-spacing:.8px;text-transform:uppercase;padding:10px 10px 6px}
+    .nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;font-size:13.5px;font-weight:500;color:#94a3b8;cursor:pointer;text-decoration:none;transition:all .18s;margin-bottom:2px}
+    .nav-item:hover{background:rgba(255,255,255,.06);color:#e2e8f0}
+    .nav-item.active{background:linear-gradient(135deg,rgba(39,174,96,.18),rgba(26,188,156,.1));color:#4ade80;font-weight:700}
+    .nav-item .ico{width:18px;text-align:center;font-size:15px}
+    .nav-item .badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:10px}
+    .sb-bottom{padding:14px 10px;border-top:1px solid rgba(255,255,255,.07)}
+    .user-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;cursor:pointer}
+    .user-row:hover{background:rgba(255,255,255,.06)}
+    .user-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--green),#1abc9c);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;flex-shrink:0}
+    .user-info .name{font-size:13px;font-weight:600;color:#e2e8f0}
+    .user-info .plan{font-size:11px;color:#64748b}
+
+    /* MAIN */
+    .main{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+    .topbar{background:#fff;border-bottom:1px solid var(--border);padding:0 24px;height:58px;display:flex;align-items:center;gap:16px;flex-shrink:0}
+    .page-title{font-size:17px;font-weight:800;color:var(--text);margin-right:auto}
+    .search-wrap{position:relative}
+    .search-wrap input{padding:7px 12px 7px 34px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;color:var(--text);outline:none;width:200px;background:var(--bg)}
+    .search-wrap input:focus{border-color:var(--green)}
+    .search-ico{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--muted)}
+    .filter-btn{padding:7px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;color:var(--muted);background:#fff;cursor:pointer;display:flex;align-items:center;gap:6px}
+    .btn-green{padding:8px 16px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(39,174,96,.3)}
+    .btn-green:hover{background:#219a52}
+
+    /* KANBAN */
+    .kanban-wrap{flex:1;overflow-x:auto;padding:20px 24px;display:flex;gap:16px;align-items:flex-start}
+    .column{flex-shrink:0;width:280px;display:flex;flex-direction:column;gap:0}
+    .col-header{display:flex;align-items:center;gap:8px;padding:0 4px 14px;margin-bottom:0}
+    .col-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+    .col-name{font-size:13px;font-weight:700;color:var(--text);flex:1}
+    .col-count{font-size:12px;font-weight:700;color:#fff;background:var(--muted);padding:1px 7px;border-radius:10px;line-height:1.6}
+    .col-total{font-size:12px;color:var(--muted);font-weight:600}
+    .col-bar{height:3px;border-radius:3px;margin-bottom:14px}
+
+    .col-body{display:flex;flex-direction:column;gap:10px;min-height:60px;border-radius:12px;padding:2px}
+
+    /* CARD */
+    .deal-card{background:#fff;border-radius:12px;padding:14px;border:1px solid var(--border);cursor:grab;transition:all .18s;position:relative;overflow:hidden}
+    .deal-card:hover{box-shadow:0 6px 20px rgba(0,0,0,.1);transform:translateY(-2px);border-color:#cbd5e1}
+    .deal-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:12px 0 0 12px}
+    .deal-card.c0::before{background:var(--amber)}
+    .deal-card.c1::before{background:var(--blue)}
+    .deal-card.c2::before{background:var(--purple)}
+    .deal-card.c3::before{background:var(--teal)}
+    .deal-card.c4::before{background:var(--green)}
+
+    .card-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+    .card-avatar{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;flex-shrink:0}
+    .card-name{font-size:13.5px;font-weight:700;color:var(--text);line-height:1.3}
+    .card-sub{font-size:11px;color:var(--muted);margin-top:2px}
+    .card-value{font-size:16px;font-weight:800;color:var(--text);margin-bottom:10px}
+    .card-footer{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .card-tag{font-size:10.5px;font-weight:600;padding:3px 8px;border-radius:6px}
+    .tag-hot{background:#fef2f2;color:var(--red)}
+    .tag-warm{background:#fff7ed;color:var(--amber)}
+    .tag-cold{background:#eff6ff;color:var(--blue)}
+    .tag-new{background:#f0fdf4;color:var(--green)}
+    .card-date{margin-left:auto;font-size:10.5px;color:var(--muted)}
+    .card-actions{display:flex;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+    .card-btn{flex:1;padding:5px;border:1px solid var(--border);border-radius:6px;background:#fff;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;transition:all .15s;text-align:center}
+    .card-btn:hover{border-color:var(--blue);color:var(--blue);background:#eff6ff}
+
+    /* ADD CARD */
+    .add-card-btn{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1.5px dashed var(--border);font-size:13px;color:var(--muted);cursor:pointer;font-weight:600;transition:all .2s;margin-top:8px}
+    .add-card-btn:hover{border-color:var(--green);color:var(--green);background:rgba(39,174,96,.04)}
+
+    /* MODAL */
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;display:none;align-items:center;justify-content:center}
+    .overlay.open{display:flex}
+    .modal{background:#fff;border-radius:20px;padding:32px;width:440px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.18)}
+    .modal h3{font-size:18px;font-weight:800;color:var(--text);margin-bottom:20px}
+    .modal .inp-g{margin-bottom:16px}
+    .modal .inp-g label{display:block;font-size:13px;font-weight:600;color:var(--text);margin-bottom:5px}
+    .modal .inp-g input,.modal .inp-g select{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;color:var(--text);outline:none;background:#fff}
+    .modal .inp-g input:focus,.modal .inp-g select:focus{border-color:var(--green)}
+    .modal-actions{display:flex;gap:10px;margin-top:24px}
+    .modal-cancel{flex:1;padding:11px;border:1.5px solid var(--border);border-radius:9px;background:#fff;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer}
+    .modal-save{flex:2;padding:11px;border:none;border-radius:9px;background:linear-gradient(135deg,var(--green),#1abc9c);font-size:14px;font-weight:700;color:#fff;cursor:pointer}
+  </style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sb-brand">
+    <div class="sb-icon">⚡</div>
+    <div class="sb-name">Flow<span>CRM</span></div>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-section">Principal</div>
+    <a class="nav-item" href="crm-dashboard.html"><span class="ico">📊</span>Dashboard</a>
+    <a class="nav-item active" href="crm-pipeline.html"><span class="ico">🗂️</span>Pipeline</a>
+    <a class="nav-item" href="crm-contatos.html"><span class="ico">👥</span>Contatos</a>
+    <a class="nav-item" href="crm-tarefas.html"><span class="ico">✅</span>Tarefas<span class="badge">4</span></a>
+    <div class="sb-section">Sistema</div>
+    <a class="nav-item" href="crm-relatorios.html"><span class="ico">📈</span>Relatórios</a>
+    <a class="nav-item" href="crm-integracoes.html"><span class="ico">🔌</span>Integrações</a>
+    <a class="nav-item" href="crm-configuracoes.html"><span class="ico">⚙️</span>Configurações</a>
+  </nav>
+  <div class="sb-bottom">
+    <div class="user-row">
+      <div class="user-avatar">W</div>
+      <div class="user-info"><div class="name">Williams</div><div class="plan">Plano Profissional</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="page-title">Pipeline de vendas</div>
+    <div class="search-wrap">
+      <span class="search-ico">🔍</span>
+      <input type="text" placeholder="Buscar negócio..." oninput="filterCards(this.value)"/>
+    </div>
+    <button class="filter-btn">🎛️ Filtrar</button>
+    <button class="btn-green" onclick="openModal()">+ Novo negócio</button>
+  </div>
+
+  <div class="kanban-wrap" id="kanban"></div>
+</div>
+
+<!-- MODAL -->
+<div class="overlay" id="overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3>➕ Novo negócio</h3>
+    <div class="inp-g"><label>Nome do contato</label><input type="text" id="m-name" placeholder="Ex: Maria Clara Souza"/></div>
+    <div class="inp-g"><label>Valor estimado (R$)</label><input type="number" id="m-val" placeholder="0,00"/></div>
+    <div class="inp-g"><label>Estágio inicial</label>
+      <select id="m-stage">
+        <option value="0">Novo lead</option>
+        <option value="1">Em contato</option>
+        <option value="2">Proposta</option>
+        <option value="3">Negociação</option>
+        <option value="4">Fechado</option>
+      </select>
+    </div>
+    <div class="inp-g"><label>Temperatura</label>
+      <select id="m-tag">
+        <option value="tag-hot">🔥 Quente</option>
+        <option value="tag-warm">🌡️ Morno</option>
+        <option value="tag-cold">❄️ Frio</option>
+        <option value="tag-new">🆕 Novo</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeModal()">Cancelar</button>
+      <button class="modal-save" onclick="saveCard()">Criar negócio →</button>
+    </div>
+  </div>
+</div>
+
+<script src="flowcrm-api.js"></script>
+<script>
+  authGuard();
+
+  let stages = [];
+  let dragId = null;
+  let modalStageIdx = 0;
+
+  function colrGrad(c) {
+    const map = { '#f39c12':'#f1c40f','#2980b9':'#5dade2','#8e44ad':'#c084fc','#16a085':'#1abc9c','#27ae60':'#2ecc71' };
+    return `linear-gradient(90deg,${c},${map[c]||c})`;
+  }
+  const tempLabels = { hot:'🔥 Quente', warm:'🌡️ Morno', cold:'❄️ Frio', new:'🆕 Novo' };
+
+  function render(filter = '') {
+    const kanban = document.getElementById('kanban');
+    kanban.innerHTML = '';
+    stages.forEach((col, ci) => {
+      const colDeals = col.deals.filter(d => !filter || d.title.toLowerCase().includes(filter.toLowerCase()) || (d.contact?.name || '').toLowerCase().includes(filter.toLowerCase()));
+      const total = colDeals.reduce((s, d) => s + Number(d.value), 0);
+      const div = document.createElement('div');
+      div.className = 'column';
+      div.innerHTML = `
+        <div class="col-header">
+          <div class="col-dot" style="background:${col.color}"></div>
+          <div class="col-name">${col.name}</div>
+          <div class="col-count" style="background:${col.color}">${colDeals.length}</div>
+        </div>
+        <div class="col-bar" style="background:${colrGrad(col.color)}"></div>
+        <div class="col-total">${fmtMoney(total)} total</div>
+        <div class="col-body" id="col-${ci}">
+          ${colDeals.map((d, di) => `
+            <div class="deal-card c${ci}" data-id="${d.id}" draggable="true">
+              <div class="card-top">
+                <div class="card-avatar" style="background:${palColor(di)}">${initials(d.contact?.name || d.title)}</div>
+                <div><div class="card-name">${d.contact?.name || d.title}</div><div class="card-sub">${d.title}</div></div>
+              </div>
+              <div class="card-value">${fmtMoney(d.value)}</div>
+              <div class="card-footer">
+                <span class="card-date">${new Date(d.updatedAt).toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})}</span>
+              </div>
+              <div class="card-actions">
+                ${ci > 0 ? `<button class="card-btn" onclick="moveCard('${d.id}',${ci},${ci-1})">← Voltar</button>` : ''}
+                ${ci < stages.length-1 ? `<button class="card-btn" onclick="moveCard('${d.id}',${ci},${ci+1})">Avançar →</button>` : ''}
+              </div>
+            </div>`).join('')}
+        </div>
+        <div class="add-card-btn" onclick="openModal(${ci})">＋ Adicionar negócio</div>
+      `;
+      kanban.appendChild(div);
+    });
+    initDrag();
+  }
+
+  async function moveCard(id, fromIdx, toIdx) {
+    const newStageId = stages[toIdx].id;
+    const d = stages[fromIdx].deals.find(x => x.id === id);
+    if (!d) return;
+    stages[fromIdx].deals = stages[fromIdx].deals.filter(x => x.id !== id);
+    d.stageId = newStageId;
+    stages[toIdx].deals.unshift(d);
+    render();
+    await api('/deals/' + id, { method: 'PATCH', body: JSON.stringify({ stageId: newStageId }) });
+  }
+
+  function filterCards(v) { render(v); }
+
+  function initDrag() {
+    document.querySelectorAll('.deal-card').forEach(c => {
+      c.addEventListener('dragstart', e => { dragId = c.dataset.id; c.style.opacity = '.5'; });
+      c.addEventListener('dragend', e => { c.style.opacity = '1'; });
+    });
+    document.querySelectorAll('.col-body').forEach((cb, ci) => {
+      cb.addEventListener('dragover', e => { e.preventDefault(); cb.style.background = 'rgba(39,174,96,.06)'; });
+      cb.addEventListener('dragleave', () => { cb.style.background = ''; });
+      cb.addEventListener('drop', e => {
+        e.preventDefault(); cb.style.background = '';
+        const fromIdx = stages.findIndex(s => s.deals.some(d => d.id === dragId));
+        if (fromIdx !== -1 && fromIdx !== ci) moveCard(dragId, fromIdx, ci);
+      });
+    });
+  }
+
+  function openModal(stageIdx = 0) {
+    modalStageIdx = stageIdx;
+    const sel = document.getElementById('m-stage');
+    sel.innerHTML = stages.map((s, i) => `<option value="${i}" ${i === stageIdx ? 'selected' : ''}>${s.name}</option>`).join('');
+    document.getElementById('overlay').classList.add('open');
+  }
+  function closeModal() { document.getElementById('overlay').classList.remove('open'); }
+
+  async function saveCard() {
+    const title = document.getElementById('m-name').value.trim();
+    if (!title) return;
+    const val = +document.getElementById('m-val').value || 0;
+    const idx = +document.getElementById('m-stage').value;
+    const stageId = stages[idx]?.id;
+    if (!stageId) return;
+    const deal = await api('/deals', { method: 'POST', body: JSON.stringify({ title, value: val, stageId }) });
+    if (deal) { stages[idx].deals.unshift(deal); closeModal(); render(); }
+  }
+
+  async function init() {
+    const data = await api('/deals');
+    if (!data) return;
+    stages = data;
+    render();
+  }
+  init();
+</script>
+</body>
+</html>

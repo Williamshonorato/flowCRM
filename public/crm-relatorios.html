@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>FlowCRM — Relatórios</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{--green:#27ae60;--blue:#2980b9;--purple:#8e44ad;--amber:#f39c12;--red:#e74c3c;--teal:#16a085;--sidebar:#0f172a;--text:#1e293b;--muted:#64748b;--border:#e2e8f0;--bg:#f1f5f9}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);display:flex;min-height:100vh}
+    .sidebar{width:230px;min-height:100vh;background:var(--sidebar);display:flex;flex-direction:column;flex-shrink:0}
+    .sb-brand{padding:20px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.07)}
+    .sb-icon{width:34px;height:34px;background:linear-gradient(135deg,var(--green),#1abc9c);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px}
+    .sb-name{font-size:17px;font-weight:800;color:#fff}.sb-name span{color:var(--green)}
+    .sb-nav{flex:1;padding:14px 10px}
+    .sb-section{font-size:10px;font-weight:700;color:#334155;letter-spacing:.8px;text-transform:uppercase;padding:10px 10px 6px}
+    .nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;font-size:13.5px;font-weight:500;color:#94a3b8;cursor:pointer;text-decoration:none;transition:all .18s;margin-bottom:2px}
+    .nav-item:hover{background:rgba(255,255,255,.06);color:#e2e8f0}
+    .nav-item.active{background:linear-gradient(135deg,rgba(39,174,96,.18),rgba(26,188,156,.1));color:#4ade80;font-weight:700}
+    .nav-item .ico{width:18px;text-align:center;font-size:15px}
+    .nav-item .badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:10px}
+    .sb-bottom{padding:14px 10px;border-top:1px solid rgba(255,255,255,.07)}
+    .user-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;cursor:pointer}.user-row:hover{background:rgba(255,255,255,.06)}
+    .user-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--green),#1abc9c);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff}
+    .user-info .name{font-size:13px;font-weight:600;color:#e2e8f0}.user-info .plan{font-size:11px;color:#64748b}
+    .main{flex:1;display:flex;flex-direction:column;min-width:0}
+    .topbar{background:#fff;border-bottom:1px solid var(--border);padding:0 28px;height:58px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+    .page-title{font-size:17px;font-weight:800;color:var(--text);flex:1}
+    .period-select{padding:8px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;color:var(--text);background:#fff;outline:none;cursor:pointer}
+    .btn-export{padding:9px 16px;background:#fff;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-weight:600;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:6px}
+    .btn-export:hover{border-color:var(--green);color:var(--green)}
+    .content{padding:24px 28px;overflow-y:auto;flex:1}
+
+    /* KPI */
+    .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+    .kpi{background:#fff;border-radius:16px;padding:20px;border:1px solid var(--border);position:relative;overflow:hidden}
+    .kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:16px 16px 0 0}
+    .kpi.g::before{background:linear-gradient(90deg,var(--green),#1abc9c)}.kpi.b::before{background:linear-gradient(90deg,var(--blue),#5dade2)}
+    .kpi.p::before{background:linear-gradient(90deg,var(--purple),#c084fc)}.kpi.a::before{background:linear-gradient(90deg,var(--amber),#f1c40f)}
+    .kpi-ico{position:absolute;right:18px;top:18px;font-size:28px;opacity:.11}
+    .kpi-label{font-size:11.5px;font-weight:600;color:var(--muted);margin-bottom:10px}
+    .kpi-value{font-size:26px;font-weight:800;color:var(--text);letter-spacing:-.5px;margin-bottom:4px}
+    .kpi-delta{font-size:12px;font-weight:600}.up{color:var(--green)}.down{color:var(--red)}.neutral{color:var(--muted)}
+
+    /* CHARTS ROW */
+    .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+    .card{background:#fff;border:1px solid var(--border);border-radius:16px;padding:22px}
+    .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+    .card-title{font-size:14px;font-weight:800;color:var(--text)}
+    .card-sub{font-size:12px;color:var(--muted);margin-top:2px}
+
+    /* LINE CHART */
+    .line-chart-wrap{position:relative;height:180px}
+    svg.line-chart{width:100%;height:100%}
+    .lc-label{font-size:10px;fill:#94a3b8}
+
+    /* FUNNEL */
+    .funnel{display:flex;flex-direction:column;gap:8px}
+    .funnel-row{display:flex;align-items:center;gap:12px}
+    .funnel-label{font-size:12px;font-weight:600;color:var(--text);width:100px;flex-shrink:0}
+    .funnel-bar-wrap{flex:1;background:var(--bg);border-radius:6px;overflow:hidden;height:28px;position:relative}
+    .funnel-bar-fill{height:100%;border-radius:6px;display:flex;align-items:center;padding-left:10px;font-size:12px;font-weight:700;color:#fff;transition:width .6s ease}
+    .funnel-pct{font-size:12px;font-weight:700;width:40px;text-align:right;flex-shrink:0}
+    .funnel-count{font-size:11px;color:var(--muted);width:30px;text-align:right;flex-shrink:0}
+
+    /* BOTTOM ROW */
+    .bottom-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px}
+
+    /* ORIGEM */
+    .origem-list{display:flex;flex-direction:column;gap:10px}
+    .origem-row{display:flex;align-items:center;gap:10px}
+    .origem-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+    .origem-name{font-size:13px;color:var(--text);flex:1}
+    .origem-bar-wrap{width:80px;background:var(--bg);border-radius:4px;height:6px}
+    .origem-bar{height:100%;border-radius:4px}
+    .origem-pct{font-size:12px;font-weight:700;color:var(--text);width:36px;text-align:right}
+
+    /* RANKING */
+    .rank-list{display:flex;flex-direction:column;gap:10px}
+    .rank-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+    .rank-row:last-child{border-bottom:none}
+    .rank-pos{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;background:var(--bg);color:var(--muted)}
+    .rank-pos.top{background:linear-gradient(135deg,var(--amber),#f1c40f);color:#fff}
+    .rank-avatar{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff}
+    .rank-info{flex:1}.rank-name{font-size:13px;font-weight:700;color:var(--text)}.rank-stage{font-size:11px;color:var(--muted)}
+    .rank-value{font-size:14px;font-weight:800;color:var(--text)}
+
+    /* METAS */
+    .meta-list{display:flex;flex-direction:column;gap:14px}
+    .meta-row{}
+    .meta-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+    .meta-label{font-size:13px;font-weight:600;color:var(--text)}
+    .meta-values{font-size:12px;color:var(--muted)}
+    .meta-track{height:10px;background:var(--bg);border-radius:5px;overflow:hidden}
+    .meta-fill{height:100%;border-radius:5px;transition:width .6s ease}
+    .meta-pct{font-size:11px;font-weight:700;margin-top:4px}
+
+    /* INSIGHT BOX */
+    .insights{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:8px}
+    .insight{background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px;display:flex;gap:12px}
+    .insight-ico{font-size:26px;flex-shrink:0}
+    .insight-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px}
+    .insight-text{font-size:12px;color:var(--muted);line-height:1.5}
+    .insight-action{font-size:12px;font-weight:700;color:var(--blue);margin-top:6px;cursor:pointer}
+  </style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="sb-brand"><div class="sb-icon">⚡</div><div class="sb-name">Flow<span>CRM</span></div></div>
+  <nav class="sb-nav">
+    <div class="sb-section">Principal</div>
+    <a class="nav-item" href="crm-dashboard.html"><span class="ico">📊</span>Dashboard</a>
+    <a class="nav-item" href="crm-pipeline.html"><span class="ico">🗂️</span>Pipeline</a>
+    <a class="nav-item" href="crm-contatos.html"><span class="ico">👥</span>Contatos</a>
+    <a class="nav-item" href="crm-tarefas.html"><span class="ico">✅</span>Tarefas<span class="badge">3</span></a>
+    <div class="sb-section">Sistema</div>
+    <a class="nav-item active" href="crm-relatorios.html"><span class="ico">📈</span>Relatórios</a>
+    <a class="nav-item" href="crm-importar.html"><span class="ico">📥</span>Importar dados</a>
+    <a class="nav-item" href="crm-integracoes.html"><span class="ico">🔌</span>Integrações</a>
+    <a class="nav-item" href="crm-configuracoes.html"><span class="ico">⚙️</span>Configurações</a>
+  </nav>
+  <div class="sb-bottom"><div class="user-row"><div class="user-avatar">W</div><div class="user-info"><div class="name">Williams</div><div class="plan">Plano Profissional</div></div></div></div>
+</div>
+<div class="main">
+  <div class="topbar">
+    <div class="page-title">Relatórios</div>
+    <select class="period-select" onchange="changePeriod(this.value)">
+      <option>Junho 2026</option><option>Maio 2026</option><option>Últimos 3 meses</option><option>2026 completo</option>
+    </select>
+    <button class="btn-export">⬇️ Exportar PDF</button>
+  </div>
+  <div class="content">
+    <!-- KPIs -->
+    <div class="kpi-grid">
+      <div class="kpi g"><span class="kpi-ico">💰</span><div class="kpi-label">Receita do período</div><div class="kpi-value">R$ 38.500</div><div class="kpi-delta up">↑ +18% vs mês anterior</div></div>
+      <div class="kpi b"><span class="kpi-ico">🎯</span><div class="kpi-label">Conversão geral</div><div class="kpi-value">32%</div><div class="kpi-delta up">↑ +4pp vs mês anterior</div></div>
+      <div class="kpi p"><span class="kpi-ico">🔄</span><div class="kpi-label">Ciclo médio de venda</div><div class="kpi-value">14 dias</div><div class="kpi-delta neutral">estável</div></div>
+      <div class="kpi a"><span class="kpi-ico">📉</span><div class="kpi-label">Churn do mês</div><div class="kpi-value">1,8%</div><div class="kpi-delta up">↓ abaixo da meta (3%)</div></div>
+    </div>
+
+    <!-- CHARTS -->
+    <div class="charts-row">
+      <div class="card">
+        <div class="card-header">
+          <div><div class="card-title">Receita — últimos 6 meses</div><div class="card-sub">Tendência de crescimento</div></div>
+        </div>
+        <div class="line-chart-wrap"><svg class="line-chart" id="lineChart" viewBox="0 0 500 180" preserveAspectRatio="none"></svg></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div><div class="card-title">Funil de conversão</div><div class="card-sub">Taxa entre estágios</div></div></div>
+        <div class="funnel" id="funnel"></div>
+      </div>
+    </div>
+
+    <!-- BOTTOM -->
+    <div class="bottom-row">
+      <div class="card">
+        <div class="card-header"><div><div class="card-title">Origem dos leads</div><div class="card-sub">De onde vêm os clientes</div></div></div>
+        <div class="origem-list" id="origemList"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div><div class="card-title">Top negócios</div><div class="card-sub">Maiores valores no período</div></div></div>
+        <div class="rank-list" id="rankList"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div><div class="card-title">Metas do mês</div><div class="card-sub">Junho 2026</div></div></div>
+        <div class="meta-list" id="metaList"></div>
+      </div>
+    </div>
+
+    <!-- INSIGHTS IA -->
+    <div class="insights">
+      <div class="insight">
+        <div class="insight-ico">🤖</div>
+        <div><div class="insight-title">IA · Oportunidade</div><div class="insight-text">3 leads estão parados há mais de 7 dias na etapa "Em contato". Um follow-up agora pode recuperar R$ 5.900 em negócios.</div><div class="insight-action">Ver leads →</div></div>
+      </div>
+      <div class="insight">
+        <div class="insight-ico">⚠️</div>
+        <div><div class="insight-title">Atenção · Conversão</div><div class="insight-text">A conversão de "Proposta → Fechado" caiu de 45% para 28% este mês. Revise sua argumentação de preço.</div><div class="insight-action">Ver propostas →</div></div>
+      </div>
+      <div class="insight">
+        <div class="insight-ico">🏆</div>
+        <div><div class="insight-title">Destaque · Canal</div><div class="insight-text">WhatsApp representa 50% dos leads e tem a maior taxa de conversão (38%). Priorize esse canal.</div><div class="insight-action">Ver origens →</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="flowcrm-api.js"></script>
+<script>
+  authGuard();
+
+  function renderLineChart(monthlyRevenue) {
+    const months = (monthlyRevenue || []).map(m => m.month);
+    const values = (monthlyRevenue || []).map(m => m.value);
+    if (!values.length) return;
+    const svg = document.getElementById('lineChart');
+    const W = 500, H = 160, pad = 30;
+    const max = Math.max(...values, 1);
+    const pts = values.map((v, i) => ({ x: pad + (i * (W - 2*pad) / (values.length-1)), y: H - pad - (v/max * (H - 2*pad)) }));
+    const pathD = 'M' + pts.map(p => `${p.x},${p.y}`).join(' L');
+    const areaD = pathD + ` L${pts[pts.length-1].x},${H-pad} L${pts[0].x},${H-pad} Z`;
+    svg.innerHTML = `
+      <defs><linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#27ae60" stop-opacity=".2"/><stop offset="100%" stop-color="#27ae60" stop-opacity=".02"/></linearGradient></defs>
+      <path d="${areaD}" fill="url(#lineGrad)"/>
+      <path d="${pathD}" fill="none" stroke="#27ae60" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      ${pts.map((p, i) => `<circle cx="${p.x}" cy="${p.y}" r="4" fill="#27ae60" stroke="#fff" stroke-width="2"/>
+        <text x="${p.x}" y="${H-8}" text-anchor="middle" class="lc-label" font-size="11" fill="#94a3b8">${months[i]}</text>
+        <text x="${p.x}" y="${p.y-10}" text-anchor="middle" font-size="10" font-weight="700" fill="#27ae60">${values[i]>=1000?'R$'+(values[i]/1000).toFixed(0)+'k':'R$'+values[i]}</text>`).join('')}`;
+  }
+
+  function renderFunnel(funnel) {
+    document.getElementById('funnel').innerHTML = (funnel || []).map(f => `
+      <div class="funnel-row">
+        <div class="funnel-label">${f.name}</div>
+        <div class="funnel-bar-wrap"><div class="funnel-bar-fill" style="width:${f.pct}%;background:${f.color}">${f.count}</div></div>
+        <div class="funnel-pct" style="color:${f.color}">${f.pct}%</div>
+      </div>`).join('');
+  }
+
+  function renderOrigens(origins) {
+    document.getElementById('origemList').innerHTML = (origins || []).map((o, i) => `
+      <div class="origem-row">
+        <div class="origem-dot" style="background:${palColor(i)}"></div>
+        <div class="origem-name">${o.name}</div>
+        <div class="origem-bar-wrap"><div class="origem-bar" style="width:${o.pct}%;background:${palColor(i)}"></div></div>
+        <div class="origem-pct">${o.pct}%</div>
+      </div>`).join('');
+  }
+
+  function renderRanking(topDeals) {
+    document.getElementById('rankList').innerHTML = (topDeals || []).map((d, i) => `
+      <div class="rank-row">
+        <div class="rank-pos ${i===0?'top':''}">${i+1}</div>
+        <div class="rank-avatar" style="background:${palColor(i)}">${initials(d.contact?.name || d.title)}</div>
+        <div class="rank-info"><div class="rank-name">${d.contact?.name || d.title}</div><div class="rank-stage">${d.stage?.name || '—'}</div></div>
+        <div class="rank-value">${fmtMoney(d.value)}</div>
+      </div>`).join('');
+  }
+
+  async function loadReports(period = 'month') {
+    const data = await api('/reports?period=' + period);
+    if (!data) return;
+    // KPI cards (if they exist in HTML)
+    ['kpi-revenue','kpi-conv','kpi-churn'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        if (id === 'kpi-revenue') el.textContent = fmtMoney(data.revenue);
+        if (id === 'kpi-conv') el.textContent = data.conversion + '%';
+        if (id === 'kpi-churn') el.textContent = data.churn + '%';
+      }
+    });
+    renderLineChart(data.monthlyRevenue);
+    renderFunnel(data.funnel);
+    renderOrigens(data.origins);
+    renderRanking(data.topDeals);
+  }
+
+  function changePeriod(v) { loadReports(v); }
+  loadReports();
+</script>
+</body>
+</html>

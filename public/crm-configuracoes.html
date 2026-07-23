@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>FlowCRM — Configurações</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{--green:#27ae60;--blue:#2980b9;--purple:#8e44ad;--amber:#f39c12;--red:#e74c3c;--sidebar:#0f172a;--text:#1e293b;--muted:#64748b;--border:#e2e8f0;--bg:#f1f5f9}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);display:flex;min-height:100vh}
+    .sidebar{width:230px;min-height:100vh;background:var(--sidebar);display:flex;flex-direction:column;flex-shrink:0}
+    .sb-brand{padding:20px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.07)}
+    .sb-icon{width:34px;height:34px;background:linear-gradient(135deg,var(--green),#1abc9c);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px}
+    .sb-name{font-size:17px;font-weight:800;color:#fff}.sb-name span{color:var(--green)}
+    .sb-nav{flex:1;padding:14px 10px}
+    .sb-section{font-size:10px;font-weight:700;color:#334155;letter-spacing:.8px;text-transform:uppercase;padding:10px 10px 6px}
+    .nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;font-size:13.5px;font-weight:500;color:#94a3b8;cursor:pointer;text-decoration:none;transition:all .18s;margin-bottom:2px}
+    .nav-item:hover{background:rgba(255,255,255,.06);color:#e2e8f0}
+    .nav-item.active{background:linear-gradient(135deg,rgba(39,174,96,.18),rgba(26,188,156,.1));color:#4ade80;font-weight:700}
+    .nav-item .ico{width:18px;text-align:center;font-size:15px}
+    .nav-item .badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:10px}
+    .sb-bottom{padding:14px 10px;border-top:1px solid rgba(255,255,255,.07)}
+    .user-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;cursor:pointer}.user-row:hover{background:rgba(255,255,255,.06)}
+    .user-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--green),#1abc9c);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff}
+    .user-info .name{font-size:13px;font-weight:600;color:#e2e8f0}.user-info .plan{font-size:11px;color:#64748b}
+    .main{flex:1;display:flex;flex-direction:column;min-width:0}
+    .topbar{background:#fff;border-bottom:1px solid var(--border);padding:0 28px;height:58px;display:flex;align-items:center;flex-shrink:0}
+    .page-title{font-size:17px;font-weight:800;color:var(--text)}
+    .body{display:flex;flex:1;overflow:hidden}
+
+    /* SETTINGS NAV */
+    .settings-nav{width:220px;background:#fff;border-right:1px solid var(--border);padding:20px 12px;flex-shrink:0;overflow-y:auto}
+    .sn-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;cursor:pointer;font-size:13.5px;font-weight:500;color:var(--muted);transition:all .15s;margin-bottom:2px}
+    .sn-item:hover{background:var(--bg);color:var(--text)}
+    .sn-item.active{background:#f0fdf4;color:var(--green);font-weight:700}
+    .sn-item .sn-ico{font-size:16px;width:20px;text-align:center}
+
+    /* PANEL */
+    .settings-panel{flex:1;overflow-y:auto;padding:28px}
+    .sp-title{font-size:18px;font-weight:800;color:var(--text);margin-bottom:4px}
+    .sp-sub{font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.5}
+
+    /* CARD */
+    .card{background:#fff;border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:20px}
+    .card-title{font-size:14px;font-weight:800;color:var(--text);margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
+    .inp-g{margin-bottom:16px}
+    .inp-g label{display:block;font-size:13px;font-weight:600;color:var(--text);margin-bottom:5px}
+    .inp-g input,.inp-g select,.inp-g textarea{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;color:var(--text);outline:none;background:#fff;font-family:inherit}
+    .inp-g input:focus,.inp-g select:focus,.inp-g textarea:focus{border-color:var(--green)}
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .btn-save{padding:10px 22px;background:linear-gradient(135deg,var(--green),#1abc9c);color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer}
+    .btn-secondary{padding:10px 18px;background:var(--bg);border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-weight:600;color:var(--text);cursor:pointer}
+
+    /* LOGO UPLOAD */
+    .logo-area{display:flex;align-items:center;gap:16px;margin-bottom:20px}
+    .logo-preview{width:64px;height:64px;border-radius:14px;background:linear-gradient(135deg,var(--green),#1abc9c);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;color:#fff;flex-shrink:0}
+    .logo-actions{display:flex;flex-direction:column;gap:6px}
+    .logo-btn{padding:7px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:#fff;color:var(--text)}
+    .logo-btn:hover{border-color:var(--green);color:var(--green)}
+    .logo-hint{font-size:11px;color:var(--muted)}
+
+    /* PIPELINE STAGES */
+    .stages-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+    .stage-row{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;cursor:grab}
+    .stage-row:hover{border-color:#94a3b8}
+    .stage-handle{color:var(--muted);font-size:16px;cursor:grab}
+    .stage-color{width:12px;height:12px;border-radius:3px;flex-shrink:0}
+    .stage-name{flex:1;font-size:13px;font-weight:600;color:var(--text)}
+    .stage-meta{font-size:11px;color:var(--muted)}
+    .stage-del{color:#cbd5e1;font-size:16px;cursor:pointer;line-height:1;padding:2px 4px;border-radius:4px}
+    .stage-del:hover{color:var(--red);background:#fee2e2}
+    .add-stage-row{display:flex;gap:8px}
+    .add-stage-row input{flex:1;padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;outline:none}
+    .add-stage-row input:focus{border-color:var(--green)}
+    .add-stage-row button{padding:9px 16px;background:var(--green);color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer}
+
+    /* CUSTOM FIELDS */
+    .field-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+    .field-row{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px}
+    .field-ico{font-size:16px}
+    .field-name{flex:1;font-size:13px;font-weight:600;color:var(--text)}
+    .field-type-badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px}
+    .ftype-text{background:#eff6ff;color:var(--blue)}.ftype-num{background:#fdf4ff;color:var(--purple)}
+    .ftype-date{background:#fff7ed;color:var(--amber)}.ftype-select{background:#f0fdf4;color:var(--green)}
+    .field-required{font-size:10px;font-weight:700;color:var(--red);background:#fee2e2;padding:2px 7px;border-radius:10px}
+    .field-del{color:#cbd5e1;font-size:16px;cursor:pointer;padding:2px 4px;border-radius:4px}
+    .field-del:hover{color:var(--red);background:#fee2e2}
+    .add-field-row{display:flex;gap:8px}
+    .add-field-row input{flex:1;padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;outline:none}
+    .add-field-row input:focus{border-color:var(--purple)}
+    .add-field-row select{flex:0 0 100px;padding:9px 10px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;background:#fff;outline:none}
+    .add-field-row button{padding:9px 14px;background:var(--purple);color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer}
+
+    /* USERS */
+    .user-list{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
+    .user-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid var(--border);border-radius:12px;background:#fff}
+    .ui-avatar{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;flex-shrink:0}
+    .ui-info{flex:1}.ui-name{font-size:14px;font-weight:700;color:var(--text)}.ui-email{font-size:12px;color:var(--muted);margin-top:2px}
+    .ui-role{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px}
+    .role-admin{background:#fdf4ff;color:var(--purple)}.role-user{background:var(--bg);color:var(--muted)}.role-viewer{background:#eff6ff;color:var(--blue)}
+    .ui-remove{color:#cbd5e1;font-size:14px;cursor:pointer;padding:4px 6px;border-radius:6px}
+    .ui-remove:hover{color:var(--red);background:#fee2e2}
+    .invite-row{display:flex;gap:8px}
+    .invite-row input{flex:1;padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;outline:none}
+    .invite-row input:focus{border-color:var(--blue)}
+    .invite-row select{flex:0 0 110px;padding:9px 10px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;background:#fff;outline:none}
+    .invite-row button{padding:9px 16px;background:var(--blue);color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer}
+
+    /* PLAN */
+    .plan-current{display:flex;align-items:center;gap:16px;padding:16px 20px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #86efac;border-radius:14px;margin-bottom:16px}
+    .plan-ico{font-size:32px}
+    .plan-name-big{font-size:16px;font-weight:800;color:var(--text)}
+    .plan-details{font-size:13px;color:var(--muted);margin-top:3px}
+    .plan-price-big{margin-left:auto;text-align:right}
+    .plan-amount{font-size:22px;font-weight:800;color:var(--green)}
+    .plan-period{font-size:12px;color:var(--muted)}
+    .usage-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+    .usage-label{font-size:13px;color:var(--text);width:120px}
+    .usage-track{flex:1;height:8px;background:var(--bg);border-radius:4px;overflow:hidden}
+    .usage-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--green),#1abc9c)}
+    .usage-val{font-size:12px;font-weight:700;color:var(--muted);width:80px;text-align:right}
+
+    /* NOTIFICATIONS TOGGLES */
+    .toggle-list{display:flex;flex-direction:column;gap:14px}
+    .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)}
+    .toggle-row:last-child{border-bottom:none}
+    .toggle-info .t-label{font-size:13.5px;font-weight:600;color:var(--text)}
+    .toggle-info .t-sub{font-size:12px;color:var(--muted);margin-top:2px}
+    .toggle-switch{width:44px;height:24px;border-radius:12px;background:var(--border);position:relative;cursor:pointer;transition:background .2s;flex-shrink:0}
+    .toggle-switch.on{background:var(--green)}
+    .toggle-switch::after{content:'';width:18px;height:18px;border-radius:50%;background:#fff;position:absolute;top:3px;left:3px;transition:left .2s;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+    .toggle-switch.on::after{left:23px}
+
+    /* DANGER */
+    .danger-card{background:#fff;border:1.5px solid #fca5a5;border-radius:16px;padding:22px}
+    .danger-title{font-size:14px;font-weight:800;color:var(--red);margin-bottom:4px}
+    .danger-sub{font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5}
+    .btn-danger{padding:9px 18px;background:#fff;border:1.5px solid var(--red);border-radius:9px;font-size:13px;font-weight:700;color:var(--red);cursor:pointer}
+    .btn-danger:hover{background:var(--red);color:#fff}
+
+    /* PANEL VISIBILITY */
+    .tab-panel{display:none}.tab-panel.active{display:block}
+  </style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="sb-brand"><div class="sb-icon">⚡</div><div class="sb-name">Flow<span>CRM</span></div></div>
+  <nav class="sb-nav">
+    <div class="sb-section">Principal</div>
+    <a class="nav-item" href="crm-dashboard.html"><span class="ico">📊</span>Dashboard</a>
+    <a class="nav-item" href="crm-pipeline.html"><span class="ico">🗂️</span>Pipeline</a>
+    <a class="nav-item" href="crm-contatos.html"><span class="ico">👥</span>Contatos</a>
+    <a class="nav-item" href="crm-tarefas.html"><span class="ico">✅</span>Tarefas<span class="badge">3</span></a>
+    <div class="sb-section">Sistema</div>
+    <a class="nav-item" href="crm-relatorios.html"><span class="ico">📈</span>Relatórios</a>
+    <a class="nav-item" href="crm-importar.html"><span class="ico">📥</span>Importar dados</a>
+    <a class="nav-item" href="crm-integracoes.html"><span class="ico">🔌</span>Integrações</a>
+    <a class="nav-item active" href="crm-configuracoes.html"><span class="ico">⚙️</span>Configurações</a>
+  </nav>
+  <div class="sb-bottom"><div class="user-row"><div class="user-avatar">W</div><div class="user-info"><div class="name">Williams</div><div class="plan">Plano Profissional</div></div></div></div>
+</div>
+
+<div class="main">
+  <div class="topbar"><div class="page-title">Configurações</div></div>
+  <div class="body">
+
+    <!-- SETTINGS NAV -->
+    <div class="settings-nav">
+      <div class="sn-item active" onclick="showTab('negocio',this)"><span class="sn-ico">🏢</span>Meu negócio</div>
+      <div class="sn-item" onclick="showTab('pipeline',this)"><span class="sn-ico">🗂️</span>Pipeline</div>
+      <div class="sn-item" onclick="showTab('campos',this)"><span class="sn-ico">📋</span>Campos personalizados</div>
+      <div class="sn-item" onclick="showTab('equipe',this)"><span class="sn-ico">👥</span>Equipe e usuários</div>
+      <div class="sn-item" onclick="showTab('plano',this)"><span class="sn-ico">💳</span>Plano e cobrança</div>
+      <div class="sn-item" onclick="showTab('notif',this)"><span class="sn-ico">🔔</span>Notificações</div>
+      <div class="sn-item" onclick="showTab('conta',this)"><span class="sn-ico">👤</span>Minha conta</div>
+    </div>
+
+    <!-- SETTINGS PANEL -->
+    <div class="settings-panel">
+
+      <!-- NEGÓCIO -->
+      <div class="tab-panel active" id="tab-negocio">
+        <div class="sp-title">Informações do negócio</div>
+        <div class="sp-sub">Esses dados aparecem nos relatórios, documentos e na tela de boas-vindas dos usuários.</div>
+        <div class="card">
+          <div class="logo-area">
+            <div class="logo-preview" id="logoPreview">W</div>
+            <div class="logo-actions">
+              <button class="logo-btn">📁 Trocar logo</button>
+              <div class="logo-hint">PNG ou JPG · máx. 2MB · recomendado 200×200px</div>
+            </div>
+          </div>
+          <div class="row2">
+            <div class="inp-g"><label>Nome do negócio</label><input type="text" value="Clínica Vida Plena" id="biz-name" oninput="updateLogo()"/></div>
+            <div class="inp-g"><label>Segmento</label>
+              <select>
+                <option selected>🏥 Clínica / Saúde</option><option>🏠 Imobiliária</option>
+                <option>🎯 Agência</option><option>🛍️ Loja / Varejo</option>
+                <option>💡 Consultoria</option><option>⚙️ Outro</option>
+              </select>
+            </div>
+          </div>
+          <div class="row2">
+            <div class="inp-g"><label>CNPJ</label><input type="text" placeholder="00.000.000/0001-00"/></div>
+            <div class="inp-g"><label>Telefone comercial</label><input type="text" placeholder="(11) 3000-0000"/></div>
+          </div>
+          <div class="inp-g"><label>Endereço</label><input type="text" placeholder="Rua das Flores, 123 — São Paulo, SP"/></div>
+          <div class="inp-g"><label>Site</label><input type="text" placeholder="https://seusite.com.br"/></div>
+          <div style="display:flex;justify-content:flex-end;margin-top:4px">
+            <button class="btn-save" onclick="saved(this)">Salvar alterações</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PIPELINE -->
+      <div class="tab-panel" id="tab-pipeline">
+        <div class="sp-title">Estágios do Pipeline</div>
+        <div class="sp-sub">Defina os estágios do funil de vendas. Arraste para reordenar. Cada negócio percorre esses estágios até ser fechado.</div>
+        <div class="card">
+          <div class="card-title">Estágios ativos <button class="btn-secondary" style="font-size:12px;padding:5px 12px">Restaurar padrão</button></div>
+          <div class="stages-list" id="stagesList"></div>
+          <div class="add-stage-row">
+            <input type="text" id="newStageInput" placeholder="Nome do novo estágio..."/>
+            <button onclick="addStage()">+ Adicionar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- CAMPOS -->
+      <div class="tab-panel" id="tab-campos">
+        <div class="sp-title">Campos personalizados</div>
+        <div class="sp-sub">Adicione campos extras aos seus contatos. Esses campos aparecem na ficha de cada cliente e podem ser usados para filtros e relatórios.</div>
+        <div class="card">
+          <div class="card-title">Campos de contato</div>
+          <div class="field-list" id="fieldList"></div>
+          <div class="add-field-row">
+            <input type="text" id="newFieldInput" placeholder="Nome do campo (ex: Convênio)"/>
+            <select id="newFieldType">
+              <option value="text">📝 Texto</option><option value="num">🔢 Número</option>
+              <option value="date">📅 Data</option><option value="select">🔽 Lista</option>
+            </select>
+            <button onclick="addField()">+ Campo</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- EQUIPE -->
+      <div class="tab-panel" id="tab-equipe">
+        <div class="sp-title">Equipe e usuários</div>
+        <div class="sp-sub">Gerencie quem tem acesso ao CRM e qual nível de permissão cada pessoa possui.</div>
+        <div class="card">
+          <div class="card-title">Usuários ativos <span style="font-size:12px;font-weight:600;color:var(--muted)">2 / 15 do plano</span></div>
+          <div class="user-list" id="userList"></div>
+          <div class="invite-row">
+            <input type="email" id="inviteEmail" placeholder="email@exemplo.com"/>
+            <select id="inviteRole"><option value="user">Usuário</option><option value="admin">Admin</option><option value="viewer">Visualizador</option></select>
+            <button onclick="invite()">✉️ Convidar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PLANO -->
+      <div class="tab-panel" id="tab-plano">
+        <div class="sp-title">Plano e cobrança</div>
+        <div class="sp-sub">Gerencie sua assinatura, veja o uso do plano e atualize suas informações de pagamento.</div>
+        <div class="card">
+          <div class="plan-current">
+            <div class="plan-ico">💼</div>
+            <div><div class="plan-name-big">Plano Profissional</div><div class="plan-details">Até 15 usuários · Banco hospedado · WhatsApp + IA</div></div>
+            <div class="plan-price-big"><div class="plan-amount">R$ 297</div><div class="plan-period">/mês · renova em 21/07/2026</div></div>
+          </div>
+          <div class="card-title">Uso do plano</div>
+          <div class="usage-row"><span class="usage-label">Usuários</span><div class="usage-track"><div class="usage-fill" style="width:13%"></div></div><span class="usage-val">2 / 15</span></div>
+          <div class="usage-row"><span class="usage-label">Contatos</span><div class="usage-track"><div class="usage-fill" style="width:24%"></div></div><span class="usage-val">24 / 5.000</span></div>
+          <div class="usage-row"><span class="usage-label">Negócios</span><div class="usage-track"><div class="usage-fill" style="width:5%"></div></div><span class="usage-val">10 / ilimitados</span></div>
+          <div class="usage-row"><span class="usage-label">Armazenamento</span><div class="usage-track"><div class="usage-fill" style="width:8%"></div></div><span class="usage-val">800MB / 10GB</span></div>
+          <div style="margin-top:20px;display:flex;gap:10px">
+            <button class="btn-save">⬆️ Fazer upgrade</button>
+            <button class="btn-secondary">📋 Ver histórico de faturas</button>
+            <button class="btn-secondary" style="color:var(--red);border-color:#fca5a5;margin-left:auto">Cancelar plano</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- NOTIFICAÇÕES -->
+      <div class="tab-panel" id="tab-notif">
+        <div class="sp-title">Notificações</div>
+        <div class="sp-sub">Escolha quando e como ser notificado sobre atividades do CRM.</div>
+        <div class="card">
+          <div class="card-title">E-mail</div>
+          <div class="toggle-list" id="togglesEmail"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Push (navegador)</div>
+          <div class="toggle-list" id="togglesPush"></div>
+        </div>
+      </div>
+
+      <!-- CONTA -->
+      <div class="tab-panel" id="tab-conta">
+        <div class="sp-title">Minha conta</div>
+        <div class="sp-sub">Seus dados pessoais de acesso ao FlowCRM.</div>
+        <div class="card">
+          <div class="card-title">Dados pessoais</div>
+          <div class="logo-area">
+            <div class="logo-preview" style="font-size:20px">W</div>
+            <div class="logo-actions"><button class="logo-btn">📸 Trocar foto</button><div class="logo-hint">PNG ou JPG · máx. 1MB</div></div>
+          </div>
+          <div class="row2">
+            <div class="inp-g"><label>Nome</label><input type="text" value="Williams"/></div>
+            <div class="inp-g"><label>Sobrenome</label><input type="text" value="Ferreira"/></div>
+          </div>
+          <div class="inp-g"><label>E-mail</label><input type="email" value="will.ferreiraa1995@gmail.com"/></div>
+          <div class="inp-g"><label>Telefone / WhatsApp</label><input type="tel" placeholder="(11) 99999-9999"/></div>
+          <div style="display:flex;justify-content:flex-end"><button class="btn-save" onclick="saved(this)">Salvar</button></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Segurança</div>
+          <div class="inp-g"><label>Senha atual</label><input type="password" placeholder="••••••••"/></div>
+          <div class="row2">
+            <div class="inp-g"><label>Nova senha</label><input type="password" placeholder="••••••••"/></div>
+            <div class="inp-g"><label>Confirmar nova senha</label><input type="password" placeholder="••••••••"/></div>
+          </div>
+          <div style="display:flex;justify-content:flex-end"><button class="btn-save" onclick="saved(this)">Alterar senha</button></div>
+        </div>
+        <div class="danger-card">
+          <div class="danger-title">⚠️ Zona de perigo</div>
+          <div class="danger-sub">Ao excluir sua conta, todos os dados serão permanentemente removidos. Essa ação não pode ser desfeita.</div>
+          <button class="btn-danger">Excluir minha conta</button>
+        </div>
+      </div>
+
+    </div><!-- settings-panel -->
+  </div>
+</div>
+
+<script src="flowcrm-api.js"></script>
+<script>
+  authGuard();
+
+  function showTab(name, el) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.sn-item').forEach(x => x.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    el.classList.add('active');
+  }
+
+  function updateLogo() {
+    const v = document.getElementById('biz-name').value;
+    document.getElementById('logoPreview').textContent = v ? v[0].toUpperCase() : '?';
+  }
+
+  function saved(btn) {
+    const orig = btn.textContent; btn.textContent = '✓ Salvo!'; btn.style.background = '#166534';
+    setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 2000);
+  }
+
+  // ── STAGES ──────────────────────────────────────────────────────────────
+  let stages = [];
+  async function loadStages() {
+    const data = await api('/settings/stages');
+    if (data) { stages = data; renderStages(); }
+  }
+  function renderStages() {
+    document.getElementById('stagesList').innerHTML = stages.map((s, i) => `
+      <div class="stage-row">
+        <span class="stage-handle">⋮⋮</span>
+        <div class="stage-color" style="background:${s.color}"></div>
+        <div class="stage-name">${s.name}</div>
+        <div class="stage-meta">${s._count?.deals ?? ''}</div>
+        ${stages.length > 1 ? `<span class="stage-del" onclick="removeStage('${s.id}')">×</span>` : ''}
+      </div>`).join('');
+  }
+  async function addStage() {
+    const v = document.getElementById('newStageInput').value.trim(); if (!v) return;
+    const s = await api('/settings/stages', { method: 'POST', body: JSON.stringify({ name: v }) });
+    if (s) { document.getElementById('newStageInput').value = ''; loadStages(); }
+  }
+  async function removeStage(id) {
+    if (!confirm('Remover estágio?')) return;
+    await api('/settings/stages/' + id, { method: 'DELETE' });
+    loadStages();
+  }
+
+  // ── FIELDS ──────────────────────────────────────────────────────────────
+  const TYPE_ICONS = { text:'📝', num:'🔢', date:'📅', select:'🔽' };
+  let fields = [];
+  async function loadFields() {
+    const data = await api('/settings/fields');
+    if (data) { fields = data; renderFields(); }
+  }
+  function renderFields() {
+    document.getElementById('fieldList').innerHTML = fields.map(f => `
+      <div class="field-row">
+        <span class="field-ico">${TYPE_ICONS[f.type] || '📝'}</span>
+        <div class="field-name">${f.name}</div>
+        <span class="field-type-badge ftype-${f.type}">${f.type==='text'?'Texto':f.type==='num'?'Número':f.type==='date'?'Data':'Lista'}</span>
+        <span class="field-del" onclick="removeField('${f.id}')">×</span>
+      </div>`).join('');
+  }
+  async function addField() {
+    const v = document.getElementById('newFieldInput').value.trim();
+    const t = document.getElementById('newFieldType').value;
+    if (!v) return;
+    const f = await api('/settings/fields', { method: 'POST', body: JSON.stringify({ name: v, type: t }) });
+    if (f) { document.getElementById('newFieldInput').value = ''; loadFields(); }
+  }
+  async function removeField(id) {
+    await api('/settings/fields/' + id, { method: 'DELETE' });
+    loadFields();
+  }
+
+  // ── TEAM ────────────────────────────────────────────────────────────────
+  let users = [], myId = '';
+  async function loadTeam() {
+    const [team, me] = await Promise.all([api('/settings/team'), api('/auth/me')]);
+    if (team) { users = team; }
+    if (me) myId = me.id;
+    renderUsers();
+  }
+  function renderUsers() {
+    document.getElementById('userList').innerHTML = users.map((u, i) => `
+      <div class="user-item">
+        <div class="ui-avatar" style="background:${palColor(i)}">${initials(u.name)}</div>
+        <div class="ui-info"><div class="ui-name">${u.name}${u.id === myId ? ' (você)' : ''}</div><div class="ui-email">${u.email}</div></div>
+        <span class="ui-role role-${u.role}">${u.role==='admin'?'Admin':u.role==='viewer'?'Visualizador':'Usuário'}</span>
+        ${u.id !== myId ? `<span class="ui-remove" onclick="removeUser('${u.id}','${u.name}')">✕</span>` : ''}
+      </div>`).join('');
+  }
+  async function removeUser(id, name) {
+    if (!confirm('Remover ' + name + '?')) return;
+    await api('/settings/team/' + id, { method: 'DELETE' });
+    loadTeam();
+  }
+  async function invite() {
+    const e = document.getElementById('inviteEmail').value.trim(); if (!e) return;
+    const r = document.getElementById('inviteRole').value;
+    const u = await api('/settings/team/invite', { method: 'POST', body: JSON.stringify({ email: e, role: r }) });
+    if (u) { document.getElementById('inviteEmail').value = ''; loadTeam(); }
+  }
+
+  // ── TOGGLES ──────────────────────────────────────────────────────────────
+  const emailToggles = [
+    { label:'Tarefa atrasada', sub:'Receba um e-mail quando uma tarefa passar do prazo', on:true },
+    { label:'Novo negócio criado', sub:'Quando um negócio for adicionado ao pipeline', on:false },
+    { label:'Negócio avançado', sub:'Quando um card mudar de estágio', on:true },
+    { label:'Resumo semanal', sub:'Relatório de desempenho toda segunda-feira', on:true },
+  ];
+  const pushToggles = [
+    { label:'Novo contato importado', sub:'Ao finalizar uma importação de planilha', on:true },
+    { label:'Tarefa com prazo hoje', sub:'Lembrete às 8h para tarefas do dia', on:true },
+    { label:'Meta atingida', sub:'Quando você bater a meta mensal', on:false },
+  ];
+  function renderToggles(list, id) {
+    document.getElementById(id).innerHTML = list.map(t => `
+      <div class="toggle-row">
+        <div class="toggle-info"><div class="t-label">${t.label}</div><div class="t-sub">${t.sub}</div></div>
+        <div class="toggle-switch ${t.on?'on':''}" onclick="this.classList.toggle('on')"></div>
+      </div>`).join('');
+  }
+
+  loadStages(); loadFields(); loadTeam();
+  renderToggles(emailToggles, 'togglesEmail');
+  renderToggles(pushToggles, 'togglesPush');
+</script>
+</body>
+</html>

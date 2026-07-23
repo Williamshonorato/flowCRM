@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>FlowCRM — Campanhas & Reativação</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{
+      --green:#27ae60;--blue:#2980b9;--purple:#8e44ad;--amber:#f39c12;--red:#e74c3c;--teal:#16a085;
+      --sidebar:#0f172a;--text:#1e293b;--muted:#64748b;--border:#e2e8f0;--bg:#f1f5f9;
+    }
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);display:flex;min-height:100vh}
+
+    /* SIDEBAR */
+    .sidebar{width:230px;min-height:100vh;background:var(--sidebar);display:flex;flex-direction:column;flex-shrink:0}
+    .sb-brand{padding:20px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.07)}
+    .sb-icon{width:34px;height:34px;background:linear-gradient(135deg,var(--green),#1abc9c);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px}
+    .sb-name{font-size:17px;font-weight:800;color:#fff}.sb-name span{color:var(--green)}
+    .sb-nav{flex:1;padding:14px 10px}
+    .sb-section{font-size:10px;font-weight:700;color:#334155;letter-spacing:.8px;text-transform:uppercase;padding:10px 10px 6px}
+    .nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;font-size:13.5px;font-weight:500;color:#94a3b8;cursor:pointer;text-decoration:none;transition:all .18s;margin-bottom:2px}
+    .nav-item:hover{background:rgba(255,255,255,.06);color:#e2e8f0}
+    .nav-item.active{background:linear-gradient(135deg,rgba(39,174,96,.18),rgba(26,188,156,.1));color:#4ade80;font-weight:700}
+    .nav-item .ico{width:18px;text-align:center;font-size:15px}
+    .nav-item .badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:10px}
+    .sb-bottom{padding:14px 10px;border-top:1px solid rgba(255,255,255,.07)}
+    .user-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;cursor:pointer}
+    .user-row:hover{background:rgba(255,255,255,.06)}
+    .user-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--green),#1abc9c);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;flex-shrink:0}
+    .user-info .name{font-size:13px;font-weight:600;color:#e2e8f0}
+    .user-info .plan{font-size:11px;color:#64748b}
+
+    /* MAIN */
+    .main{flex:1;display:flex;flex-direction:column;min-width:0}
+    .topbar{background:#fff;border-bottom:1px solid var(--border);padding:0 28px;height:58px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+    .page-title{font-size:17px;font-weight:800;color:var(--text)}
+    .page-title span{font-size:13px;font-weight:400;color:var(--muted);margin-left:8px}
+    .topbar-actions{display:flex;align-items:center;gap:10px}
+    .btn-sm{padding:7px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
+    .btn-green{background:var(--green);color:#fff;box-shadow:0 2px 8px rgba(39,174,96,.3)}
+    .btn-green:hover{background:#219a52}
+    .btn-ghost{background:var(--bg);color:var(--muted);border:1px solid var(--border)}
+    .btn-ghost:hover{background:#e2e8f0;color:var(--text)}
+
+    /* CONTENT */
+    .content{padding:24px 28px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:20px}
+
+    /* KPI strip */
+    .kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+    .kpi{background:#fff;border-radius:14px;padding:18px 20px;border:1px solid var(--border);position:relative;overflow:hidden}
+    .kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:14px 14px 0 0}
+    .kpi.green::before{background:linear-gradient(90deg,var(--green),#1abc9c)}
+    .kpi.blue::before{background:linear-gradient(90deg,var(--blue),#5dade2)}
+    .kpi.purple::before{background:linear-gradient(90deg,var(--purple),#c084fc)}
+    .kpi.amber::before{background:linear-gradient(90deg,var(--amber),#f1c40f)}
+    .kpi-icon{position:absolute;right:16px;top:16px;font-size:24px;opacity:.12}
+    .kpi-label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.3px;margin-bottom:8px}
+    .kpi-value{font-size:24px;font-weight:800;color:var(--text);letter-spacing:-.5px}
+    .kpi-sub{font-size:11.5px;font-weight:600;margin-top:4px}
+    .kpi-sub.up{color:var(--green)}.kpi-sub.down{color:var(--red)}.kpi-sub.neutral{color:var(--muted)}
+
+    /* BODY GRID */
+    .body-grid{display:grid;grid-template-columns:380px 1fr;gap:18px;flex:1;min-height:0}
+
+    /* RULES PANEL */
+    .rules-panel{background:#fff;border-radius:16px;border:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+    .rp-header{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+    .rp-title{font-size:13.5px;font-weight:700;color:var(--text)}
+    .rp-count{font-size:12px;color:var(--muted)}
+    .rp-search{padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+    .rp-search input{width:100%;border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:13px;background:var(--bg);color:var(--text);outline:none}
+    .rp-search input:focus{border-color:var(--green)}
+    .rules-list{flex:1;overflow-y:auto;padding:8px}
+
+    /* RULE CARD */
+    .rule-card{border-radius:12px;border:1.5px solid var(--border);padding:14px;margin-bottom:8px;cursor:pointer;transition:all .15s;position:relative}
+    .rule-card:hover{border-color:#94a3b8;background:#fafafa}
+    .rule-card.selected{border-color:var(--green);background:#f0fdf4}
+    .rule-card.paused{opacity:.65}
+    .rc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+    .rc-name{font-size:13.5px;font-weight:700;color:var(--text)}
+    .rc-status{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700}
+    .rc-status.active{color:var(--green)}.rc-status.paused{color:var(--muted)}
+    .rc-dot{width:7px;height:7px;border-radius:50%}
+    .rc-status.active .rc-dot{background:var(--green);box-shadow:0 0 6px var(--green)}
+    .rc-status.paused .rc-dot{background:var(--muted)}
+    .rc-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+    .rc-tag{font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:6px;background:var(--bg);color:var(--muted);border:1px solid var(--border)}
+    .rc-tag.green{background:#f0fdf4;color:var(--green);border-color:#bbf7d0}
+    .rc-tag.blue{background:#eff6ff;color:var(--blue);border-color:#bfdbfe}
+    .rc-tag.amber{background:#fffbeb;color:var(--amber);border-color:#fde68a}
+    .rc-tag.purple{background:#fdf4ff;color:var(--purple);border-color:#e9d5ff}
+    .rc-stats{display:flex;gap:14px}
+    .rc-stat{font-size:11px;color:var(--muted)}
+    .rc-stat strong{color:var(--text);font-weight:700}
+
+    /* DETAIL PANEL */
+    .detail-panel{background:#fff;border-radius:16px;border:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+    .empty-detail{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px;text-align:center}
+    .empty-ico{font-size:52px;opacity:.3}
+    .empty-title{font-size:15px;font-weight:700;color:var(--text)}
+    .empty-sub{font-size:13px;color:var(--muted);line-height:1.5}
+
+    /* DETAIL CONTENT */
+    .dp-header{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+    .dp-title{font-size:15px;font-weight:800;color:var(--text)}
+    .dp-actions{display:flex;align-items:center;gap:8px}
+    .toggle-btn{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:none;transition:all .15s}
+    .toggle-btn.on{background:#f0fdf4;color:var(--green);border:1.5px solid #bbf7d0}
+    .toggle-btn.off{background:#fef2f2;color:var(--red);border:1.5px solid #fecaca}
+    .btn-edit{background:var(--bg);color:var(--muted);border:1px solid var(--border);padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer}
+    .btn-edit:hover{background:#e2e8f0;color:var(--text)}
+    .btn-dispatch{background:linear-gradient(135deg,#25a25a,#1abc9c);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 3px 10px rgba(39,174,96,.35);transition:all .15s}
+    .btn-dispatch:hover{transform:translateY(-1px);box-shadow:0 5px 14px rgba(39,174,96,.45)}
+
+    .dp-body{flex:1;overflow-y:auto;display:flex;gap:0}
+
+    /* RULE DETAILS LEFT */
+    .dp-left{width:300px;padding:20px;border-right:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;gap:16px}
+    .dp-section{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:8px}
+    .dp-config-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9}
+    .dp-config-row:last-child{border-bottom:none}
+    .dp-config-label{font-size:12.5px;color:var(--muted)}
+    .dp-config-val{font-size:13px;font-weight:700;color:var(--text)}
+    .dp-config-val.green{color:var(--green)}
+
+    /* MESSAGE PREVIEW */
+    .msg-preview-wrap{background:#f1f5f9;border-radius:10px;padding:12px 14px;position:relative}
+    .msg-preview-label{font-size:10.5px;font-weight:600;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:5px}
+    .msg-bubble{background:#fff;border-radius:12px 12px 12px 3px;padding:12px 14px;font-size:13px;line-height:1.6;color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.08);white-space:pre-wrap;border:1px solid var(--border)}
+    .msg-var{background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:4px;font-size:12px;font-weight:600}
+
+    /* FUNNEL MINI */
+    .funnel-mini{display:flex;gap:0;border-radius:10px;overflow:hidden;height:44px}
+    .funnel-step{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10px;font-weight:700;color:#fff;opacity:.9}
+    .funnel-step span{font-size:16px;font-weight:800}
+
+    /* RIGHT: CONTACTS PREVIEW */
+    .dp-right{flex:1;padding:20px;display:flex;flex-direction:column;gap:14px;overflow-y:auto}
+    .dp-preview-header{display:flex;align-items:center;justify-content:space-between}
+    .dp-preview-title{font-size:13px;font-weight:700;color:var(--text)}
+    .dp-preview-count{font-size:12px;color:var(--muted)}
+    .preview-list{display:flex;flex-direction:column;gap:8px}
+    .preview-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#fafafa}
+    .pr-avatar{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;flex-shrink:0}
+    .pr-info{flex:1;min-width:0}
+    .pr-name{font-size:13px;font-weight:700;color:var(--text)}
+    .pr-meta{font-size:11px;color:var(--muted)}
+    .pr-days{font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;background:#fef2f2;color:var(--red);flex-shrink:0}
+    .pr-days.warn{background:#fffbeb;color:var(--amber)}
+    .pr-sent{font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;background:#f0fdf4;color:var(--green);flex-shrink:0}
+
+    /* MODAL */
+    .overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+    .overlay.open{display:flex}
+    .modal{background:#fff;border-radius:20px;width:680px;max-width:95vw;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+    .modal-header{padding:22px 26px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+    .modal-title{font-size:16px;font-weight:800;color:var(--text)}
+    .modal-close{width:30px;height:30px;border-radius:8px;border:none;background:var(--bg);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+    .modal-body{padding:22px 26px;overflow-y:auto;display:flex;flex-direction:column;gap:18px}
+    .modal-footer{padding:16px 26px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;flex-shrink:0}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .form-group{display:flex;flex-direction:column;gap:6px}
+    .form-group.full{grid-column:1/-1}
+    .form-label{font-size:12px;font-weight:700;color:var(--text)}
+    .form-label .req{color:var(--red)}
+    .form-input,.form-select,.form-textarea{border:1.5px solid var(--border);border-radius:10px;padding:9px 13px;font-size:13.5px;color:var(--text);background:#fafafa;outline:none;transition:border .15s;font-family:inherit}
+    .form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--green);background:#fff}
+    .form-textarea{resize:vertical;min-height:110px;line-height:1.6}
+    .form-hint{font-size:11.5px;color:var(--muted);margin-top:2px}
+    .freq-row{display:flex;gap:10px;align-items:center}
+    .freq-row select{flex:1}
+    .freq-row input{width:80px}
+    .form-section-title{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;padding-bottom:6px;border-bottom:1px solid var(--border)}
+    .var-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+    .var-chip{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:6px;background:#dbeafe;color:#1d4ed8;cursor:pointer;border:1px solid #bfdbfe;transition:all .12s}
+    .var-chip:hover{background:#1d4ed8;color:#fff}
+    .filters-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    .freq-preview{font-size:12px;color:var(--muted);background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-top:6px;line-height:1.5}
+    .freq-preview strong{color:var(--text)}
+    .toggle-active{display:flex;align-items:center;gap:10px}
+    .toggle-switch{width:40px;height:22px;border-radius:11px;background:#cbd5e1;cursor:pointer;transition:.2s;position:relative;flex-shrink:0}
+    .toggle-switch.on{background:var(--green)}
+    .toggle-switch::after{content:'';position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+    .toggle-switch.on::after{left:21px}
+    .section-divider{height:1px;background:var(--border);margin:4px 0}
+    .dispatch-result{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;display:none}
+    .dispatch-result.show{display:block}
+    .dispatch-result h4{font-size:13px;font-weight:700;color:var(--green);margin-bottom:6px}
+    .dispatch-result p{font-size:12.5px;color:#166534;line-height:1.5}
+  </style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sb-brand">
+    <div class="sb-icon">⚡</div>
+    <div class="sb-name">Flow<span>CRM</span></div>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-section">Principal</div>
+    <a class="nav-item" href="crm-dashboard.html"><span class="ico">📊</span>Dashboard</a>
+    <a class="nav-item" href="crm-pipeline.html"><span class="ico">🗂️</span>Pipeline</a>
+    <a class="nav-item" href="crm-contatos.html"><span class="ico">👥</span>Contatos</a>
+    <a class="nav-item" href="crm-tarefas.html"><span class="ico">✅</span>Tarefas</a>
+    <div class="sb-section">Crescimento</div>
+    <a class="nav-item active" href="crm-campanhas.html"><span class="ico">🚀</span>Campanhas<span class="badge">2</span></a>
+    <a class="nav-item" href="crm-relatorios.html"><span class="ico">📈</span>Relatórios</a>
+    <div class="sb-section">Sistema</div>
+    <a class="nav-item" href="crm-importar.html"><span class="ico">📥</span>Importar</a>
+    <a class="nav-item" href="crm-integracoes.html"><span class="ico">🔌</span>Integrações</a>
+    <a class="nav-item" href="crm-configuracoes.html"><span class="ico">⚙️</span>Configurações</a>
+  </nav>
+  <div class="sb-bottom">
+    <div class="user-row">
+      <div class="user-avatar" id="sidebarAvatar">W</div>
+      <div class="user-info">
+        <div class="name" id="sidebarName">Williams</div>
+        <div class="plan">Plano Profissional</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div>
+      <div class="page-title">Campanhas <span>Reativação & Disparos</span></div>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn-sm btn-ghost" onclick="openModal()">📋 Templates</button>
+      <button class="btn-sm btn-green" onclick="openModal()">＋ Nova Regra</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- KPI Strip -->
+    <div class="kpi-strip">
+      <div class="kpi green">
+        <span class="kpi-icon">📤</span>
+        <div class="kpi-label">Disparados este mês</div>
+        <div class="kpi-value" id="kpi-sent">—</div>
+        <div class="kpi-sub neutral" id="kpi-sent-sub">carregando...</div>
+      </div>
+      <div class="kpi blue">
+        <span class="kpi-icon">👁️</span>
+        <div class="kpi-label">Taxa de leitura</div>
+        <div class="kpi-value" id="kpi-read">—</div>
+        <div class="kpi-sub neutral">mensagens abertas</div>
+      </div>
+      <div class="kpi purple">
+        <span class="kpi-icon">💬</span>
+        <div class="kpi-label">Taxa de resposta</div>
+        <div class="kpi-value" id="kpi-reply">—</div>
+        <div class="kpi-sub neutral">responderam</div>
+      </div>
+      <div class="kpi amber">
+        <span class="kpi-icon">🎯</span>
+        <div class="kpi-label">Conversões</div>
+        <div class="kpi-value" id="kpi-conv">—</div>
+        <div class="kpi-sub up" id="kpi-conv-sub">novos negócios gerados</div>
+      </div>
+    </div>
+
+    <!-- Body Grid -->
+    <div class="body-grid">
+
+      <!-- Rules list -->
+      <div class="rules-panel">
+        <div class="rp-header">
+          <div class="rp-title">Regras de automação</div>
+          <div class="rp-count" id="rulesCount">0 regras</div>
+        </div>
+        <div class="rp-search">
+          <input type="text" placeholder="Buscar regra..." oninput="filterRules(this.value)"/>
+        </div>
+        <div class="rules-list" id="rulesList">
+          <div style="padding:30px;text-align:center;color:#94a3b8">Carregando...</div>
+        </div>
+      </div>
+
+      <!-- Detail panel -->
+      <div class="detail-panel" id="detailPanel">
+        <div class="empty-detail" id="emptyDetail">
+          <div class="empty-ico">🚀</div>
+          <div class="empty-title">Selecione uma regra</div>
+          <div class="empty-sub">Clique em uma regra para ver os contatos que serão impactados e disparar a campanha manualmente.</div>
+          <button class="btn-sm btn-green" style="margin-top:8px" onclick="openModal()">＋ Criar primeira regra</button>
+        </div>
+        <div id="detailContent" style="display:none;flex:1;flex-direction:column;overflow:hidden;display:none"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: criar/editar regra -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">Nova Regra de Automação</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="form-section-title">Identificação</div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label class="form-label">Nome da regra <span class="req">*</span></label>
+          <input class="form-input" id="m-name" placeholder="Ex: Reativação pós-consulta, Follow-up abandono..."/>
+        </div>
+      </div>
+
+      <div class="form-section-title">Quando disparar</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Cliente inativo há <span class="req">*</span></label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input class="form-input" id="m-inactive" type="number" min="1" value="14" style="width:90px" oninput="updateFreqPreview()"/>
+            <span style="font-size:13px;color:var(--muted)">dias sem atividade</span>
+          </div>
+          <div class="form-hint">0 = dispara para todos; 1 = inativo desde ontem</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Frequência de disparo</label>
+          <div class="freq-row">
+            <select class="form-select" id="m-freq-type" onchange="toggleFreqInput()">
+              <option value="1">Todo dia</option>
+              <option value="7" selected>Toda semana</option>
+              <option value="14">A cada 2 semanas</option>
+              <option value="30">Todo mês</option>
+              <option value="custom">Personalizado</option>
+            </select>
+            <input class="form-input" id="m-freq-custom" type="number" min="1" value="7" style="display:none;width:70px" placeholder="dias" oninput="updateFreqPreview()"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="freq-preview" id="freqPreview"></div>
+
+      <div class="form-section-title">Filtros de segmentação</div>
+      <div class="filters-grid">
+        <div class="form-group">
+          <label class="form-label">Temperatura</label>
+          <select class="form-select" id="m-filter-temp">
+            <option value="">Todas</option>
+            <option value="hot">Quente</option>
+            <option value="warm">Morno</option>
+            <option value="cold">Frio</option>
+            <option value="new">Novo</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Origem</label>
+          <select class="form-select" id="m-filter-origin">
+            <option value="">Todas</option>
+            <option value="whatsapp">WhatsApp</option>
+            <option value="indicacao">Indicação</option>
+            <option value="instagram">Instagram</option>
+            <option value="google_ads">Google Ads</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Estágio do pipeline</label>
+          <select class="form-select" id="m-filter-stage">
+            <option value="">Todos</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-section-title">Mensagem</div>
+      <div class="form-group">
+        <label class="form-label">Template da mensagem WhatsApp <span class="req">*</span></label>
+        <div class="var-chips">
+          <span class="var-chip" onclick="insertVar('{{nome}}')">{{nome}}</span>
+          <span class="var-chip" onclick="insertVar('{{empresa}}')">{{empresa}}</span>
+          <span class="var-chip" onclick="insertVar('{{dias_inativo}}')">{{dias_inativo}}</span>
+          <span class="var-chip" onclick="insertVar('{{ultimo_negocio}}')">{{ultimo_negocio}}</span>
+          <span class="var-chip" onclick="insertVar('{{segmento}}')">{{segmento}}</span>
+        </div>
+        <textarea class="form-textarea" id="m-message" placeholder="Olá, {{nome}}! Faz {{dias_inativo}} dias que não te vemos por aqui. Temos novidades especiais para você! ..." style="margin-top:8px" oninput="updateMsgPreview()"></textarea>
+        <div class="form-hint">Clique nas variáveis acima para inserir no cursor</div>
+      </div>
+
+      <!-- Preview da mensagem -->
+      <div class="msg-preview-wrap">
+        <div class="msg-preview-label">📱 Preview (como vai aparecer)</div>
+        <div class="msg-bubble" id="msgPreviewModal">—</div>
+      </div>
+
+      <div class="section-divider"></div>
+      <div class="form-group">
+        <div class="toggle-active">
+          <div class="toggle-switch on" id="m-active-toggle" onclick="this.classList.toggle('on')"></div>
+          <label class="form-label" style="margin:0">Regra ativa — disparará automaticamente conforme a frequência</label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-sm btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn-sm btn-green" onclick="saveRule()">Salvar Regra</button>
+    </div>
+  </div>
+</div>
+
+<script src="flowcrm-api.js"></script>
+<script>
+  authGuard();
+
+  let rules = [], selectedRule = null, editingId = null, allStages = [];
+
+  // ── LOAD ──────────────────────────────────────────────────────────────────
+  async function init() {
+    const [rulesData, stagesData, meData] = await Promise.all([
+      api('/campaigns'),
+      api('/settings/stages'),
+      api('/auth/me'),
+    ]);
+
+    if (meData) {
+      document.getElementById('sidebarName').textContent = meData.name?.split(' ')[0] || 'Usuário';
+      document.getElementById('sidebarAvatar').textContent = (meData.name || 'U')[0].toUpperCase();
+    }
+
+    allStages = stagesData || [];
+    const stageSelect = document.getElementById('m-filter-stage');
+    stageSelect.innerHTML = '<option value="">Todos</option>' + allStages.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+
+    if (rulesData) {
+      rules = rulesData.rules || [];
+      renderKPIs(rulesData.stats || {});
+      renderRulesList();
+    }
+    updateFreqPreview();
+  }
+
+  function renderKPIs(stats) {
+    document.getElementById('kpi-sent').textContent = stats.sent ?? 0;
+    document.getElementById('kpi-sent-sub').textContent = (stats.activeRules ?? 0) + ' regras ativas';
+    document.getElementById('kpi-read').textContent = stats.readRate ? stats.readRate + '%' : '—';
+    document.getElementById('kpi-reply').textContent = stats.replyRate ? stats.replyRate + '%' : '—';
+    document.getElementById('kpi-conv').textContent = stats.conversions ?? 0;
+  }
+
+  // ── RENDER RULES ──────────────────────────────────────────────────────────
+  function renderRulesList(filter = '') {
+    const list = document.getElementById('rulesList');
+    const filtered = rules.filter(r => !filter || r.name.toLowerCase().includes(filter));
+    document.getElementById('rulesCount').textContent = filtered.length + ' regras';
+
+    if (!filtered.length) {
+      list.innerHTML = `<div style="padding:30px;text-align:center;color:#94a3b8;font-size:13px">
+        ${rules.length ? 'Nenhuma regra encontrada.' : 'Nenhuma regra criada ainda.<br><br><button onclick="openModal()" style="background:var(--green);color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Criar primeira regra</button>'}
+      </div>`;
+      return;
+    }
+
+    list.innerHTML = filtered.map(r => {
+      const tags = [];
+      if (r.filters?.temperature) tags.push({ cls: tempTagCls(r.filters.temperature), label: tempLabel(r.filters.temperature) });
+      if (r.filters?.origin) tags.push({ cls: 'blue', label: r.filters.origin });
+      tags.push({ cls: 'green', label: `Inativo ${r.inactiveDays}d` });
+      tags.push({ cls: 'amber', label: freqLabel(r.frequencyDays) });
+
+      const lastRun = r.lastRunAt ? new Date(r.lastRunAt).toLocaleDateString('pt-BR', { day:'2-digit', month:'short' }) : 'Nunca disparado';
+      const nextRun = r.active && r.nextRunAt ? new Date(r.nextRunAt).toLocaleDateString('pt-BR', { day:'2-digit', month:'short' }) : null;
+
+      return `<div class="rule-card ${selectedRule?.id === r.id ? 'selected' : ''} ${!r.active ? 'paused' : ''}" onclick="selectRule('${r.id}')">
+        <div class="rc-top">
+          <div class="rc-name">${r.name}</div>
+          <div class="rc-status ${r.active ? 'active' : 'paused'}">
+            <div class="rc-dot"></div>${r.active ? 'Ativa' : 'Pausada'}
+          </div>
+        </div>
+        <div class="rc-tags">${tags.map(t => `<span class="rc-tag ${t.cls}">${t.label}</span>`).join('')}</div>
+        <div class="rc-stats">
+          <div class="rc-stat">Último: <strong>${lastRun}</strong></div>
+          ${nextRun ? `<div class="rc-stat">Próximo: <strong>${nextRun}</strong></div>` : ''}
+          <div class="rc-stat">Disparos: <strong>${r._count?.dispatches ?? 0}</strong></div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function filterRules(v) { renderRulesList(v.toLowerCase()); }
+
+  // ── SELECT RULE ────────────────────────────────────────────────────────────
+  async function selectRule(id) {
+    selectedRule = rules.find(r => r.id === id);
+    if (!selectedRule) return;
+    renderRulesList();
+
+    const preview = await api('/campaigns/' + id + '/preview');
+    showDetail(selectedRule, preview || { contacts: [], total: 0 });
+  }
+
+  function showDetail(rule, preview) {
+    document.getElementById('emptyDetail').style.display = 'none';
+    const dc = document.getElementById('detailContent');
+    dc.style.display = 'flex';
+
+    const stageFilter = allStages.find(s => s.id === rule.filters?.stageId);
+    const freqLabel_ = freqLabel(rule.frequencyDays);
+    const lastRun = rule.lastRunAt ? new Date(rule.lastRunAt).toLocaleDateString('pt-BR', { day:'2-digit', month:'short', year:'numeric' }) : 'Nunca';
+    const nextRun = rule.nextRunAt ? new Date(rule.nextRunAt).toLocaleDateString('pt-BR', { day:'2-digit', month:'short', year:'numeric' }) : '—';
+
+    // Render message preview with sample contact
+    const sample = preview.contacts?.[0];
+    const msgRendered = renderMsg(rule.messageTemplate, sample);
+
+    dc.innerHTML = `
+      <div class="dp-header">
+        <div class="dp-title">${rule.name}</div>
+        <div class="dp-actions">
+          <button class="toggle-btn ${rule.active ? 'on' : 'off'}" onclick="toggleRule('${rule.id}')">
+            ${rule.active ? '● Ativa' : '○ Pausada'}
+          </button>
+          <button class="btn-edit" onclick="openModal('${rule.id}')">✏️ Editar</button>
+          <button class="btn-dispatch" onclick="dispatchNow('${rule.id}')">⚡ Disparar agora (${preview.total})</button>
+        </div>
+      </div>
+      <div class="dp-body">
+        <div class="dp-left">
+          <div>
+            <div class="dp-section">Configuração</div>
+            <div class="dp-config-row"><span class="dp-config-label">Inatividade</span><span class="dp-config-val green">≥ ${rule.inactiveDays} dias</span></div>
+            <div class="dp-config-row"><span class="dp-config-label">Frequência</span><span class="dp-config-val">${freqLabel_}</span></div>
+            <div class="dp-config-row"><span class="dp-config-label">Temperatura</span><span class="dp-config-val">${rule.filters?.temperature ? tempLabel(rule.filters.temperature) : 'Todas'}</span></div>
+            <div class="dp-config-row"><span class="dp-config-label">Origem</span><span class="dp-config-val">${rule.filters?.origin || 'Todas'}</span></div>
+            <div class="dp-config-row"><span class="dp-config-label">Estágio</span><span class="dp-config-val">${stageFilter?.name || 'Todos'}</span></div>
+            <div class="dp-config-row"><span class="dp-config-label">Último disparo</span><span class="dp-config-val">${lastRun}</span></div>
+            <div class="dp-config-row"><span class="dp-config-label">Próximo disparo</span><span class="dp-config-val">${nextRun}</span></div>
+          </div>
+          <div>
+            <div class="dp-section">Funil de desempenho</div>
+            <div class="funnel-mini">
+              <div class="funnel-step" style="background:#2980b9"><span>${rule._stats?.sent??0}</span>Enviados</div>
+              <div class="funnel-step" style="background:#8e44ad"><span>${rule._stats?.read??0}</span>Lidos</div>
+              <div class="funnel-step" style="background:#16a085"><span>${rule._stats?.replied??0}</span>Respondidos</div>
+              <div class="funnel-step" style="background:#27ae60"><span>${rule._stats?.converted??0}</span>Convertidos</div>
+            </div>
+          </div>
+          <div>
+            <div class="dp-section">Preview da mensagem</div>
+            <div class="msg-preview-wrap">
+              <div class="msg-preview-label">📱 ${sample ? sample.name : 'Mensagem modelo'}</div>
+              <div class="msg-bubble">${msgRendered}</div>
+            </div>
+          </div>
+          <div id="dispatchResult" class="dispatch-result"></div>
+        </div>
+        <div class="dp-right">
+          <div class="dp-preview-header">
+            <div class="dp-preview-title">Contatos que serão impactados</div>
+            <div class="dp-preview-count">${preview.total} contatos elegíveis</div>
+          </div>
+          <div class="preview-list" id="previewList">
+            ${(preview.contacts || []).map((c, i) => {
+              const days = Math.floor((Date.now() - new Date(c.lastActivityAt || c.updatedAt)) / 86400000);
+              const cls = days >= rule.inactiveDays * 2 ? '' : 'warn';
+              return `<div class="preview-row">
+                <div class="pr-avatar" style="background:${palColor(i)}">${initials(c.name)}</div>
+                <div class="pr-info">
+                  <div class="pr-name">${c.name}</div>
+                  <div class="pr-meta">${c.phone || c.email || '—'} · ${c.origin || 'Sem origem'}</div>
+                </div>
+                <div class="pr-days ${cls}">Inativo há ${days}d</div>
+              </div>`;
+            }).join('')}
+            ${preview.total > (preview.contacts?.length || 0) ? `<div style="text-align:center;font-size:12px;color:var(--muted);padding:10px">+${preview.total - (preview.contacts?.length||0)} contatos não exibidos</div>` : ''}
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderMsg(template, contact) {
+    if (!template) return '—';
+    let msg = template
+      .replace(/{{nome}}/g, contact?.name || '<span class="msg-var">{{nome}}</span>')
+      .replace(/{{empresa}}/g, contact?.company || '<span class="msg-var">{{empresa}}</span>')
+      .replace(/{{dias_inativo}}/g, contact ? Math.floor((Date.now() - new Date(contact.updatedAt)) / 86400000) : '<span class="msg-var">{{dias_inativo}}</span>')
+      .replace(/{{ultimo_negocio}}/g, contact?.deals?.[0]?.title || '<span class="msg-var">{{ultimo_negocio}}</span>')
+      .replace(/{{segmento}}/g, '<span class="msg-var">{{segmento}}</span>');
+    return msg.replace(/\n/g, '<br>');
+  }
+
+  // ── TOGGLE ACTIVE ──────────────────────────────────────────────────────────
+  async function toggleRule(id) {
+    const rule = rules.find(r => r.id === id);
+    if (!rule) return;
+    const updated = await api('/campaigns/' + id, { method: 'PATCH', body: JSON.stringify({ active: !rule.active }) });
+    if (updated) { rule.active = updated.active; rule.nextRunAt = updated.nextRunAt; renderRulesList(); selectRule(id); }
+  }
+
+  // ── DISPATCH NOW ──────────────────────────────────────────────────────────
+  async function dispatchNow(id) {
+    const btn = document.querySelector('.btn-dispatch');
+    if (btn) { btn.textContent = '⏳ Disparando...'; btn.disabled = true; }
+    const result = await api('/campaigns/' + id + '/dispatch', { method: 'POST' });
+    if (btn) { btn.textContent = '✓ Disparado!'; btn.style.background = '#16a085'; }
+    if (result) {
+      const el = document.getElementById('dispatchResult');
+      el.innerHTML = `<h4>✅ Campanha disparada com sucesso!</h4><p>${result.sent} mensagens enfileiradas · ${result.skipped} já receberam recentemente · ${result.errors} erros</p>`;
+      el.classList.add('show');
+      setTimeout(() => { el.classList.remove('show'); if(btn){btn.textContent=`⚡ Disparar agora`;btn.style.background='';btn.disabled=false;} }, 5000);
+      init();
+    }
+  }
+
+  // ── MODAL ─────────────────────────────────────────────────────────────────
+  function openModal(id = null) {
+    editingId = id;
+    document.getElementById('modalTitle').textContent = id ? 'Editar Regra' : 'Nova Regra de Automação';
+    if (id) {
+      const r = rules.find(x => x.id === id);
+      if (r) {
+        document.getElementById('m-name').value = r.name;
+        document.getElementById('m-inactive').value = r.inactiveDays;
+        const freqType = [1,7,14,30].includes(r.frequencyDays) ? String(r.frequencyDays) : 'custom';
+        document.getElementById('m-freq-type').value = freqType;
+        if (freqType === 'custom') { document.getElementById('m-freq-custom').style.display = ''; document.getElementById('m-freq-custom').value = r.frequencyDays; }
+        document.getElementById('m-filter-temp').value = r.filters?.temperature || '';
+        document.getElementById('m-filter-origin').value = r.filters?.origin || '';
+        document.getElementById('m-filter-stage').value = r.filters?.stageId || '';
+        document.getElementById('m-message').value = r.messageTemplate;
+        document.getElementById('m-active-toggle').className = 'toggle-switch ' + (r.active ? 'on' : '');
+      }
+    } else {
+      document.getElementById('m-name').value = '';
+      document.getElementById('m-inactive').value = 14;
+      document.getElementById('m-freq-type').value = '7';
+      document.getElementById('m-freq-custom').style.display = 'none';
+      document.getElementById('m-filter-temp').value = '';
+      document.getElementById('m-filter-origin').value = '';
+      document.getElementById('m-filter-stage').value = '';
+      document.getElementById('m-message').value = '';
+      document.getElementById('m-active-toggle').className = 'toggle-switch on';
+    }
+    updateFreqPreview(); updateMsgPreview();
+    document.getElementById('overlay').classList.add('open');
+  }
+  function closeModal() { document.getElementById('overlay').classList.remove('open'); editingId = null; }
+
+  function toggleFreqInput() {
+    const v = document.getElementById('m-freq-type').value;
+    document.getElementById('m-freq-custom').style.display = v === 'custom' ? '' : 'none';
+    updateFreqPreview();
+  }
+
+  function updateFreqPreview() {
+    const inactive = document.getElementById('m-inactive').value;
+    const freqType = document.getElementById('m-freq-type').value;
+    const freqDays = freqType === 'custom' ? document.getElementById('m-freq-custom').value : freqType;
+    const freqText = freqDays == 1 ? 'todos os dias' : `a cada ${freqDays} dias`;
+    document.getElementById('freqPreview').innerHTML =
+      `Busca contatos <strong>inativos há ${inactive}+ dias</strong> e envia a mensagem <strong>${freqText}</strong>.<br>O mesmo contato não recebe duas vezes no período.`;
+  }
+
+  function updateMsgPreview() {
+    const msg = document.getElementById('m-message').value;
+    const preview = msg
+      .replace(/{{nome}}/g, '<span class="msg-var">Maria Clara</span>')
+      .replace(/{{empresa}}/g, '<span class="msg-var">Clínica Vida Plena</span>')
+      .replace(/{{dias_inativo}}/g, `<span class="msg-var">${document.getElementById('m-inactive').value}</span>`)
+      .replace(/{{ultimo_negocio}}/g, '<span class="msg-var">Consulta cardiologia</span>')
+      .replace(/{{segmento}}/g, '<span class="msg-var">Saúde</span>')
+      .replace(/\n/g, '<br>') || '—';
+    document.getElementById('msgPreviewModal').innerHTML = preview;
+  }
+
+  function insertVar(varName) {
+    const ta = document.getElementById('m-message');
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    ta.value = ta.value.substring(0, start) + varName + ta.value.substring(end);
+    ta.selectionStart = ta.selectionEnd = start + varName.length;
+    ta.focus();
+    updateMsgPreview();
+  }
+
+  async function saveRule() {
+    const name = document.getElementById('m-name').value.trim();
+    const msg  = document.getElementById('m-message').value.trim();
+    if (!name || !msg) { alert('Nome e mensagem são obrigatórios.'); return; }
+    const freqType = document.getElementById('m-freq-type').value;
+    const frequencyDays = freqType === 'custom' ? +document.getElementById('m-freq-custom').value : +freqType;
+    const body = {
+      name,
+      inactiveDays:     +document.getElementById('m-inactive').value,
+      frequencyDays,
+      messageTemplate:  msg,
+      active:           document.getElementById('m-active-toggle').classList.contains('on'),
+      filters: {
+        temperature: document.getElementById('m-filter-temp').value || null,
+        origin:      document.getElementById('m-filter-origin').value || null,
+        stageId:     document.getElementById('m-filter-stage').value || null,
+      },
+    };
+    const result = editingId
+      ? await api('/campaigns/' + editingId, { method: 'PATCH', body: JSON.stringify(body) })
+      : await api('/campaigns', { method: 'POST', body: JSON.stringify(body) });
+    if (result) { closeModal(); await init(); if (result.id) selectRule(result.id); }
+  }
+
+  // ── HELPERS ───────────────────────────────────────────────────────────────
+  function freqLabel(days) {
+    if (days == 1) return 'Todo dia';
+    if (days == 7) return 'Semanal';
+    if (days == 14) return 'Quinzenal';
+    if (days == 30) return 'Mensal';
+    return `A cada ${days}d`;
+  }
+  function tempLabel(t) { return { hot:'🔥 Quente', warm:'🌡️ Morno', cold:'❄️ Frio', new:'🆕 Novo' }[t] || t; }
+  function tempTagCls(t) { return { hot:'', warm:'amber', cold:'blue', new:'green' }[t] || ''; }
+
+  init();
+</script>
+</body>
+</html>

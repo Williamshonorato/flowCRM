@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>FlowCRM — Importar Planilha</title>
+  <!-- SheetJS para ler .xlsx -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{
+      --green:#27ae60;--blue:#2980b9;--purple:#8e44ad;--amber:#f39c12;--red:#e74c3c;
+      --sidebar:#0f172a;--text:#1e293b;--muted:#64748b;--border:#e2e8f0;--bg:#f1f5f9;
+    }
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);display:flex;min-height:100vh}
+
+    /* SIDEBAR */
+    .sidebar{width:230px;min-height:100vh;background:var(--sidebar);display:flex;flex-direction:column;flex-shrink:0}
+    .sb-brand{padding:20px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.07)}
+    .sb-icon{width:34px;height:34px;background:linear-gradient(135deg,var(--green),#1abc9c);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px}
+    .sb-name{font-size:17px;font-weight:800;color:#fff}.sb-name span{color:var(--green)}
+    .sb-nav{flex:1;padding:14px 10px}
+    .sb-section{font-size:10px;font-weight:700;color:#334155;letter-spacing:.8px;text-transform:uppercase;padding:10px 10px 6px}
+    .nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;font-size:13.5px;font-weight:500;color:#94a3b8;cursor:pointer;text-decoration:none;transition:all .18s;margin-bottom:2px}
+    .nav-item:hover{background:rgba(255,255,255,.06);color:#e2e8f0}
+    .nav-item.active{background:linear-gradient(135deg,rgba(39,174,96,.18),rgba(26,188,156,.1));color:#4ade80;font-weight:700}
+    .nav-item .ico{width:18px;text-align:center;font-size:15px}
+    .nav-item .badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:10px}
+    .sb-bottom{padding:14px 10px;border-top:1px solid rgba(255,255,255,.07)}
+    .user-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;cursor:pointer}
+    .user-row:hover{background:rgba(255,255,255,.06)}
+    .user-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--green),#1abc9c);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff}
+    .user-info .name{font-size:13px;font-weight:600;color:#e2e8f0}
+    .user-info .plan{font-size:11px;color:#64748b}
+
+    /* MAIN */
+    .main{flex:1;display:flex;flex-direction:column;min-width:0}
+    .topbar{background:#fff;border-bottom:1px solid var(--border);padding:0 28px;height:58px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+    .page-title{font-size:17px;font-weight:800;color:var(--text)}
+    .page-sub{font-size:13px;color:var(--muted);font-weight:400;margin-left:8px}
+
+    /* STEPPER */
+    .stepper-bar{background:#fff;border-bottom:1px solid var(--border);padding:0 28px;height:52px;display:flex;align-items:center;gap:0}
+    .step-item{display:flex;align-items:center;gap:8px;padding:0 20px 0 0;position:relative}
+    .step-item:not(:last-child)::after{content:'›';position:absolute;right:4px;color:var(--border);font-size:18px}
+    .step-num{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;border:2px solid var(--border);color:var(--muted);transition:all .3s}
+    .step-lbl{font-size:13px;font-weight:600;color:var(--muted);transition:color .3s}
+    .step-item.active .step-num{border-color:var(--green);background:var(--green);color:#fff}
+    .step-item.active .step-lbl{color:var(--green)}
+    .step-item.done .step-num{border-color:var(--green);background:var(--green);color:#fff}
+    .step-item.done .step-lbl{color:var(--text)}
+
+    /* CONTENT */
+    .content{flex:1;padding:28px;overflow-y:auto;display:flex;flex-direction:column;gap:24px}
+
+    /* PANEL */
+    .panel{background:#fff;border:1px solid var(--border);border-radius:16px;padding:28px}
+    .panel-title{font-size:15px;font-weight:800;color:var(--text);margin-bottom:6px}
+    .panel-sub{font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.6}
+
+    /* STEP 1 — UPLOAD */
+    #step1{}
+    .upload-zone{
+      border:2.5px dashed var(--border);
+      border-radius:16px;
+      padding:48px 28px;
+      text-align:center;
+      cursor:pointer;
+      transition:all .2s;
+      background:#fafcff;
+      position:relative;
+    }
+    .upload-zone:hover,.upload-zone.drag-over{border-color:var(--green);background:#f0fdf4}
+    .upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+    .upload-ico{font-size:48px;margin-bottom:14px;display:block}
+    .upload-title{font-size:18px;font-weight:800;color:var(--text);margin-bottom:6px}
+    .upload-sub{font-size:13px;color:var(--muted)}
+    .upload-formats{display:inline-flex;gap:8px;margin-top:14px}
+    .fmt-badge{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700}
+    .fmt-xlsx{background:#e8f5e9;color:#2e7d32}
+    .fmt-csv{background:#e3f2fd;color:#1565c0}
+    .fmt-ods{background:#fce4ec;color:#c62828}
+
+    .tips{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:24px}
+    .tip{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px}
+    .tip-ico{font-size:22px;margin-bottom:8px}
+    .tip-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px}
+    .tip-text{font-size:12px;color:var(--muted);line-height:1.5}
+
+    .sample-link{display:inline-flex;align-items:center;gap:6px;margin-top:16px;font-size:13px;color:var(--blue);font-weight:600;cursor:pointer;text-decoration:none}
+    .sample-link:hover{text-decoration:underline}
+
+    /* FILE PREVIEW BANNER */
+    .file-banner{display:none;align-items:center;gap:14px;padding:14px 18px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;margin-top:16px}
+    .file-banner.show{display:flex}
+    .file-ico{font-size:28px}
+    .file-info .name{font-size:14px;font-weight:700;color:var(--text)}
+    .file-info .meta{font-size:12px;color:var(--muted);margin-top:2px}
+    .file-change{margin-left:auto;font-size:12px;color:var(--red);font-weight:600;cursor:pointer}
+
+    /* STEP 2 — MAPEAMENTO */
+    #step2{display:none}
+    .map-grid{display:flex;flex-direction:column;gap:0;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    .map-head{display:grid;grid-template-columns:1fr 40px 1fr 120px;align-items:center;padding:10px 16px;background:var(--bg);border-bottom:1px solid var(--border)}
+    .map-head-cell{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+    .map-row{display:grid;grid-template-columns:1fr 40px 1fr 120px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);transition:background .15s}
+    .map-row:last-child{border-bottom:none}
+    .map-row:hover{background:#fafafa}
+    .col-from{font-size:13px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:8px}
+    .col-sample{font-size:11px;color:var(--muted);background:var(--bg);padding:2px 8px;border-radius:4px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .arr{color:var(--muted);font-size:18px;text-align:center}
+    .map-select{width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;color:var(--text);background:#fff;outline:none;cursor:pointer}
+    .map-select:focus{border-color:var(--green)}
+    .map-select.mapped{border-color:var(--green);background:#f0fdf4;color:var(--green);font-weight:600}
+    .map-select.skip{border-color:var(--border);color:var(--muted)}
+    .ignore-toggle{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;justify-content:center}
+    .ignore-toggle input{accent-color:var(--red)}
+
+    .map-summary{display:flex;gap:16px;padding:14px 16px;background:var(--bg);border:1px solid var(--border);border-radius:12px;margin-top:16px}
+    .ms-item{display:flex;align-items:center;gap:6px;font-size:13px}
+    .ms-dot{width:8px;height:8px;border-radius:50%}
+
+    /* STEP 3 — PREVIEW */
+    #step3{display:none}
+    .preview-info{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+    .pi-card{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px 18px;display:flex;flex-direction:column;gap:2px}
+    .pi-val{font-size:22px;font-weight:800;color:var(--text)}
+    .pi-lbl{font-size:11px;color:var(--muted);font-weight:600}
+    .pi-card.green .pi-val{color:var(--green)}
+    .pi-card.red .pi-val{color:var(--red)}
+
+    .preview-table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:12px}
+    .preview-table{width:100%;border-collapse:collapse;font-size:13px}
+    .preview-table th{padding:10px 14px;background:var(--bg);font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--border)}
+    .preview-table td{padding:11px 14px;border-bottom:1px solid var(--border);color:var(--text);white-space:nowrap}
+    .preview-table tr:last-child td{border-bottom:none}
+    .preview-table tr:hover td{background:#f8fafc}
+    .row-ok{background:#f0fdf4}
+    .row-warn{background:#fffbeb}
+    .row-err{background:#fef2f2}
+    .status-ok{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--green)}
+    .status-warn{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--amber)}
+    .status-err{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--red)}
+    .more-rows{padding:12px 14px;text-align:center;font-size:13px;color:var(--muted);background:var(--bg);border-top:1px solid var(--border)}
+
+    /* STEP 4 — RESULTADO */
+    #step4{display:none}
+    .result-center{text-align:center;padding:20px 0 32px}
+    .result-icon{width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,var(--green),#1abc9c);display:flex;align-items:center;justify-content:center;font-size:36px;margin:0 auto 20px;box-shadow:0 8px 28px rgba(39,174,96,.3);animation:pop .4s cubic-bezier(.34,1.56,.64,1)}
+    @keyframes pop{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+    .result-title{font-size:24px;font-weight:800;color:var(--text);margin-bottom:8px}
+    .result-sub{font-size:14px;color:var(--muted);max-width:400px;margin:0 auto 28px;line-height:1.7}
+    .result-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;max-width:480px;margin:0 auto 28px}
+    .rg-card{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px}
+    .rg-val{font-size:28px;font-weight:800;margin-bottom:4px}
+    .rg-lbl{font-size:12px;color:var(--muted);font-weight:600}
+    .rg-card.green .rg-val{color:var(--green)}
+    .rg-card.amber .rg-val{color:var(--amber)}
+    .rg-card.red .rg-val{color:var(--red)}
+    .result-actions{display:flex;gap:10px;justify-content:center}
+    .btn-primary{padding:13px 28px;background:linear-gradient(135deg,var(--green),#1abc9c);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(39,174,96,.3)}
+    .btn-outline{padding:13px 24px;background:#fff;border:1.5px solid var(--border);border-radius:10px;font-size:14px;font-weight:600;color:var(--text);cursor:pointer}
+    .btn-outline:hover{border-color:#94a3b8}
+
+    /* ACTIONS BAR */
+    .actions-bar{background:#fff;border-top:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0}
+    .btn-back{padding:10px 20px;background:#fff;border:1.5px solid var(--border);border-radius:9px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer}
+    .btn-next{padding:11px 28px;background:linear-gradient(135deg,var(--green),#1abc9c);color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 3px 12px rgba(39,174,96,.3)}
+    .btn-next:disabled{opacity:.4;cursor:default}
+    .actions-hint{font-size:12px;color:var(--muted)}
+
+    /* PROGRESS BAR */
+    .progress-wrap{display:none;flex-direction:column;gap:10px;margin-top:20px}
+    .progress-wrap.show{display:flex}
+    .progress-label{font-size:13px;font-weight:600;color:var(--text);display:flex;justify-content:space-between}
+    .progress-track{height:8px;background:var(--border);border-radius:4px;overflow:hidden}
+    .progress-fill{height:100%;background:linear-gradient(90deg,var(--green),#1abc9c);border-radius:4px;width:0;transition:width .1s linear}
+  </style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sb-brand">
+    <div class="sb-icon">⚡</div>
+    <div class="sb-name">Flow<span>CRM</span></div>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-section">Principal</div>
+    <a class="nav-item" href="crm-dashboard.html"><span class="ico">📊</span>Dashboard</a>
+    <a class="nav-item" href="crm-pipeline.html"><span class="ico">🗂️</span>Pipeline</a>
+    <a class="nav-item" href="crm-contatos.html"><span class="ico">👥</span>Contatos</a>
+    <a class="nav-item" href="crm-tarefas.html"><span class="ico">✅</span>Tarefas<span class="badge">4</span></a>
+    <div class="sb-section">Sistema</div>
+    <a class="nav-item" href="crm-relatorios.html"><span class="ico">📈</span>Relatórios</a>
+    <a class="nav-item active" href="crm-importar.html"><span class="ico">📥</span>Importar dados</a>
+    <a class="nav-item" href="crm-integracoes.html"><span class="ico">🔌</span>Integrações</a>
+    <a class="nav-item" href="crm-configuracoes.html"><span class="ico">⚙️</span>Configurações</a>
+  </nav>
+  <div class="sb-bottom">
+    <div class="user-row">
+      <div class="user-avatar">W</div>
+      <div class="user-info"><div class="name">Williams</div><div class="plan">Plano Profissional</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div>
+      <span class="page-title">Importar Planilha</span>
+      <span class="page-sub">Traga seus contatos do Excel ou Google Sheets em segundos</span>
+    </div>
+  </div>
+
+  <!-- STEPPER -->
+  <div class="stepper-bar">
+    <div class="step-item active" id="si1"><div class="step-num">1</div><div class="step-lbl">Upload</div></div>
+    <div class="step-item" id="si2"><div class="step-num">2</div><div class="step-lbl">Mapear colunas</div></div>
+    <div class="step-item" id="si3"><div class="step-num">3</div><div class="step-lbl">Revisar dados</div></div>
+    <div class="step-item" id="si4"><div class="step-num">4</div><div class="step-lbl">Concluído</div></div>
+  </div>
+
+  <div class="content">
+
+    <!-- STEP 1: UPLOAD -->
+    <div id="step1">
+      <div class="panel">
+        <div class="panel-title">Envie sua planilha</div>
+        <div class="panel-sub">Suportamos arquivos do Excel (.xlsx), CSV e LibreOffice (.ods). Sua planilha pode ter qualquer nome de coluna — você vai mapear elas no próximo passo.</div>
+
+        <div class="upload-zone" id="dropZone">
+          <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.ods" onchange="handleFile(this.files[0])"/>
+          <span class="upload-ico">📂</span>
+          <div class="upload-title">Arraste sua planilha aqui</div>
+          <div class="upload-sub">ou clique para escolher o arquivo</div>
+          <div class="upload-formats">
+            <span class="fmt-badge fmt-xlsx">Excel .xlsx</span>
+            <span class="fmt-badge fmt-csv">CSV .csv</span>
+            <span class="fmt-badge fmt-ods">LibreOffice .ods</span>
+          </div>
+        </div>
+
+        <div class="file-banner" id="fileBanner">
+          <span class="file-ico" id="fileIco">📊</span>
+          <div class="file-info">
+            <div class="name" id="fileName">—</div>
+            <div class="meta" id="fileMeta">—</div>
+          </div>
+          <span class="file-change" onclick="resetFile()">✕ Remover</span>
+        </div>
+
+        <a class="sample-link" onclick="loadSample()">⬇️ Baixar planilha de exemplo</a>
+
+        <div class="tips">
+          <div class="tip">
+            <div class="tip-ico">🏷️</div>
+            <div class="tip-title">Nomes de coluna livres</div>
+            <div class="tip-text">Pode ter "Cliente", "Nome", "Paciente"... você decide como mapear cada coluna nos campos do CRM.</div>
+          </div>
+          <div class="tip">
+            <div class="tip-ico">🔁</div>
+            <div class="tip-title">Duplicatas detectadas</div>
+            <div class="tip-text">Comparamos e-mail e telefone antes de importar. Duplicatas são sinalizadas para você decidir o que fazer.</div>
+          </div>
+          <div class="tip">
+            <div class="tip-ico">🔒</div>
+            <div class="tip-title">Dados seguros</div>
+            <div class="tip-text">Arquivo processado no seu navegador. Nenhum dado da planilha é enviado a servidores externos antes da importação.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 2: MAPEAMENTO -->
+    <div id="step2">
+      <div class="panel">
+        <div class="panel-title">Mapear colunas</div>
+        <div class="panel-sub">Para cada coluna da sua planilha, escolha o campo correspondente no CRM. Colunas desnecessárias podem ser ignoradas.</div>
+
+        <div class="map-grid">
+          <div class="map-head">
+            <div class="map-head-cell">Coluna da planilha</div>
+            <div></div>
+            <div class="map-head-cell">Campo no CRM</div>
+            <div class="map-head-cell" style="text-align:center">Ignorar</div>
+          </div>
+          <div id="mapRows"></div>
+        </div>
+
+        <div class="map-summary" id="mapSummary"></div>
+      </div>
+    </div>
+
+    <!-- STEP 3: PREVIEW -->
+    <div id="step3">
+      <div class="panel">
+        <div class="panel-title">Revisar antes de importar</div>
+        <div class="panel-sub">Confira os dados que serão criados. Linhas com problemas estão sinalizadas — você pode corrigir na planilha e reimportar, ou ignorá-las agora.</div>
+
+        <div class="preview-info" id="previewInfo"></div>
+        <div class="preview-table-wrap">
+          <table class="preview-table">
+            <thead id="previewHead"></thead>
+            <tbody id="previewBody"></tbody>
+          </table>
+          <div class="more-rows" id="moreRows" style="display:none"></div>
+        </div>
+
+        <div class="progress-wrap" id="progressWrap">
+          <div class="progress-label"><span id="progressLbl">Importando...</span><span id="progressPct">0%</span></div>
+          <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 4: RESULTADO -->
+    <div id="step4">
+      <div class="panel">
+        <div class="result-center">
+          <div class="result-icon">✓</div>
+          <div class="result-title">Importação concluída!</div>
+          <div class="result-sub" id="resultSub">Seus contatos foram importados com sucesso e já estão disponíveis no CRM.</div>
+          <div class="result-grid">
+            <div class="rg-card green"><div class="rg-val" id="r-ok">0</div><div class="rg-lbl">Importados</div></div>
+            <div class="rg-card amber"><div class="rg-val" id="r-dup">0</div><div class="rg-lbl">Duplicatas ignoradas</div></div>
+            <div class="rg-card red"><div class="rg-val" id="r-err">0</div><div class="rg-lbl">Com erro</div></div>
+          </div>
+          <div class="result-actions">
+            <button class="btn-primary" onclick="window.location.href='crm-contatos.html'">Ver contatos →</button>
+            <button class="btn-outline" onclick="resetAll()">Nova importação</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ACTIONS BAR -->
+  <div class="actions-bar" id="actionsBar">
+    <button class="btn-back" id="btnBack" onclick="prevStep()" style="visibility:hidden">← Voltar</button>
+    <span class="actions-hint" id="actionsHint">Faça o upload da planilha para continuar</span>
+    <button class="btn-next" id="btnNext" onclick="nextStep()" disabled>Próximo →</button>
+  </div>
+</div>
+
+<script>
+// ── STATE ──
+let currentStep = 1;
+let rawData = [];      // array of row objects from sheet
+let headers = [];      // column headers from sheet
+let mapping = {};      // { sheetCol: crmField }
+let ignored = {};      // { sheetCol: true }
+let importedRows = [];
+
+const CRM_FIELDS = [
+  { value: '', label: '— Escolher campo —' },
+  { value: 'nome',     label: '👤 Nome' },
+  { value: 'email',    label: '✉️ E-mail' },
+  { value: 'telefone', label: '📱 Telefone / WhatsApp' },
+  { value: 'empresa',  label: '🏢 Empresa' },
+  { value: 'valor',    label: '💰 Valor estimado' },
+  { value: 'stage',    label: '🗂️ Estágio do pipeline' },
+  { value: 'origem',   label: '📌 Origem do lead' },
+  { value: 'convenio', label: '🏥 Convênio' },
+  { value: 'nasc',     label: '🎂 Data de nascimento' },
+  { value: 'obs',      label: '📝 Observações' },
+];
+
+// auto-mapping heuristics
+const AUTO_MAP = {
+  nome:['nome','name','cliente','paciente','contato','person','full name','lead'],
+  email:['email','e-mail','mail','correio','endereço de email'],
+  telefone:['telefone','tel','phone','celular','whatsapp','fone','mobile'],
+  empresa:['empresa','company','negócio','organização','cnpj','razão social'],
+  valor:['valor','value','price','preço','receita','revenue','amount'],
+  stage:['estágio','estagio','stage','status','fase','etapa','funil'],
+  origem:['origem','source','canal','channel','como nos encontrou'],
+  convenio:['convênio','convenio','plano','insurance','health'],
+  nasc:['nascimento','nasc','birth','aniversário','data de nasc','dob'],
+  obs:['observação','observacao','obs','notas','notes','comment','anotações'],
+};
+
+function autoMap(col){
+  const lc = col.toLowerCase().trim();
+  for(const [field, patterns] of Object.entries(AUTO_MAP)){
+    if(patterns.some(p => lc.includes(p))) return field;
+  }
+  return '';
+}
+
+// ── FILE HANDLING ──
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', e=>{ e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', ()=>dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e=>{ e.preventDefault(); dropZone.classList.remove('drag-over'); handleFile(e.dataTransfer.files[0]); });
+
+function handleFile(file){
+  if(!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      let data;
+      if(ext === 'csv'){
+        data = parseCSV(e.target.result);
+      } else {
+        const wb = XLSX.read(e.target.result, { type:'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        data = XLSX.utils.sheet_to_json(ws, { defval:'' });
+      }
+      if(!data || data.length === 0){ alert('Arquivo vazio ou formato não reconhecido.'); return; }
+      rawData = data;
+      headers = Object.keys(data[0]);
+      // auto mapping
+      mapping = {};
+      headers.forEach(h => { mapping[h] = autoMap(h); });
+      ignored = {};
+
+      // show banner
+      const banner = document.getElementById('fileBanner');
+      banner.classList.add('show');
+      document.getElementById('fileName').textContent = file.name;
+      document.getElementById('fileMeta').textContent = data.length + ' linhas encontradas · ' + headers.length + ' colunas';
+      document.getElementById('fileIco').textContent = ext === 'csv' ? '📄' : '📊';
+      document.getElementById('btnNext').disabled = false;
+      document.getElementById('actionsHint').textContent = data.length + ' linhas prontas para mapear';
+    } catch(err){ alert('Erro ao ler arquivo: ' + err.message); }
+  };
+  if(ext === 'csv') reader.readAsText(file, 'UTF-8');
+  else reader.readAsArrayBuffer(file);
+}
+
+function parseCSV(text){
+  const lines = text.trim().split('\n');
+  if(lines.length < 2) return [];
+  const sep = lines[0].includes(';') ? ';' : ',';
+  const hdrs = lines[0].split(sep).map(h=>h.trim().replace(/^"|"$/g,''));
+  return lines.slice(1).map(l=>{
+    const vals = l.split(sep).map(v=>v.trim().replace(/^"|"$/g,''));
+    const obj = {};
+    hdrs.forEach((h,i)=>obj[h]=vals[i]||'');
+    return obj;
+  });
+}
+
+function resetFile(){
+  rawData=[]; headers=[]; mapping={}; ignored={};
+  document.getElementById('fileBanner').classList.remove('show');
+  document.getElementById('fileInput').value='';
+  document.getElementById('btnNext').disabled=true;
+  document.getElementById('actionsHint').textContent='Faça o upload da planilha para continuar';
+}
+
+function loadSample(){
+  // Generate a sample CSV download
+  const csv = `Nome,E-mail,Telefone,Empresa,Valor,Estágio,Origem,Convênio\nMaria Clara Souza,maria@email.com,(11) 98765-4321,Clínica Vida Plena,3200,Proposta,WhatsApp,Unimed\nJoão Pedro Alves,joao@email.com,(11) 91234-5678,,1800,Em contato,Indicação,\nAna Beatriz Lima,ana@email.com,(21) 99876-5432,,5600,Fechado,Instagram,Bradesco\nRoberto Mendes,roberto@email.com,(11) 97654-3210,,920,Novo lead,WhatsApp,Amil\nCarla Fernanda,carla@email.com,(31) 98888-7777,,2400,Em contato,Indicação,\n`;
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'modelo-importacao-flowcrm.csv'; a.click();
+}
+
+// ── MAPPING RENDER ──
+function renderMapping(){
+  const container = document.getElementById('mapRows');
+  const usedFields = new Set();
+  headers.forEach(h => { if(mapping[h]) usedFields.add(mapping[h]); });
+
+  container.innerHTML = headers.map(h => {
+    const sample = rawData.slice(0,3).map(r=>r[h]).filter(Boolean).join(', ');
+    const isIgnored = !!ignored[h];
+    return `<div class="map-row" id="row-${CSS.escape(h)}">
+      <div class="col-from">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${h}</div>
+          <div class="col-sample" title="${sample}">${sample||'(vazio)'}</div>
+        </div>
+      </div>
+      <div class="arr">${isIgnored?'🚫':'→'}</div>
+      <div>
+        <select class="map-select ${mapping[h]?'mapped':''} ${isIgnored?'skip':''}"
+          ${isIgnored?'disabled':''}
+          onchange="updateMapping('${h}',this.value)">
+          ${CRM_FIELDS.map(f=>`<option value="${f.value}" ${mapping[h]===f.value?'selected':''}>${f.label}</option>`).join('')}
+        </select>
+      </div>
+      <div style="text-align:center">
+        <label class="ignore-toggle">
+          <input type="checkbox" ${isIgnored?'checked':''} onchange="toggleIgnore('${h}',this.checked)"/> Ignorar
+        </label>
+      </div>
+    </div>`;
+  }).join('');
+  updateMapSummary();
+}
+
+function updateMapping(col, field){
+  // prevent duplicates
+  if(field && Object.entries(mapping).some(([k,v])=>v===field && k!==col)){
+    Object.keys(mapping).forEach(k=>{ if(mapping[k]===field) mapping[k]=''; });
+  }
+  mapping[col]=field;
+  renderMapping();
+}
+
+function toggleIgnore(col, val){
+  ignored[col]=val;
+  if(val) mapping[col]='';
+  renderMapping();
+}
+
+function updateMapSummary(){
+  const mapped = headers.filter(h=>mapping[h]&&!ignored[h]).length;
+  const ign = headers.filter(h=>ignored[h]).length;
+  const unmapped = headers.length - mapped - ign;
+  const hasName = Object.values(mapping).includes('nome');
+  document.getElementById('mapSummary').innerHTML=`
+    <div class="ms-item"><span class="ms-dot" style="background:var(--green)"></span>${mapped} colunas mapeadas</div>
+    <div class="ms-item"><span class="ms-dot" style="background:var(--muted)"></span>${ign} ignoradas</div>
+    <div class="ms-item"><span class="ms-dot" style="background:var(--amber)"></span>${unmapped} sem mapeamento</div>
+    ${!hasName?'<div class="ms-item" style="margin-left:auto;color:var(--red);font-size:12px;font-weight:700">⚠️ Mapeie o campo "Nome" para continuar</div>':''}
+  `;
+  document.getElementById('btnNext').disabled = !hasName;
+  document.getElementById('actionsHint').textContent = mapped + ' de ' + headers.length + ' colunas mapeadas';
+}
+
+// ── PREVIEW ──
+function buildPreviewRows(){
+  const nameCol = Object.entries(mapping).find(([,v])=>v==='nome')?.[0];
+  const emailCol = Object.entries(mapping).find(([,v])=>v==='email')?.[0];
+
+  return rawData.map((row,i) => {
+    const mapped = {};
+    headers.forEach(h=>{ if(mapping[h]&&!ignored[h]) mapped[mapping[h]]=row[h]; });
+    const hasName = !!(mapped.nome||'').trim();
+    const isDup = i>0 && rawData.slice(0,i).some(r2=>{
+      if(emailCol && mapped.email && r2[emailCol]===mapped.email) return true;
+      return false;
+    });
+    let status = hasName ? (isDup?'dup':'ok') : 'err';
+    return { ...mapped, _status:status, _orig:row };
+  });
+}
+
+function renderPreview(){
+  const rows = buildPreviewRows();
+  importedRows = rows;
+
+  const ok = rows.filter(r=>r._status==='ok').length;
+  const dup = rows.filter(r=>r._status==='dup').length;
+  const err = rows.filter(r=>r._status==='err').length;
+
+  document.getElementById('previewInfo').innerHTML=`
+    <div class="pi-card green"><div class="pi-val">${ok}</div><div class="pi-lbl">Prontos para importar</div></div>
+    <div class="pi-card"><div class="pi-val">${dup}</div><div class="pi-lbl">Possíveis duplicatas</div></div>
+    <div class="pi-card red"><div class="pi-val">${err}</div><div class="pi-lbl">Com problema (sem nome)</div></div>
+    <div class="pi-card"><div class="pi-val">${rows.length}</div><div class="pi-lbl">Total na planilha</div></div>
+  `;
+
+  const mappedFields = CRM_FIELDS.filter(f=>f.value && Object.values(mapping).includes(f.value));
+  document.getElementById('previewHead').innerHTML =
+    '<tr><th>Status</th>'+mappedFields.map(f=>`<th>${f.label}</th>`).join('')+'</tr>';
+
+  const PREVIEW_LIMIT = 8;
+  const shown = rows.slice(0, PREVIEW_LIMIT);
+  document.getElementById('previewBody').innerHTML = shown.map(r=>{
+    const cls = r._status==='ok'?'row-ok':r._status==='dup'?'row-warn':'row-err';
+    const statusBadge = r._status==='ok'
+      ? '<span class="status-ok">✓ OK</span>'
+      : r._status==='dup'
+        ? '<span class="status-warn">⚠ Duplicata</span>'
+        : '<span class="status-err">✕ Sem nome</span>';
+    return `<tr class="${cls}"><td>${statusBadge}</td>${mappedFields.map(f=>`<td>${r[f.value]||'—'}</td>`).join('')}</tr>`;
+  }).join('');
+
+  if(rows.length > PREVIEW_LIMIT){
+    document.getElementById('moreRows').style.display='block';
+    document.getElementById('moreRows').textContent = `+ ${rows.length-PREVIEW_LIMIT} linhas adicionais não exibidas`;
+  }
+
+  document.getElementById('actionsHint').textContent = ok + ' contatos serão importados';
+  document.getElementById('btnNext').textContent = 'Importar ' + ok + ' contatos →';
+  document.getElementById('btnNext').disabled = ok === 0;
+}
+
+// ── IMPORT ──
+async function doImport(){
+  const ok = importedRows.filter(r=>r._status==='ok').length;
+  const dup = importedRows.filter(r=>r._status==='dup').length;
+  const err = importedRows.filter(r=>r._status==='err').length;
+
+  document.getElementById('btnNext').disabled=true;
+  document.getElementById('btnBack').style.visibility='hidden';
+  const pw = document.getElementById('progressWrap');
+  pw.classList.add('show');
+  const fill = document.getElementById('progressFill');
+  const pct = document.getElementById('progressPct');
+  const lbl = document.getElementById('progressLbl');
+
+  for(let i=0;i<=100;i+=2){
+    await new Promise(r=>setTimeout(r,30));
+    fill.style.width=i+'%';
+    pct.textContent=i+'%';
+    lbl.textContent = i<30?'Validando dados...' : i<70?'Criando contatos...' : i<95?'Finalizando...' : 'Concluindo...';
+  }
+
+  // results
+  document.getElementById('r-ok').textContent=ok;
+  document.getElementById('r-dup').textContent=dup;
+  document.getElementById('r-err').textContent=err;
+  document.getElementById('resultSub').textContent=
+    ok + ' contatos importados com sucesso. ' +
+    (dup>0?dup+' duplicatas foram ignoradas. ':'') +
+    (err>0?err+' linhas sem nome foram puladas.':'');
+
+  goTo(4);
+}
+
+// ── NAVIGATION ──
+function goTo(n){
+  [1,2,3,4].forEach(i=>{
+    document.getElementById('step'+i).style.display = i===n?'':'none';
+    const si=document.getElementById('si'+i);
+    si.classList.remove('active','done');
+    if(i<n) si.classList.add('done');
+    if(i===n) si.classList.add('active');
+  });
+  currentStep=n;
+  document.getElementById('btnBack').style.visibility = n>1&&n<4 ? 'visible':'hidden';
+  document.getElementById('actionsBar').style.display = n===4 ? 'none':'flex';
+
+  if(n===2){ renderMapping(); document.getElementById('btnNext').textContent='Próximo →'; }
+  if(n===3){ renderPreview(); document.getElementById('btnNext').textContent='Importar →'; }
+}
+
+function nextStep(){
+  if(currentStep===3){ doImport(); return; }
+  if(currentStep<3) goTo(currentStep+1);
+}
+function prevStep(){
+  if(currentStep>1) goTo(currentStep-1);
+}
+
+function resetAll(){
+  resetFile();
+  rawData=[]; headers=[]; mapping={}; ignored={}; importedRows=[];
+  document.getElementById('progressWrap').classList.remove('show');
+  document.getElementById('progressFill').style.width='0';
+  document.getElementById('moreRows').style.display='none';
+  document.getElementById('btnNext').textContent='Próximo →';
+  goTo(1);
+}
+
+// init
+document.getElementById('step2').style.display='none';
+document.getElementById('step3').style.display='none';
+document.getElementById('step4').style.display='none';
+</script>
+</body>
+</html>

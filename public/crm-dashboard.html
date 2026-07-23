@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FlowCRM — Dashboard</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{
+      --green:#27ae60;--blue:#2980b9;--purple:#8e44ad;--amber:#f39c12;--red:#e74c3c;
+      --sidebar:#0f172a;--sidebar2:#1e293b;--text:#1e293b;--muted:#64748b;--border:#e2e8f0;--bg:#f1f5f9;
+    }
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);display:flex;min-height:100vh}
+
+    /* SIDEBAR */
+    .sidebar{width:230px;min-height:100vh;background:var(--sidebar);display:flex;flex-direction:column;flex-shrink:0}
+    .sb-brand{padding:20px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.07)}
+    .sb-icon{width:34px;height:34px;background:linear-gradient(135deg,var(--green),#1abc9c);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px}
+    .sb-name{font-size:17px;font-weight:800;color:#fff}.sb-name span{color:var(--green)}
+    .sb-nav{flex:1;padding:14px 10px}
+    .sb-section{font-size:10px;font-weight:700;color:#334155;letter-spacing:.8px;text-transform:uppercase;padding:10px 10px 6px}
+    .nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;font-size:13.5px;font-weight:500;color:#94a3b8;cursor:pointer;text-decoration:none;transition:all .18s;margin-bottom:2px}
+    .nav-item:hover{background:rgba(255,255,255,.06);color:#e2e8f0}
+    .nav-item.active{background:linear-gradient(135deg,rgba(39,174,96,.18),rgba(26,188,156,.1));color:#4ade80;font-weight:700}
+    .nav-item .ico{width:18px;text-align:center;font-size:15px}
+    .nav-item .badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:10px}
+    .sb-bottom{padding:14px 10px;border-top:1px solid rgba(255,255,255,.07)}
+    .user-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;cursor:pointer}
+    .user-row:hover{background:rgba(255,255,255,.06)}
+    .user-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--green),#1abc9c);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;flex-shrink:0}
+    .user-info .name{font-size:13px;font-weight:600;color:#e2e8f0}
+    .user-info .plan{font-size:11px;color:#64748b}
+
+    /* MAIN */
+    .main{flex:1;display:flex;flex-direction:column;min-width:0}
+    .topbar{background:#fff;border-bottom:1px solid var(--border);padding:0 28px;height:58px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+    .page-title{font-size:17px;font-weight:800;color:var(--text)}
+    .page-title span{font-size:13px;font-weight:400;color:var(--muted);margin-left:8px}
+    .topbar-actions{display:flex;align-items:center;gap:12px}
+    .btn-sm{padding:7px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
+    .btn-green{background:var(--green);color:#fff;box-shadow:0 2px 8px rgba(39,174,96,.3)}
+    .btn-green:hover{background:#219a52}
+    .notif{width:36px;height:36px;border-radius:9px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;position:relative}
+    .notif::after{content:'3';position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;font-size:9px;font-weight:800;width:15px;height:15px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+
+    /* CONTENT */
+    .content{padding:24px 28px;overflow-y:auto}
+
+    /* KPI CARDS */
+    .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+    .kpi{background:#fff;border-radius:16px;padding:20px;border:1px solid var(--border);position:relative;overflow:hidden}
+    .kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:16px 16px 0 0}
+    .kpi.green::before{background:linear-gradient(90deg,var(--green),#1abc9c)}
+    .kpi.blue::before{background:linear-gradient(90deg,var(--blue),#5dade2)}
+    .kpi.purple::before{background:linear-gradient(90deg,var(--purple),#c084fc)}
+    .kpi.amber::before{background:linear-gradient(90deg,var(--amber),#f1c40f)}
+    .kpi-label{font-size:11.5px;font-weight:600;color:var(--muted);letter-spacing:.3px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+    .kpi-label .dot{width:7px;height:7px;border-radius:50%}
+    .kpi.green .dot{background:var(--green)}.kpi.blue .dot{background:var(--blue)}
+    .kpi.purple .dot{background:var(--purple)}.kpi.amber .dot{background:var(--amber)}
+    .kpi-value{font-size:26px;font-weight:800;color:var(--text);letter-spacing:-.5px;margin-bottom:6px}
+    .kpi-delta{font-size:12px;font-weight:600}
+    .kpi-delta.up{color:var(--green)}.kpi-delta.down{color:var(--red)}.kpi-delta.neutral{color:var(--muted)}
+    .kpi-icon{position:absolute;right:18px;top:18px;font-size:26px;opacity:.12}
+
+    /* CHART ROW */
+    .chart-row{display:grid;grid-template-columns:1fr 340px;gap:16px;margin-bottom:24px}
+    .chart-card{background:#fff;border-radius:16px;border:1px solid var(--border);padding:22px}
+    .chart-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+    .chart-title{font-size:14px;font-weight:700;color:var(--text)}
+    .chart-sub{font-size:12px;color:var(--muted);margin-top:2px}
+    .period-tabs{display:flex;gap:4px}
+    .period-tab{padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;color:var(--muted);background:transparent;border:none}
+    .period-tab.active{background:var(--bg);color:var(--text)}
+
+    /* BAR CHART */
+    .bar-chart{display:flex;align-items:flex-end;gap:10px;height:160px;padding:0 4px}
+    .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%}
+    .bar-col .bar-val{font-size:10px;font-weight:700;color:var(--muted)}
+    .bar-outer{flex:1;width:100%;display:flex;flex-direction:column;justify-content:flex-end}
+    .bar-fill{width:100%;border-radius:5px 5px 0 0;background:linear-gradient(180deg,#27ae60,#1abc9c);opacity:.7;transition:opacity .2s;min-height:4px}
+    .bar-fill:hover{opacity:1}
+    .bar-fill.current{opacity:1;box-shadow:0 0 12px rgba(39,174,96,.35)}
+    .bar-col .bar-lbl{font-size:10px;color:var(--muted);font-weight:600}
+    .x-labels{display:flex;gap:10px;padding:0 4px;margin-top:-4px}
+
+    /* DONUT */
+    .donut-wrap{display:flex;flex-direction:column;align-items:center;gap:20px}
+    .donut-svg{filter:drop-shadow(0 4px 12px rgba(0,0,0,.08))}
+    .donut-legend{width:100%;display:flex;flex-direction:column;gap:10px}
+    .legend-row{display:flex;align-items:center;gap:10px}
+    .legend-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+    .legend-label{font-size:13px;color:var(--text);flex:1}
+    .legend-pct{font-size:13px;font-weight:700;color:var(--text)}
+    .legend-count{font-size:11px;color:var(--muted);margin-left:4px}
+
+    /* BOTTOM ROW */
+    .bottom-row{display:grid;grid-template-columns:1fr 320px;gap:16px}
+    .list-card{background:#fff;border-radius:16px;border:1px solid var(--border);padding:22px}
+    .list-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+    .list-title{font-size:14px;font-weight:700;color:var(--text)}
+    .see-all{font-size:12px;color:var(--blue);font-weight:600;cursor:pointer;text-decoration:none}
+
+    /* DEALS LIST */
+    .deal-row{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--border)}
+    .deal-row:last-child{border-bottom:none;padding-bottom:0}
+    .deal-avatar{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;flex-shrink:0}
+    .deal-info{flex:1;min-width:0}
+    .deal-name{font-size:13.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .deal-meta{font-size:11.5px;color:var(--muted);margin-top:2px}
+    .deal-value{text-align:right}
+    .deal-amount{font-size:14px;font-weight:800;color:var(--text)}
+    .deal-stage{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;margin-top:3px}
+    .stage-proposta{background:#eff6ff;color:var(--blue)}
+    .stage-negoc{background:#fdf4ff;color:var(--purple)}
+    .stage-lead{background:#f0fdf4;color:var(--green)}
+    .stage-fechado{background:#f0fdf4;color:var(--green)}
+
+    /* TASKS */
+    .task-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+    .task-row:last-child{border-bottom:none}
+    .task-check{width:18px;height:18px;border-radius:5px;border:2px solid var(--border);flex-shrink:0;cursor:pointer;margin-top:1px;transition:all .15s}
+    .task-check:hover{border-color:var(--green)}
+    .task-check.done{background:var(--green);border-color:var(--green)}
+    .task-body{flex:1}
+    .task-name{font-size:13px;font-weight:600;color:var(--text)}
+    .task-name.done-text{color:var(--muted);text-decoration:line-through}
+    .task-contact{font-size:11px;color:var(--muted);margin-top:2px}
+    .task-time{font-size:11px;font-weight:600;color:var(--amber);white-space:nowrap}
+    .task-time.late{color:var(--red)}
+    .task-time.ok{color:var(--green)}
+  </style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sb-brand">
+    <div class="sb-icon">⚡</div>
+    <div class="sb-name">Flow<span>CRM</span></div>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-section">Principal</div>
+    <a class="nav-item active" href="crm-dashboard.html"><span class="ico">📊</span>Dashboard</a>
+    <a class="nav-item" href="crm-pipeline.html"><span class="ico">🗂️</span>Pipeline</a>
+    <a class="nav-item" href="crm-contatos.html"><span class="ico">👥</span>Contatos</a>
+    <a class="nav-item" href="crm-tarefas.html"><span class="ico">✅</span>Tarefas<span class="badge">4</span></a>
+    <div class="sb-section">Sistema</div>
+    <a class="nav-item" href="crm-relatorios.html"><span class="ico">📈</span>Relatórios</a>
+    <a class="nav-item" href="crm-integracoes.html"><span class="ico">🔌</span>Integrações</a>
+    <a class="nav-item" href="crm-configuracoes.html"><span class="ico">⚙️</span>Configurações</a>
+  </nav>
+  <div class="sb-bottom">
+    <div class="user-row">
+      <div class="user-avatar">W</div>
+      <div class="user-info">
+        <div class="name">Williams</div>
+        <div class="plan">Plano Profissional</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div>
+      <div class="page-title">Dashboard <span>Clínica Vida Plena</span></div>
+    </div>
+    <div class="topbar-actions">
+      <div class="notif">🔔</div>
+      <button class="btn-sm btn-green" onclick="window.location.href='crm-pipeline.html'">+ Novo negócio</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- KPIs -->
+    <div class="kpi-grid">
+      <div class="kpi green">
+        <span class="kpi-icon">💰</span>
+        <div class="kpi-label"><span class="dot"></span>Receita do mês</div>
+        <div class="kpi-value" id="kpi-revenue">—</div>
+        <div class="kpi-delta up" id="kpi-revenue-delta">carregando...</div>
+      </div>
+      <div class="kpi blue">
+        <span class="kpi-icon">🗂️</span>
+        <div class="kpi-label"><span class="dot"></span>Negócios ativos</div>
+        <div class="kpi-value" id="kpi-deals">—</div>
+        <div class="kpi-delta up" id="kpi-deals-delta">no pipeline</div>
+      </div>
+      <div class="kpi purple">
+        <span class="kpi-icon">🎯</span>
+        <div class="kpi-label"><span class="dot"></span>Conversão</div>
+        <div class="kpi-value" id="kpi-conv">—</div>
+        <div class="kpi-delta neutral">lead → cliente</div>
+      </div>
+      <div class="kpi amber">
+        <span class="kpi-icon">✅</span>
+        <div class="kpi-label"><span class="dot"></span>Tarefas hoje</div>
+        <div class="kpi-value" id="kpi-tasks">—</div>
+        <div class="kpi-delta down" id="kpi-tasks-delta">carregando...</div>
+      </div>
+    </div>
+
+    <!-- CHARTS -->
+    <div class="chart-row">
+      <!-- Bar chart -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">Receita por mês</div>
+            <div class="chart-sub">Últimos 6 meses</div>
+          </div>
+          <div class="period-tabs">
+            <button class="period-tab">6M</button>
+            <button class="period-tab active">1A</button>
+          </div>
+        </div>
+        <div class="bar-chart" id="barChart"></div>
+      </div>
+
+      <!-- Donut -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">Negócios por estágio</div>
+            <div class="chart-sub">27 negócios ativos</div>
+          </div>
+        </div>
+        <div class="donut-wrap">
+          <svg class="donut-svg" width="140" height="140" viewBox="0 0 140 140">
+            <!-- stroke-dasharray = pct * 2π*44 = pct * 276.46 -->
+            <circle cx="70" cy="70" r="44" fill="none" stroke="#f1f5f9" stroke-width="22"/>
+            <!-- Fechado 11% = 30.4 offset=0 -->
+            <circle cx="70" cy="70" r="44" fill="none" stroke="#27ae60" stroke-width="22"
+              stroke-dasharray="30.4 246.1" stroke-dashoffset="69.1" stroke-linecap="butt"/>
+            <!-- Proposta 30% = 82.9 offset=-30.4 -->
+            <circle cx="70" cy="70" r="44" fill="none" stroke="#2980b9" stroke-width="22"
+              stroke-dasharray="82.9 193.6" stroke-dashoffset="38.7" stroke-linecap="butt"/>
+            <!-- Contato 26% = 71.9 offset=-113.3 -->
+            <circle cx="70" cy="70" r="44" fill="none" stroke="#8e44ad" stroke-width="22"
+              stroke-dasharray="71.9 204.6" stroke-dashoffset="-44.2" stroke-linecap="butt"/>
+            <!-- Lead 33% = 91.2 offset=-185.2 -->
+            <circle cx="70" cy="70" r="44" fill="none" stroke="#f39c12" stroke-width="22"
+              stroke-dasharray="91.2 185.3" stroke-dashoffset="-116.1" stroke-linecap="butt"/>
+            <text x="70" y="65" text-anchor="middle" font-size="18" font-weight="800" fill="#1e293b">27</text>
+            <text x="70" y="81" text-anchor="middle" font-size="10" fill="#64748b">negócios</text>
+          </svg>
+          <div class="donut-legend">
+            <div class="legend-row"><div class="legend-dot" style="background:var(--amber)"></div><span class="legend-label">Novo lead</span><span class="legend-pct">33%<span class="legend-count">(9)</span></span></div>
+            <div class="legend-row"><div class="legend-dot" style="background:var(--purple)"></div><span class="legend-label">Em contato</span><span class="legend-pct">26%<span class="legend-count">(7)</span></span></div>
+            <div class="legend-row"><div class="legend-dot" style="background:var(--blue)"></div><span class="legend-label">Proposta</span><span class="legend-pct">30%<span class="legend-count">(8)</span></span></div>
+            <div class="legend-row"><div class="legend-dot" style="background:var(--green)"></div><span class="legend-label">Fechado</span><span class="legend-pct">11%<span class="legend-count">(3)</span></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTTOM ROW -->
+    <div class="bottom-row">
+      <!-- Deals -->
+      <div class="list-card">
+        <div class="list-header">
+          <div class="list-title">Negócios recentes</div>
+          <a class="see-all" href="crm-pipeline.html">Ver pipeline →</a>
+        </div>
+        <div id="dealsList"><div style="padding:20px;color:#94a3b8;text-align:center">Carregando...</div></div>
+      </div>
+
+      <!-- Tasks -->
+      <div class="list-card">
+        <div class="list-header">
+          <div class="list-title">Tarefas de hoje</div>
+          <a class="see-all" href="crm-tarefas.html">Ver todas →</a>
+        </div>
+        <div id="tasksList"><div style="padding:20px;color:#94a3b8;text-align:center">Carregando...</div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="flowcrm-api.js"></script>
+<script>
+  authGuard();
+
+  function renderBarChart(monthlyRevenue) {
+    const bc = document.getElementById('barChart');
+    if (!monthlyRevenue?.length) return;
+    const max = Math.max(...monthlyRevenue.map(m => m.value), 1);
+    bc.innerHTML = monthlyRevenue.map((m, i) => {
+      const pct = (m.value / max * 100).toFixed(1);
+      const isCurrent = i === monthlyRevenue.length - 1;
+      const label = m.value >= 1000 ? 'R$' + (m.value / 1000).toFixed(0) + 'k' : 'R$' + m.value;
+      return `<div class="bar-col">
+        <div class="bar-val">${label}</div>
+        <div class="bar-outer"><div class="bar-fill${isCurrent ? ' current' : ''}" style="height:${pct}%"></div></div>
+        <div class="bar-lbl">${m.month}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderDeals(deals) {
+    const stageCls = { 'Novo lead': 'stage-lead', 'Em contato': 'stage-lead', 'Proposta': 'stage-proposta', 'Negociação': 'stage-negoc', 'Fechado': 'stage-fechado' };
+    document.getElementById('dealsList').innerHTML = (deals || []).slice(0, 5).map((d, i) => `
+      <div class="deal-row">
+        <div class="deal-avatar" style="background:${palColor(i)}">${initials(d.contact?.name || d.title)}</div>
+        <div class="deal-info"><div class="deal-name">${d.contact?.name || d.title}</div><div class="deal-meta">${d.title}</div></div>
+        <div class="deal-value"><div class="deal-amount">${fmtMoney(d.value)}</div><span class="deal-stage ${stageCls[d.stage?.name] || 'stage-lead'}">${d.stage?.name || '—'}</span></div>
+      </div>`).join('') || '<div style="padding:20px;color:#94a3b8;text-align:center">Nenhum negócio</div>';
+  }
+
+  function renderTasks(tasks) {
+    const now = new Date();
+    document.getElementById('tasksList').innerHTML = (tasks || []).slice(0, 5).map(t => {
+      const late = t.dueDate && new Date(t.dueDate) < now && !t.doneAt;
+      const cls = t.doneAt ? 'ok' : late ? 'late' : '';
+      const label = t.doneAt ? 'Concluída' : late ? 'Atrasada' : t.dueDate ? new Date(t.dueDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
+      return `<div class="task-row">
+        <div class="task-check ${t.doneAt ? 'done' : ''}" onclick="toggleTask('${t.id}', this)">${t.doneAt ? '✓' : ''}</div>
+        <div class="task-body"><div class="task-name ${t.doneAt ? 'done-text' : ''}">${t.title}</div><div class="task-contact">${t.contact?.name || ''}</div></div>
+        <div class="task-time ${cls}">${label}</div>
+      </div>`;
+    }).join('') || '<div style="padding:20px;color:#94a3b8;text-align:center">Sem tarefas hoje 🎉</div>';
+  }
+
+  async function toggleTask(id, el) {
+    const isDone = !el.classList.contains('done');
+    el.classList.toggle('done');
+    el.textContent = isDone ? '✓' : '';
+    const nameEl = el.nextElementSibling.querySelector('.task-name');
+    nameEl.classList.toggle('done-text', isDone);
+    const timeEl = el.parentElement.querySelector('.task-time');
+    if (isDone) { timeEl.textContent = 'Concluída'; timeEl.className = 'task-time ok'; }
+    else { timeEl.textContent = 'Pendente'; timeEl.className = 'task-time'; }
+    await api('/tasks/' + id, { method: 'PATCH', body: JSON.stringify({ done: isDone }) });
+  }
+
+  async function init() {
+    const data = await api('/dashboard');
+    if (!data) return;
+
+    const { kpis, monthlyRevenue, recentDeals, upcomingTasks } = data;
+
+    // KPIs
+    document.getElementById('kpi-revenue').textContent = fmtMoney(kpis.revenue);
+    const growth = kpis.revenueGrowth >= 0 ? '↑ +' : '↓ ';
+    document.getElementById('kpi-revenue-delta').textContent = growth + Math.abs(kpis.revenueGrowth).toFixed(0) + '% vs mês anterior';
+    document.getElementById('kpi-revenue-delta').className = 'kpi-delta ' + (kpis.revenueGrowth >= 0 ? 'up' : 'down');
+
+    document.getElementById('kpi-deals').textContent = kpis.activeDeals;
+    document.getElementById('kpi-conv').textContent = kpis.conversion + '%';
+    document.getElementById('kpi-tasks').textContent = kpis.todayTasks;
+    document.getElementById('kpi-tasks-delta').textContent = kpis.overdueTasks + ' atrasadas';
+    document.getElementById('kpi-tasks-delta').className = 'kpi-delta ' + (kpis.overdueTasks > 0 ? 'down' : 'up');
+
+    renderBarChart(monthlyRevenue);
+    renderDeals(recentDeals);
+    renderTasks(upcomingTasks);
+  }
+
+  init();
+</script>
+</body>
+</html>

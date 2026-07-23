@@ -1,0 +1,265 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── TENANT (empresa cliente do CRM) ──────────────────────────────────────────
+model Tenant {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  segment     String   @default("other")
+  cnpj        String?
+  phone       String?
+  address     String?
+  website     String?
+  logoUrl     String?
+  plan        String   @default("starter") // starter | professional | connected | enterprise
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users        User[]
+  contacts     Contact[]
+  deals        Deal[]
+  tasks        Task[]
+  stages       Stage[]
+  customFields CustomField[]
+  integrations    Integration[]
+  activities      Activity[]
+  imports         ImportLog[]
+  automationRules AutomationRule[]
+  dispatches      AutomationDispatch[]
+}
+
+// ── USER ─────────────────────────────────────────────────────────────────────
+model User {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  email     String
+  password  String
+  role      String   @default("user") // admin | user | viewer
+  avatarUrl String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tasks     Task[]
+  activities Activity[]
+
+  @@unique([tenantId, email])
+}
+
+// ── STAGE (etapas do pipeline — configuráveis por tenant) ─────────────────────
+model Stage {
+  id       String @id @default(cuid())
+  tenantId String
+  name     String
+  color    String @default("#64748b")
+  order    Int    @default(0)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deals  Deal[]
+
+  @@unique([tenantId, name])
+}
+
+// ── CUSTOM FIELD ──────────────────────────────────────────────────────────────
+model CustomField {
+  id       String @id @default(cuid())
+  tenantId String
+  name     String
+  type     String @default("text") // text | number | date | select
+  required Boolean @default(false)
+  order    Int     @default(0)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+// ── CONTACT ───────────────────────────────────────────────────────────────────
+model Contact {
+  id           String   @id @default(cuid())
+  tenantId     String
+  name         String
+  email        String?
+  phone        String?
+  company      String?
+  origin       String?  // whatsapp | indicacao | instagram | google_ads | outro
+  temperature  String   @default("new") // hot | warm | cold | new
+  customData   Json     @default("{}")  // campos personalizados
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant     Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deals      Deal[]
+  messages   Message[]
+  tasks      Task[]
+  activities Activity[]
+  dispatches AutomationDispatch[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+// Mensagens recebidas/enviadas via WhatsApp (ou integração similar)
+model Message {
+  id                String   @id @default(cuid())
+  contactId         String?
+  from              String
+  to                String?
+  body              String
+  direction         String   @default("in") // in | out
+  whatsappMessageId String?  @unique
+  raw               Json?
+  createdAt         DateTime @default(now())
+
+  contact Contact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
+}
+
+// ── DEAL (negócio no pipeline) ────────────────────────────────────────────────
+model Deal {
+  id        String   @id @default(cuid())
+  tenantId  String
+  contactId String?
+  stageId   String
+  title     String
+  value     Decimal  @default(0) @db.Decimal(12, 2)
+  notes     String?
+  closedAt  DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contact    Contact?   @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  stage      Stage      @relation(fields: [stageId], references: [id])
+  activities Activity[]
+
+  @@index([tenantId])
+  @@index([tenantId, stageId])
+}
+
+// ── TASK ──────────────────────────────────────────────────────────────────────
+model Task {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String?
+  contactId String?
+  title     String
+  type      String   @default("follow") // call | follow | meet | email | note
+  priority  String   @default("mid")   // high | mid | low
+  dueDate   DateTime?
+  doneAt    DateTime?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  contact Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([tenantId, dueDate])
+}
+
+// ── ACTIVITY (histórico) ──────────────────────────────────────────────────────
+model Activity {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String?
+  contactId String?
+  dealId    String?
+  type      String   // note | call | email | whatsapp | stage_change | deal_created | contact_created
+  content   String
+  meta      Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  contact Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  deal    Deal?    @relation(fields: [dealId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([tenantId, contactId])
+}
+
+// ── INTEGRATION ───────────────────────────────────────────────────────────────
+model Integration {
+  id        String   @id @default(cuid())
+  tenantId  String
+  type      String   // whatsapp | gmail | outlook | zapier | database | calendar
+  status    String   @default("disconnected") // connected | disconnected | error
+  config    Json     @default("{}")           // credenciais cifradas, webhook urls, etc
+  lastSync  DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, type])
+}
+
+// ── IMPORT LOG ────────────────────────────────────────────────────────────────
+model ImportLog {
+  id          String   @id @default(cuid())
+  tenantId    String
+  fileName    String
+  totalRows   Int      @default(0)
+  imported    Int      @default(0)
+  duplicates  Int      @default(0)
+  errors      Int      @default(0)
+  status      String   @default("processing") // processing | done | failed
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+// ── AUTOMATION RULE ───────────────────────────────────────────────────────────
+model AutomationRule {
+  id              String   @id @default(cuid())
+  tenantId        String
+  name            String
+  inactiveDays    Int      @default(14)
+  frequencyDays   Int      @default(7)
+  messageTemplate String
+  filters         Json     @default("{}")
+  active          Boolean  @default(true)
+  lastRunAt       DateTime?
+  nextRunAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant     Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  dispatches AutomationDispatch[]
+
+  @@index([tenantId])
+  @@index([tenantId, active])
+}
+
+// ── AUTOMATION DISPATCH ───────────────────────────────────────────────────────
+model AutomationDispatch {
+  id          String   @id @default(cuid())
+  tenantId    String
+  ruleId      String
+  contactId   String
+  message     String
+  status      String   @default("sent")
+  sentAt      DateTime @default(now())
+  readAt      DateTime?
+  repliedAt   DateTime?
+  convertedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  tenant  Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rule    AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  contact Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([ruleId])
+  @@index([contactId])
+}

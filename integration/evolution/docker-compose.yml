@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  wppconnect:
+    image: wppconnect/server:latest
+    container_name: wppconnect-server
+    restart: unless-stopped
+    environment:
+      - WEBHOOK_URL=http://host.docker.internal:3333/whatsapp/webhook
+      - SESSION_NAME=flowcrm-dev
+    ports:
+      - "3030:3030" # UI / API
+    volumes:
+      - ./data:/usr/src/app/data

@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>FlowCRM — Tarefas</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{--green:#27ae60;--blue:#2980b9;--purple:#8e44ad;--amber:#f39c12;--red:#e74c3c;--sidebar:#0f172a;--text:#1e293b;--muted:#64748b;--border:#e2e8f0;--bg:#f1f5f9}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);display:flex;min-height:100vh}
+    .sidebar{width:230px;min-height:100vh;background:var(--sidebar);display:flex;flex-direction:column;flex-shrink:0}
+    .sb-brand{padding:20px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.07)}
+    .sb-icon{width:34px;height:34px;background:linear-gradient(135deg,var(--green),#1abc9c);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px}
+    .sb-name{font-size:17px;font-weight:800;color:#fff}.sb-name span{color:var(--green)}
+    .sb-nav{flex:1;padding:14px 10px}
+    .sb-section{font-size:10px;font-weight:700;color:#334155;letter-spacing:.8px;text-transform:uppercase;padding:10px 10px 6px}
+    .nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;font-size:13.5px;font-weight:500;color:#94a3b8;cursor:pointer;text-decoration:none;transition:all .18s;margin-bottom:2px}
+    .nav-item:hover{background:rgba(255,255,255,.06);color:#e2e8f0}
+    .nav-item.active{background:linear-gradient(135deg,rgba(39,174,96,.18),rgba(26,188,156,.1));color:#4ade80;font-weight:700}
+    .nav-item .ico{width:18px;text-align:center;font-size:15px}
+    .nav-item .badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:10px}
+    .sb-bottom{padding:14px 10px;border-top:1px solid rgba(255,255,255,.07)}
+    .user-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;cursor:pointer}.user-row:hover{background:rgba(255,255,255,.06)}
+    .user-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--green),#1abc9c);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff}
+    .user-info .name{font-size:13px;font-weight:600;color:#e2e8f0}.user-info .plan{font-size:11px;color:#64748b}
+    .main{flex:1;display:flex;flex-direction:column;min-width:0}
+    .topbar{background:#fff;border-bottom:1px solid var(--border);padding:0 28px;height:58px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+    .page-title{font-size:17px;font-weight:800;color:var(--text);flex:1}
+    .btn-green{padding:9px 18px;background:var(--green);color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(39,174,96,.3)}
+    .body{display:flex;flex:1;overflow:hidden}
+
+    /* FILTER SIDEBAR */
+    .left-panel{width:240px;background:#fff;border-right:1px solid var(--border);padding:20px 16px;overflow-y:auto;flex-shrink:0}
+    .lp-title{font-size:13px;font-weight:800;color:var(--text);margin-bottom:16px}
+    .filter-group{margin-bottom:20px}
+    .fg-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+    .filter-btn-item{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:9px;cursor:pointer;font-size:13px;color:var(--text);font-weight:500;transition:all .15s;margin-bottom:2px}
+    .filter-btn-item:hover{background:var(--bg)}
+    .filter-btn-item.active{background:#f0fdf4;color:var(--green);font-weight:700}
+    .filter-btn-item .fbi-ico{font-size:15px;margin-right:6px}
+    .fbi-count{font-size:11px;font-weight:700;padding:1px 7px;border-radius:10px;background:var(--bg);color:var(--muted)}
+    .filter-btn-item.active .fbi-count{background:var(--green);color:#fff}
+
+    .type-item{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;cursor:pointer;font-size:13px;transition:all .15s;margin-bottom:2px}
+    .type-item:hover{background:var(--bg)}
+    .type-item.active{background:var(--bg)}
+    .type-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+    .type-name{flex:1;font-weight:500;color:var(--text)}
+    .type-n{font-size:11px;color:var(--muted);font-weight:600}
+
+    /* MAIN AREA */
+    .tasks-area{flex:1;overflow-y:auto;padding:24px 28px}
+    .tasks-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+    .th-left h2{font-size:16px;font-weight:800;color:var(--text)}
+    .th-left p{font-size:13px;color:var(--muted);margin-top:2px}
+    .search-wrap{position:relative}
+    .search-wrap input{padding:8px 12px 8px 34px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;color:var(--text);outline:none;width:200px;background:var(--bg)}
+    .search-wrap input:focus{border-color:var(--green)}
+    .search-ico{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--muted)}
+
+    /* DATE GROUP */
+    .date-group{margin-bottom:24px}
+    .dg-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+    .dg-label{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+    .dg-line{flex:1;height:1px;background:var(--border)}
+    .dg-count{font-size:11px;font-weight:700;color:var(--muted)}
+
+    /* TASK CARD */
+    .task-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;align-items:flex-start;gap:12px;cursor:pointer;transition:all .18s;position:relative;overflow:hidden}
+    .task-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:12px 0 0 12px}
+    .task-card.type-call::before{background:var(--blue)}
+    .task-card.type-follow::before{background:var(--green)}
+    .task-card.type-meet::before{background:var(--purple)}
+    .task-card.type-email::before{background:var(--amber)}
+    .task-card.type-note::before{background:var(--muted)}
+    .task-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.08);transform:translateY(-1px);border-color:#cbd5e1}
+    .task-card.done-card{opacity:.55}
+    .task-card.late-card{border-color:#fca5a5;background:#fff5f5}
+
+    .tc-check{width:20px;height:20px;border-radius:6px;border:2px solid var(--border);flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;transition:all .18s;margin-top:1px}
+    .tc-check:hover{border-color:var(--green)}
+    .tc-check.checked{background:var(--green);border-color:var(--green);color:#fff}
+    .tc-body{flex:1;min-width:0}
+    .tc-title{font-size:14px;font-weight:700;color:var(--text)}.done-card .tc-title{text-decoration:line-through;color:var(--muted)}
+    .tc-contact{font-size:12px;color:var(--muted);margin-top:3px;display:flex;align-items:center;gap:6px}
+    .tc-contact .av{width:18px;height:18px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff}
+    .tc-meta{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+    .tc-type{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px}
+    .type-call .tc-type{background:#eff6ff;color:var(--blue)}
+    .type-follow .tc-type{background:#f0fdf4;color:var(--green)}
+    .type-meet .tc-type{background:#fdf4ff;color:var(--purple)}
+    .type-email .tc-type{background:#fff7ed;color:var(--amber)}
+    .type-note .tc-type{background:var(--bg);color:var(--muted)}
+    .tc-time{font-size:12px;font-weight:600}
+    .tc-time.ok{color:var(--green)}.tc-time.late{color:var(--red)}.tc-time.soon{color:var(--amber)}.tc-time.neutral{color:var(--muted)}
+    .tc-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0}
+    .tc-prio{width:8px;height:8px;border-radius:50%}
+    .prio-high{background:var(--red)}.prio-mid{background:var(--amber)}.prio-low{background:var(--green)}
+
+    /* EMPTY */
+    .empty-state{text-align:center;padding:48px 20px}
+    .empty-ico{font-size:48px;margin-bottom:12px}
+    .empty-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px}
+    .empty-sub{font-size:13px;color:var(--muted)}
+
+    /* MODAL */
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;display:none;align-items:center;justify-content:center}
+    .overlay.open{display:flex}
+    .modal{background:#fff;border-radius:20px;padding:32px;width:460px;box-shadow:0 20px 60px rgba(0,0,0,.18);max-height:90vh;overflow-y:auto}
+    .modal h3{font-size:18px;font-weight:800;color:var(--text);margin-bottom:20px}
+    .inp-g{margin-bottom:14px}.inp-g label{display:block;font-size:13px;font-weight:600;color:var(--text);margin-bottom:5px}
+    .inp-g input,.inp-g select,.inp-g textarea{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;color:var(--text);outline:none;background:#fff;font-family:inherit}
+    .inp-g input:focus,.inp-g select:focus,.inp-g textarea:focus{border-color:var(--green)}
+    .inp-g textarea{resize:vertical;min-height:72px}
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .type-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:4px}
+    .type-opt{border:2px solid var(--border);border-radius:9px;padding:8px 4px;text-align:center;cursor:pointer;transition:all .15s;font-size:12px;font-weight:600;color:var(--muted)}
+    .type-opt:hover{border-color:#94a3b8}
+    .type-opt.sel{font-weight:700}
+    .type-opt[data-t=call].sel{border-color:var(--blue);background:#eff6ff;color:var(--blue)}
+    .type-opt[data-t=follow].sel{border-color:var(--green);background:#f0fdf4;color:var(--green)}
+    .type-opt[data-t=meet].sel{border-color:var(--purple);background:#fdf4ff;color:var(--purple)}
+    .type-opt[data-t=email].sel{border-color:var(--amber);background:#fff7ed;color:var(--amber)}
+    .type-opt[data-t=note].sel{border-color:var(--muted);background:var(--bg);color:var(--muted)}
+    .modal-actions{display:flex;gap:10px;margin-top:20px}
+    .btn-cancel{flex:1;padding:11px;border:1.5px solid var(--border);border-radius:9px;background:#fff;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer}
+    .btn-save{flex:2;padding:11px;border:none;border-radius:9px;background:linear-gradient(135deg,var(--green),#1abc9c);font-size:14px;font-weight:700;color:#fff;cursor:pointer}
+  </style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="sb-brand"><div class="sb-icon">⚡</div><div class="sb-name">Flow<span>CRM</span></div></div>
+  <nav class="sb-nav">
+    <div class="sb-section">Principal</div>
+    <a class="nav-item" href="crm-dashboard.html"><span class="ico">📊</span>Dashboard</a>
+    <a class="nav-item" href="crm-pipeline.html"><span class="ico">🗂️</span>Pipeline</a>
+    <a class="nav-item" href="crm-contatos.html"><span class="ico">👥</span>Contatos</a>
+    <a class="nav-item active" href="crm-tarefas.html"><span class="ico">✅</span>Tarefas<span class="badge" id="badgeCount">3</span></a>
+    <div class="sb-section">Sistema</div>
+    <a class="nav-item" href="crm-relatorios.html"><span class="ico">📈</span>Relatórios</a>
+    <a class="nav-item" href="crm-importar.html"><span class="ico">📥</span>Importar dados</a>
+    <a class="nav-item" href="crm-integracoes.html"><span class="ico">🔌</span>Integrações</a>
+    <a class="nav-item" href="crm-configuracoes.html"><span class="ico">⚙️</span>Configurações</a>
+  </nav>
+  <div class="sb-bottom"><div class="user-row"><div class="user-avatar">W</div><div class="user-info"><div class="name">Williams</div><div class="plan">Plano Profissional</div></div></div></div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <div class="page-title">Tarefas</div>
+    <div class="search-wrap"><span class="search-ico">🔍</span><input type="text" placeholder="Buscar tarefa..." oninput="filterTasks(this.value)"/></div>
+    <button class="btn-green" onclick="openModal()">+ Nova tarefa</button>
+  </div>
+  <div class="body">
+    <div class="left-panel">
+      <div class="lp-title">Visualizar</div>
+      <div class="filter-group">
+        <div class="filter-btn-item active" onclick="setView('hoje',this)"><span class="fbi-ico">📅</span>Hoje<span class="fbi-count" id="cnt-hoje">0</span></div>
+        <div class="filter-btn-item" onclick="setView('atrasadas',this)"><span class="fbi-ico">🔴</span>Atrasadas<span class="fbi-count" id="cnt-atrasadas">0</span></div>
+        <div class="filter-btn-item" onclick="setView('semana',this)"><span class="fbi-ico">📆</span>Esta semana<span class="fbi-count" id="cnt-semana">0</span></div>
+        <div class="filter-btn-item" onclick="setView('todas',this)"><span class="fbi-ico">🗂️</span>Todas<span class="fbi-count" id="cnt-todas">0</span></div>
+        <div class="filter-btn-item" onclick="setView('concluidas',this)"><span class="fbi-ico">✅</span>Concluídas<span class="fbi-count" id="cnt-concluidas">0</span></div>
+      </div>
+      <div class="filter-group">
+        <div class="fg-label">Tipo</div>
+        <div class="type-item active" onclick="setType('all',this)"><div class="type-dot" style="background:var(--muted)"></div><span class="type-name">Todos os tipos</span><span class="type-n" id="tn-all">0</span></div>
+        <div class="type-item" onclick="setType('call',this)"><div class="type-dot" style="background:var(--blue)"></div><span class="type-name">Ligação</span><span class="type-n" id="tn-call">0</span></div>
+        <div class="type-item" onclick="setType('follow',this)"><div class="type-dot" style="background:var(--green)"></div><span class="type-name">Follow-up</span><span class="type-n" id="tn-follow">0</span></div>
+        <div class="type-item" onclick="setType('meet',this)"><div class="type-dot" style="background:var(--purple)"></div><span class="type-name">Reunião</span><span class="type-n" id="tn-meet">0</span></div>
+        <div class="type-item" onclick="setType('email',this)"><div class="type-dot" style="background:var(--amber)"></div><span class="type-name">E-mail</span><span class="type-n" id="tn-email">0</span></div>
+        <div class="type-item" onclick="setType('note',this)"><div class="type-dot" style="background:var(--muted)"></div><span class="type-name">Anotação</span><span class="type-n" id="tn-note">0</span></div>
+      </div>
+    </div>
+
+    <div class="tasks-area" id="tasksArea">
+      <div class="tasks-header">
+        <div class="th-left"><h2 id="viewTitle">Tarefas de hoje</h2><p id="viewSub"></p></div>
+        <div class="search-wrap" style="display:none"></div>
+      </div>
+      <div id="tasksList"></div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3>✅ Nova tarefa</h3>
+    <div class="inp-g"><label>Título</label><input type="text" id="m-title" placeholder="Ex: Ligar para cliente"/></div>
+    <div class="inp-g">
+      <label>Tipo</label>
+      <div class="type-grid">
+        <div class="type-opt sel" data-t="call" onclick="selType(this)">📞<br>Ligação</div>
+        <div class="type-opt" data-t="follow" onclick="selType(this)">💬<br>Follow-up</div>
+        <div class="type-opt" data-t="meet" onclick="selType(this)">🤝<br>Reunião</div>
+        <div class="type-opt" data-t="email" onclick="selType(this)">✉️<br>E-mail</div>
+        <div class="type-opt" data-t="note" onclick="selType(this)">📝<br>Nota</div>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="inp-g"><label>Data</label><input type="date" id="m-date"/></div>
+      <div class="inp-g"><label>Horário</label><input type="time" id="m-time" value="09:00"/></div>
+    </div>
+    <div class="inp-g"><label>Contato vinculado</label>
+      <select id="m-contact">
+        <option value="">— Nenhum —</option>
+        <option>Maria Clara Souza</option><option>João Pedro Alves</option>
+        <option>Ana Beatriz Lima</option><option>Roberto Mendes</option>
+        <option>Carla Fernanda</option><option>Paulo Sérgio Costa</option>
+      </select>
+    </div>
+    <div class="inp-g"><label>Prioridade</label>
+      <select id="m-prio"><option value="high">🔴 Alta</option><option value="mid" selected>🟡 Média</option><option value="low">🟢 Baixa</option></select>
+    </div>
+    <div class="inp-g"><label>Observações</label><textarea id="m-obs" placeholder="Detalhes da tarefa..."></textarea></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="saveTask()">Criar tarefa →</button>
+    </div>
+  </div>
+</div>
+
+<script src="flowcrm-api.js"></script>
+<script>
+  authGuard();
+
+  const TYPE_LABEL = { call:'📞 Ligação', follow:'💬 Follow-up', meet:'🤝 Reunião', email:'✉️ E-mail', note:'📝 Nota' };
+  const today = new Date().toISOString().split('T')[0];
+  const yesterday = new Date(Date.now()-86400000).toISOString().split('T')[0];
+  const tomorrow  = new Date(Date.now()+86400000).toISOString().split('T')[0];
+
+  let tasks = [], currentView = 'hoje', currentType = 'all', filterText = '';
+
+  async function loadTasks() {
+    const data = await api('/tasks?view=' + currentView + (currentType !== 'all' ? '&type=' + currentType : ''));
+    if (!data) return;
+    tasks = data.tasks;
+    const counts = data.counts;
+    const byType = {};
+    counts.forEach(c => byType[c.type] = c._count);
+    ['call','follow','meet','email','note'].forEach(tp => {
+      const el = document.getElementById('tn-' + tp);
+      if (el) el.textContent = byType[tp] || 0;
+    });
+    const allEl = document.getElementById('tn-all');
+    if (allEl) allEl.textContent = Object.values(byType).reduce((s,v) => s + v, 0);
+    render();
+    // Update sidebar counts via a quick parallel call
+    const [hoje, atrasadas, semana, todas, concluidas] = await Promise.all([
+      api('/tasks?view=hoje').then(d => d?.tasks?.length || 0),
+      api('/tasks?view=atrasadas').then(d => d?.tasks?.length || 0),
+      api('/tasks?view=semana').then(d => d?.tasks?.length || 0),
+      api('/tasks?view=todas').then(d => d?.tasks?.length || 0),
+      api('/tasks?view=concluidas').then(d => d?.tasks?.length || 0),
+    ]);
+    const el = (id, v) => { const e = document.getElementById(id); if(e) e.textContent = v; };
+    el('cnt-hoje', hoje); el('cnt-atrasadas', atrasadas); el('cnt-semana', semana);
+    el('cnt-todas', todas); el('cnt-concluidas', concluidas);
+    const badge = document.getElementById('badgeCount');
+    if (badge) badge.textContent = hoje + atrasadas;
+  }
+
+  function timeStatus(dueDate, done) {
+    if (done) return { cls: 'ok', label: 'Concluída' };
+    if (!dueDate) return { cls: 'neutral', label: '—' };
+    const dt = new Date(dueDate);
+    const now = new Date();
+    const diff = (dt - now) / 60000;
+    if (diff < 0) return { cls: 'late', label: 'Atrasada ' + Math.round(-diff/60) + 'h' };
+    if (diff < 120) return { cls: 'soon', label: 'Em ' + Math.round(diff) + 'min' };
+    return { cls: 'neutral', label: dt.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) };
+  }
+
+  function dateLabel(d) {
+    const ds = new Date(d).toISOString().split('T')[0];
+    if (ds === today) return 'Hoje';
+    if (ds === yesterday) return 'Ontem';
+    if (ds === tomorrow) return 'Amanhã';
+    return new Date(d).toLocaleDateString('pt-BR', { day:'2-digit', month:'short' });
+  }
+
+  function render() {
+    const list = document.getElementById('tasksList');
+    if (!tasks.length) {
+      list.innerHTML = '<div class="empty-state"><div class="empty-ico">🎉</div><div class="empty-title">Nenhuma tarefa aqui</div><div class="empty-sub">Crie uma nova tarefa ou mude o filtro.</div></div>';
+      document.getElementById('viewSub').textContent = ''; return;
+    }
+    const filtered = tasks.filter(t => !filterText || t.title.toLowerCase().includes(filterText) || (t.contact?.name || '').toLowerCase().includes(filterText));
+    const groups = {};
+    filtered.forEach(t => { const key = t.dueDate ? t.dueDate.split('T')[0] : 'sem-data'; (groups[key] = groups[key] || []).push(t); });
+    const sortedDates = Object.keys(groups).sort();
+    list.innerHTML = sortedDates.map(d => {
+      const items = groups[d];
+      return `<div class="date-group">
+        <div class="dg-header"><div class="dg-label">${d === 'sem-data' ? 'Sem data' : dateLabel(d)}</div><div class="dg-line"></div><div class="dg-count">${items.length} ${items.length===1?'tarefa':'tarefas'}</div></div>
+        ${items.map((t, i) => {
+          const ts = timeStatus(t.dueDate, t.doneAt);
+          return `<div class="task-card type-${t.type}${t.doneAt?' done-card':''}${(!t.doneAt&&t.dueDate&&new Date(t.dueDate)<new Date())?' late-card':''}">
+            <div class="tc-check ${t.doneAt?'checked':''}" onclick="toggleTask('${t.id}', this)">${t.doneAt?'✓':''}</div>
+            <div class="tc-body">
+              <div class="tc-title">${t.title}</div>
+              ${t.contact ? `<div class="tc-contact"><div class="av" style="background:${palColor(i)}">${initials(t.contact.name)}</div>${t.contact.name}</div>` : ''}
+              <div class="tc-meta">
+                <span class="tc-type">${TYPE_LABEL[t.type]}</span>
+                <span class="tc-time ${ts.cls}">⏰ ${ts.label}</span>
+              </div>
+            </div>
+            <div class="tc-right"><div class="tc-prio prio-${t.priority}"></div></div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    }).join('');
+    document.getElementById('viewSub').textContent = filtered.length + ' ' + (filtered.length === 1 ? 'tarefa' : 'tarefas');
+  }
+
+  async function toggleTask(id, el) {
+    const t = tasks.find(x => x.id === id);
+    if (!t) return;
+    const isDone = !t.doneAt;
+    t.doneAt = isDone ? new Date().toISOString() : null;
+    render();
+    await api('/tasks/' + id, { method: 'PATCH', body: JSON.stringify({ done: isDone }) });
+    loadTasks();
+  }
+
+  function filterTasks(v) { filterText = v.toLowerCase(); render(); }
+  function setView(v, el) {
+    currentView = v;
+    document.querySelectorAll('.filter-btn-item').forEach(x => x.classList.remove('active'));
+    el.classList.add('active');
+    const labels = { hoje:'Tarefas de hoje', atrasadas:'Tarefas atrasadas', semana:'Esta semana', todas:'Todas as tarefas', concluidas:'Tarefas concluídas' };
+    document.getElementById('viewTitle').textContent = labels[v];
+    loadTasks();
+  }
+  function setType(v, el) { currentType = v; document.querySelectorAll('.type-item').forEach(x => x.classList.remove('active')); el.classList.add('active'); loadTasks(); }
+
+  let selectedType = 'call';
+  function selType(el) { document.querySelectorAll('.type-opt').forEach(x => x.classList.remove('sel')); el.classList.add('sel'); selectedType = el.dataset.t; }
+  function openModal() { document.getElementById('m-date').value = today; document.getElementById('overlay').classList.add('open'); }
+  function closeModal() { document.getElementById('overlay').classList.remove('open'); }
+  function openTask() {}
+
+  async function saveTask() {
+    const title = document.getElementById('m-title').value.trim();
+    if (!title) return;
+    const dueDate = document.getElementById('m-date').value + 'T' + (document.getElementById('m-time').value || '09:00') + ':00';
+    const task = await api('/tasks', { method: 'POST', body: JSON.stringify({
+      title, type: selectedType, dueDate,
+      priority: document.getElementById('m-prio').value || 'mid',
+    })});
+    if (task) { closeModal(); loadTasks(); }
+  }
+
+  loadTasks();
+</script>
+</body>
+</html>

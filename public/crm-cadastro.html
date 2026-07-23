@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FlowCRM — Criar conta</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --green:  #27ae60;
+      --blue:   #2980b9;
+      --purple: #8e44ad;
+      --amber:  #f39c12;
+      --dark:   #0f172a;
+      --text:   #1e293b;
+      --muted:  #64748b;
+      --border: #e2e8f0;
+      --bg:     #f8fafc;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── TOP BAR ── */
+    .topbar {
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      padding: 0 40px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--green), #1abc9c);
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    .brand-name { font-size: 18px; font-weight: 800; color: var(--text); }
+    .brand-name span { color: var(--green); }
+    .topbar-right { font-size: 13px; color: var(--muted); }
+    .topbar-right a { color: var(--green); font-weight: 600; text-decoration: none; }
+
+    /* ── STEPPER ── */
+    .stepper-wrap {
+      display: flex;
+      justify-content: center;
+      padding: 32px 20px 0;
+    }
+    .stepper {
+      display: flex;
+      align-items: center;
+      gap: 0;
+    }
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .step-circle {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+      border: 2px solid var(--border);
+      background: #fff;
+      color: var(--muted);
+      transition: all .3s;
+      position: relative;
+      z-index: 1;
+    }
+    .step-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      transition: color .3s;
+      white-space: nowrap;
+    }
+    .step-line {
+      width: 80px;
+      height: 2px;
+      background: var(--border);
+      margin: 0 4px;
+      transition: background .3s;
+    }
+    /* active */
+    .step.active .step-circle {
+      border-color: var(--green);
+      background: var(--green);
+      color: #fff;
+      box-shadow: 0 0 0 4px rgba(39,174,96,.15);
+    }
+    .step.active .step-label { color: var(--green); }
+    /* done */
+    .step.done .step-circle {
+      border-color: var(--green);
+      background: var(--green);
+      color: #fff;
+    }
+    .step.done .step-label { color: var(--text); }
+    .step-line.done { background: var(--green); }
+
+    /* ── MAIN CONTENT ── */
+    .content {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      padding: 36px 20px 60px;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 40px 44px;
+      width: 100%;
+      max-width: 560px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.06);
+    }
+
+    .card-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 6px;
+      letter-spacing: -.4px;
+    }
+    .card-sub {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 32px;
+      line-height: 1.6;
+    }
+
+    /* ── STEP 1: DADOS ── */
+    .input-group { margin-bottom: 18px; }
+    .input-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .input-wrap { position: relative; }
+    .input-wrap .ico {
+      position: absolute;
+      left: 13px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 15px;
+      pointer-events: none;
+    }
+    .input-wrap input,
+    .input-wrap select {
+      width: 100%;
+      padding: 12px 14px 12px 40px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      font-size: 14px;
+      color: var(--text);
+      background: #fff;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+      -webkit-appearance: none;
+    }
+    .input-wrap input:focus,
+    .input-wrap select:focus {
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(39,174,96,.12);
+    }
+    .input-wrap input::placeholder { color: #b0bec5; }
+
+    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    /* password strength */
+    .strength-bar { display: flex; gap: 4px; margin-top: 8px; }
+    .strength-seg {
+      flex: 1; height: 4px; border-radius: 2px;
+      background: var(--border); transition: background .3s;
+    }
+    .strength-seg.s1 { background: #e74c3c; }
+    .strength-seg.s2 { background: #f39c12; }
+    .strength-seg.s3 { background: var(--green); }
+
+    /* ── STEP 2: PLANOS ── */
+    .plans { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .plan-card {
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      cursor: pointer;
+      transition: all .2s;
+      position: relative;
+      background: #fff;
+    }
+    .plan-card:hover { border-color: #94a3b8; }
+    .plan-card.selected {
+      border-color: var(--green);
+      background: #f0fdf4;
+      box-shadow: 0 0 0 3px rgba(39,174,96,.12);
+    }
+    .plan-badge {
+      position: absolute;
+      top: -10px; right: 14px;
+      background: var(--amber);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 3px 10px;
+      border-radius: 20px;
+      letter-spacing: .4px;
+    }
+    .plan-icon { font-size: 26px; margin-bottom: 10px; }
+    .plan-name { font-size: 15px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
+    .plan-price { font-size: 22px; font-weight: 800; color: var(--green); line-height: 1; }
+    .plan-price span { font-size: 12px; font-weight: 500; color: var(--muted); }
+    .plan-desc { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+    .plan-features { margin-top: 12px; display: flex; flex-direction: column; gap: 5px; }
+    .plan-feat {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: var(--text);
+    }
+    .plan-feat::before { content: '✓'; color: var(--green); font-weight: 800; font-size: 11px; }
+    .plan-card.selected .plan-name { color: var(--green); }
+
+    /* banco selector */
+    .banco-toggle {
+      margin-top: 20px;
+      padding: 16px;
+      background: #f8fafc;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+    }
+    .banco-toggle label {
+      font-size: 13px; font-weight: 700; color: var(--text);
+      display: flex; align-items: center; gap: 8px; cursor: pointer;
+    }
+    .banco-toggle p { font-size: 12px; color: var(--muted); margin-top: 6px; padding-left: 26px; line-height: 1.5; }
+    input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--green); cursor: pointer; }
+
+    /* ── STEP 3: CONFIG ── */
+    .seg-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 24px; }
+    .seg-item {
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 10px;
+      text-align: center;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .seg-item:hover { border-color: #94a3b8; }
+    .seg-item.selected { border-color: var(--blue); background: #eff6ff; }
+    .seg-item .seg-ico { font-size: 24px; margin-bottom: 5px; }
+    .seg-item .seg-name { font-size: 12px; font-weight: 600; color: var(--text); }
+    .seg-item.selected .seg-name { color: var(--blue); }
+
+    .stages-wrap { margin-top: 4px; }
+    .stages-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+    .stage-tag {
+      display: flex; align-items: center; gap: 6px;
+      background: #eff6ff; border: 1px solid #bfdbfe;
+      border-radius: 20px; padding: 5px 12px;
+      font-size: 12px; font-weight: 600; color: var(--blue);
+    }
+    .stage-tag .rm {
+      cursor: pointer; color: #93c5fd; font-size: 14px;
+      line-height: 1; transition: color .15s;
+    }
+    .stage-tag .rm:hover { color: #2980b9; }
+    .add-stage {
+      display: flex; gap: 8px;
+    }
+    .add-stage input {
+      flex: 1; padding: 9px 13px;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 13px; color: var(--text); outline: none;
+    }
+    .add-stage input:focus { border-color: var(--green); }
+    .add-stage button {
+      padding: 9px 16px;
+      background: var(--green); color: #fff;
+      border: none; border-radius: 8px;
+      font-size: 13px; font-weight: 700; cursor: pointer;
+    }
+
+    /* section label */
+    .sec-label {
+      font-size: 12px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .6px;
+      margin: 20px 0 10px;
+    }
+
+    /* custom fields */
+    .fields-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+    .field-row {
+      display: flex; align-items: center; gap: 8px;
+      background: #f8fafc; border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 12px;
+      font-size: 13px; color: var(--text);
+    }
+    .field-row .field-name { flex: 1; }
+    .field-row .field-type {
+      font-size: 11px; padding: 2px 8px;
+      border-radius: 10px; font-weight: 600;
+    }
+    .field-row .field-type.text  { background: #eff6ff; color: var(--blue); }
+    .field-row .field-type.num   { background: #fdf4ff; color: var(--purple); }
+    .field-row .field-type.date  { background: #fff7ed; color: var(--amber); }
+    .field-row .rm-field {
+      color: #cbd5e1; font-size: 16px; cursor: pointer; line-height:1;
+    }
+    .field-row .rm-field:hover { color: #e74c3c; }
+
+    .add-field { display: flex; gap: 8px; }
+    .add-field input, .add-field select {
+      flex: 1; padding: 9px 13px;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 13px; color: var(--text); outline: none;
+      background: #fff;
+    }
+    .add-field input:focus, .add-field select:focus { border-color: var(--purple); }
+    .add-field select { flex: 0 0 90px; }
+    .add-field button {
+      padding: 9px 14px;
+      background: var(--purple); color: #fff;
+      border: none; border-radius: 8px;
+      font-size: 13px; font-weight: 700; cursor: pointer;
+    }
+
+    /* ── ACTIONS ── */
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 32px;
+    }
+    .btn-back {
+      flex: 0 0 auto;
+      padding: 13px 20px;
+      background: #fff;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      font-size: 14px; font-weight: 600;
+      color: var(--muted); cursor: pointer;
+      transition: border-color .2s;
+    }
+    .btn-back:hover { border-color: #94a3b8; }
+    .btn-next {
+      flex: 1;
+      padding: 14px;
+      background: linear-gradient(135deg, var(--green), #1abc9c);
+      color: #fff;
+      font-size: 15px; font-weight: 700;
+      border: none; border-radius: 10px; cursor: pointer;
+      box-shadow: 0 4px 14px rgba(39,174,96,.3);
+      transition: transform .15s, box-shadow .15s;
+    }
+    .btn-next:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(39,174,96,.4);
+    }
+    .btn-next:active { transform: translateY(0); }
+
+    /* ── SUCCESS ── */
+    #step-success {
+      text-align: center;
+      padding: 20px 0;
+    }
+    .success-icon {
+      width: 72px; height: 72px;
+      background: linear-gradient(135deg, var(--green), #1abc9c);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px;
+      margin: 0 auto 24px;
+      box-shadow: 0 8px 24px rgba(39,174,96,.35);
+      animation: popIn .4s cubic-bezier(.34,1.56,.64,1);
+    }
+    @keyframes popIn {
+      from { transform: scale(0); opacity: 0; }
+      to   { transform: scale(1); opacity: 1; }
+    }
+    #step-success h2 { font-size: 24px; font-weight: 800; color: var(--text); margin-bottom: 8px; }
+    #step-success p { font-size: 14px; color: var(--muted); max-width: 360px; margin: 0 auto 28px; line-height: 1.7; }
+
+    .summary-row {
+      display: flex;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 18px;
+      gap: 8px;
+      margin-bottom: 8px;
+      text-align: left;
+    }
+    .summary-row .sr-ico { font-size: 18px; }
+    .summary-row .sr-body { }
+    .summary-row .sr-label { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: .3px; }
+    .summary-row .sr-val { font-size: 14px; color: var(--text); font-weight: 700; }
+
+    /* hide */
+    .step-panel { display: none; }
+    .step-panel.active { display: block; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-icon">⚡</div>
+    <div class="brand-name">Flow<span>CRM</span></div>
+  </div>
+  <div class="topbar-right">Já tem conta? <a href="crm-login.html">Entrar →</a></div>
+</div>
+
+<!-- STEPPER -->
+<div class="stepper-wrap">
+  <div class="stepper" id="stepper">
+    <div class="step active" id="s1">
+      <div class="step-circle">1</div>
+      <div class="step-label">Sua conta</div>
+    </div>
+    <div class="step-line" id="line1"></div>
+    <div class="step" id="s2">
+      <div class="step-circle">2</div>
+      <div class="step-label">Plano</div>
+    </div>
+    <div class="step-line" id="line2"></div>
+    <div class="step" id="s3">
+      <div class="step-circle">3</div>
+      <div class="step-label">Configurar CRM</div>
+    </div>
+  </div>
+</div>
+
+<!-- CONTENT -->
+<div class="content">
+  <div class="card">
+
+    <!-- STEP 1 -->
+    <div class="step-panel active" id="step1">
+      <div class="card-title">Criar sua conta</div>
+      <div class="card-sub">Grátis por 14 dias, sem cartão de crédito.</div>
+
+      <div class="row-2">
+        <div class="input-group">
+          <label>Nome</label>
+          <div class="input-wrap">
+            <span class="ico">👤</span>
+            <input type="text" placeholder="Seu nome" id="nome" />
+          </div>
+        </div>
+        <div class="input-group">
+          <label>Sobrenome</label>
+          <div class="input-wrap">
+            <span class="ico">👤</span>
+            <input type="text" placeholder="Sobrenome" />
+          </div>
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label>E-mail profissional</label>
+        <div class="input-wrap">
+          <span class="ico">✉️</span>
+          <input type="email" placeholder="seu@empresa.com.br" id="email" />
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label>Nome do negócio</label>
+        <div class="input-wrap">
+          <span class="ico">🏢</span>
+          <input type="text" placeholder="Ex: Clínica Vida Plena" id="empresa" />
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label>Telefone / WhatsApp</label>
+        <div class="input-wrap">
+          <span class="ico">📱</span>
+          <input type="tel" placeholder="(11) 99999-9999" />
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label>Senha</label>
+        <div class="input-wrap">
+          <span class="ico">🔒</span>
+          <input type="password" placeholder="Mínimo 8 caracteres" id="senha"
+            oninput="checkStrength(this.value)" />
+        </div>
+        <div class="strength-bar">
+          <div class="strength-seg" id="seg1"></div>
+          <div class="strength-seg" id="seg2"></div>
+          <div class="strength-seg" id="seg3"></div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn-next" onclick="goTo(2)">Continuar →</button>
+      </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="step-panel" id="step2">
+      <div class="card-title">Escolha seu plano</div>
+      <div class="card-sub">Comece grátis por 14 dias. Cancele quando quiser.</div>
+
+      <div class="plans">
+        <div class="plan-card selected" onclick="selectPlan(this,'Starter')" id="plan-Starter">
+          <div class="plan-icon">🚀</div>
+          <div class="plan-name">Starter</div>
+          <div class="plan-price">R$ 97<span>/mês</span></div>
+          <div class="plan-desc">Até 3 usuários. Banco hospedado por nós.</div>
+          <div class="plan-features">
+            <div class="plan-feat">Pipeline kanban</div>
+            <div class="plan-feat">Campos configuráveis</div>
+            <div class="plan-feat">Histórico de contatos</div>
+            <div class="plan-feat">Tarefas e lembretes</div>
+          </div>
+        </div>
+
+        <div class="plan-card" onclick="selectPlan(this,'Profissional')" id="plan-Profissional">
+          <div class="plan-badge">POPULAR</div>
+          <div class="plan-icon">💼</div>
+          <div class="plan-name">Profissional</div>
+          <div class="plan-price">R$ 297<span>/mês</span></div>
+          <div class="plan-desc">Até 15 usuários. Banco hospedado.</div>
+          <div class="plan-features">
+            <div class="plan-feat">Tudo do Starter</div>
+            <div class="plan-feat">Relatórios avançados</div>
+            <div class="plan-feat">Integração WhatsApp</div>
+            <div class="plan-feat">IA de preenchimento</div>
+          </div>
+        </div>
+
+        <div class="plan-card" onclick="selectPlan(this,'Conectado')" id="plan-Conectado">
+          <div class="plan-icon">🔌</div>
+          <div class="plan-name">Conectado</div>
+          <div class="plan-price">R$ 397<span>/mês</span></div>
+          <div class="plan-desc">Conecta ao banco que você já tem.</div>
+          <div class="plan-features">
+            <div class="plan-feat">Tudo do Profissional</div>
+            <div class="plan-feat">Banco próprio do cliente</div>
+            <div class="plan-feat">Setup incluso</div>
+            <div class="plan-feat">Suporte prioritário</div>
+          </div>
+        </div>
+
+        <div class="plan-card" onclick="selectPlan(this,'Empresarial')" id="plan-Empresarial">
+          <div class="plan-icon">🏢</div>
+          <div class="plan-name">Empresarial</div>
+          <div class="plan-price">R$ 1.200<span>/mês</span></div>
+          <div class="plan-desc">Franquias e redes. +30 usuários.</div>
+          <div class="plan-features">
+            <div class="plan-feat">Multi-empresa</div>
+            <div class="plan-feat">SLA garantido</div>
+            <div class="plan-feat">Gestor dedicado</div>
+            <div class="plan-feat">Contrato anual</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="banco-toggle" id="banco-toggle" style="display:none">
+        <label>
+          <input type="checkbox" id="banco-proprio" onchange="toggleBancoInfo()" />
+          Tenho banco de dados próprio e quero conectar
+        </label>
+        <p id="banco-info" style="display:none">Após o cadastro, nossa equipe entrará em contato para mapear suas tabelas e configurar o conector. Setup único: R$ 1.500 a R$ 4.000.</p>
+      </div>
+
+      <div class="actions">
+        <button class="btn-back" onclick="goTo(1)">← Voltar</button>
+        <button class="btn-next" onclick="goTo(3)">Continuar →</button>
+      </div>
+    </div>
+
+    <!-- STEP 3 -->
+    <div class="step-panel" id="step3">
+      <div class="card-title">Configure seu CRM</div>
+      <div class="card-sub">Defina o segmento, os estágios do funil e os campos que fazem sentido para o seu negócio.</div>
+
+      <!-- Segmento -->
+      <div class="sec-label">Segmento do seu negócio</div>
+      <div class="seg-grid">
+        <div class="seg-item selected" onclick="selectSeg(this,'Clínica / Saúde',['Novo paciente','Agendado','Em atendimento','Retorno','Inativo'])">
+          <div class="seg-ico">🏥</div>
+          <div class="seg-name">Clínica / Saúde</div>
+        </div>
+        <div class="seg-item" onclick="selectSeg(this,'Imobiliária',['Novo lead','Visita agendada','Proposta enviada','Negociação','Fechado'])">
+          <div class="seg-ico">🏠</div>
+          <div class="seg-name">Imobiliária</div>
+        </div>
+        <div class="seg-item" onclick="selectSeg(this,'Agência / Marketing',['Briefing','Proposta','Em produção','Aprovação','Entregue'])">
+          <div class="seg-ico">🎯</div>
+          <div class="seg-name">Agência</div>
+        </div>
+        <div class="seg-item" onclick="selectSeg(this,'Loja / Varejo',['Interesse','Orçamento','Negociando','Fechado','Pós-venda'])">
+          <div class="seg-ico">🛍️</div>
+          <div class="seg-name">Loja / Varejo</div>
+        </div>
+        <div class="seg-item" onclick="selectSeg(this,'Consultoria',['Lead','Diagnóstico','Proposta','Contrato','Projeto ativo'])">
+          <div class="seg-ico">💡</div>
+          <div class="seg-name">Consultoria</div>
+        </div>
+        <div class="seg-item" onclick="selectSeg(this,'Outro',['Novo','Em contato','Proposta','Negociação','Fechado'])">
+          <div class="seg-ico">⚙️</div>
+          <div class="seg-name">Outro</div>
+        </div>
+      </div>
+
+      <!-- Estágios -->
+      <div class="sec-label">Estágios do pipeline <span style="color:#94a3b8;font-weight:400;text-transform:none;font-size:11px">— arraste para reordenar</span></div>
+      <div class="stages-wrap">
+        <div class="stages-list" id="stages-list"></div>
+        <div class="add-stage">
+          <input type="text" id="new-stage" placeholder="Ex: Em proposta" onkeydown="if(event.key==='Enter')addStage()" />
+          <button onclick="addStage()">+ Adicionar</button>
+        </div>
+      </div>
+
+      <!-- Campos personalizados -->
+      <div class="sec-label">Campos personalizados de contato</div>
+      <div class="fields-list" id="fields-list"></div>
+      <div class="add-field">
+        <input type="text" id="new-field" placeholder="Nome do campo (ex: CPF)" onkeydown="if(event.key==='Enter')addField()" />
+        <select id="field-type">
+          <option value="text">Texto</option>
+          <option value="num">Número</option>
+          <option value="date">Data</option>
+        </select>
+        <button onclick="addField()">+ Campo</button>
+      </div>
+
+      <div id="register-error" style="display:none;color:#e74c3c;font-size:13px;margin-bottom:12px"></div>
+      <div class="actions">
+        <button class="btn-back" onclick="goTo(2)">← Voltar</button>
+        <button class="btn-next" id="btn-criar" onclick="finishRegister()" style="background:linear-gradient(135deg,#8e44ad,#c084fc)">
+          Criar meu CRM 🚀
+        </button>
+      </div>
+    </div>
+
+    <!-- SUCCESS -->
+    <div class="step-panel" id="step4">
+      <div id="step-success">
+        <div class="success-icon">✓</div>
+        <h2>CRM criado com sucesso!</h2>
+        <p>Tudo pronto. Seu FlowCRM foi configurado com os estágios e campos do seu negócio. Agora é só começar a usar.</p>
+
+        <div class="summary-row">
+          <div class="sr-ico">📋</div>
+          <div class="sr-body">
+            <div class="sr-label">PLANO ATIVO</div>
+            <div class="sr-val" id="sum-plan">Starter — R$ 97/mês</div>
+          </div>
+        </div>
+        <div class="summary-row">
+          <div class="sr-ico">🏷️</div>
+          <div class="sr-body">
+            <div class="sr-label">SEGMENTO</div>
+            <div class="sr-val" id="sum-seg">Clínica / Saúde</div>
+          </div>
+        </div>
+        <div class="summary-row">
+          <div class="sr-ico">🔑</div>
+          <div class="sr-body">
+            <div class="sr-label">TRIAL GRATUITO ATÉ</div>
+            <div class="sr-val" id="sum-trial"></div>
+          </div>
+        </div>
+
+        <button class="btn-next" style="margin-top:28px" onclick="window.location.href='crm-dashboard.html'">
+          Acessar meu CRM →
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="flowcrm-api.js"></script>
+<script>
+  let currentStep = 1;
+  let selectedPlan = 'Starter';
+  let selectedSeg  = 'Clínica / Saúde';
+  let stages = ['Novo paciente','Agendado','Em atendimento','Retorno','Inativo'];
+  let fields = [
+    { name: 'Data de nascimento', type: 'date' },
+    { name: 'Convênio',           type: 'text' },
+  ];
+
+  /* ── NAVIGATION ── */
+  function goTo(n) {
+    document.getElementById('step' + currentStep).classList.remove('active');
+    // update stepper
+    const ids = [1,2,3,4];
+    ids.forEach(i => {
+      const s = document.getElementById('s' + i);
+      if (!s) return;
+      s.classList.remove('active','done');
+      if (i < n)  s.classList.add('done');
+      if (i === n) s.classList.add('active');
+    });
+    [1,2].forEach(i => {
+      const l = document.getElementById('line' + i);
+      if (!l) return;
+      l.classList.toggle('done', i < n);
+    });
+
+    currentStep = n;
+    if (n === 4) buildSuccess();
+    const panel = document.getElementById('step' + n);
+    if (panel) { panel.classList.add('active'); }
+  }
+
+  /* ── STEP 1: PASSWORD STRENGTH ── */
+  function checkStrength(v) {
+    const s1 = document.getElementById('seg1');
+    const s2 = document.getElementById('seg2');
+    const s3 = document.getElementById('seg3');
+    s1.className = 'strength-seg'; s2.className = 'strength-seg'; s3.className = 'strength-seg';
+    if (v.length >= 4)  s1.classList.add('s1');
+    if (v.length >= 6 && /[A-Z0-9]/.test(v)) s2.classList.add('s2');
+    if (v.length >= 8 && /[^a-zA-Z0-9]/.test(v)) { s1.classList.add('s3'); s2.classList.add('s3'); s3.classList.add('s3'); }
+  }
+
+  /* ── STEP 2: PLANS ── */
+  const planPrices = { Starter:'R$ 97/mês', Profissional:'R$ 297/mês', Conectado:'R$ 397/mês', Empresarial:'R$ 1.200/mês' };
+  function selectPlan(el, name) {
+    document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedPlan = name;
+    const toggle = document.getElementById('banco-toggle');
+    toggle.style.display = (name === 'Conectado') ? 'block' : 'none';
+  }
+  function toggleBancoInfo() {
+    const info = document.getElementById('banco-info');
+    info.style.display = document.getElementById('banco-proprio').checked ? 'block' : 'none';
+  }
+
+  /* ── STEP 3: SEGMENT ── */
+  function selectSeg(el, name, defaultStages) {
+    document.querySelectorAll('.seg-item').forEach(s => s.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedSeg = name;
+    stages = [...defaultStages];
+    renderStages();
+  }
+
+  /* ── STAGES ── */
+  function renderStages() {
+    const list = document.getElementById('stages-list');
+    list.innerHTML = stages.map((s, i) =>
+      `<div class="stage-tag">${s}<span class="rm" onclick="removeStage(${i})">×</span></div>`
+    ).join('');
+  }
+  function addStage() {
+    const inp = document.getElementById('new-stage');
+    const v = inp.value.trim();
+    if (!v) return;
+    stages.push(v); inp.value = '';
+    renderStages();
+  }
+  function removeStage(i) {
+    stages.splice(i,1); renderStages();
+  }
+
+  /* ── FIELDS ── */
+  function renderFields() {
+    const list = document.getElementById('fields-list');
+    list.innerHTML = fields.map((f, i) =>
+      `<div class="field-row">
+        <span class="field-name">${f.name}</span>
+        <span class="field-type ${f.type}">${f.type === 'text' ? 'Texto' : f.type === 'num' ? 'Número' : 'Data'}</span>
+        <span class="rm-field" onclick="removeField(${i})">×</span>
+      </div>`
+    ).join('');
+  }
+  function addField() {
+    const inp = document.getElementById('new-field');
+    const typ = document.getElementById('field-type').value;
+    const v = inp.value.trim();
+    if (!v) return;
+    fields.push({ name: v, type: typ }); inp.value = '';
+    renderFields();
+  }
+  function removeField(i) {
+    fields.splice(i,1); renderFields();
+  }
+
+  /* ── REGISTER ── */
+  function showRegError(msg) {
+    const errEl = document.getElementById('register-error');
+    errEl.textContent = msg;
+    errEl.style.display = 'block';
+  }
+
+  async function finishRegister() {
+    const nome    = document.getElementById('nome').value.trim();
+    const email   = document.getElementById('email').value.trim();
+    const senha   = document.getElementById('senha').value;
+    const empresa = document.getElementById('empresa').value.trim();
+
+    document.getElementById('register-error').style.display = 'none';
+    if (!nome)    return showRegError('Informe seu nome.');
+    if (!email)   return showRegError('Informe um e-mail válido.');
+    if (!senha || senha.length < 6) return showRegError('A senha deve ter no mínimo 6 caracteres.');
+    if (!empresa) return showRegError('Informe o nome do seu negócio.');
+
+    const btn = document.getElementById('btn-criar');
+    btn.textContent = 'Criando...'; btn.disabled = true;
+
+    const data = await fetch('http://localhost:3333/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: nome, email, password: senha, businessName: empresa, segment: selectedSeg, plan: selectedPlan }),
+    }).then(r => r.json()).catch(() => null);
+
+    btn.textContent = 'Criar meu CRM 🚀'; btn.disabled = false;
+
+    if (!data || data.error) {
+      showRegError(typeof data?.error === 'string' ? data.error : 'Erro ao conectar. Verifique se o servidor está rodando.');
+      return;
+    }
+
+    setToken(data.token);
+    await syncPipelineConfig();
+    goTo(4);
+  }
+
+  // Aplica os estágios e campos personalizados definidos no wizard (o registro cria estágios padrão)
+  async function syncPipelineConfig() {
+    const defaultStages = await api('/settings/stages');
+    if (defaultStages) {
+      for (const s of defaultStages) await api('/settings/stages/' + s.id, { method: 'DELETE' });
+    }
+    for (let i = 0; i < stages.length; i++) {
+      await api('/settings/stages', { method: 'POST', body: JSON.stringify({ name: stages[i], color: palColor(i) }) });
+    }
+    for (const f of fields) {
+      await api('/settings/fields', { method: 'POST', body: JSON.stringify({ name: f.name, type: f.type }) });
+    }
+  }
+
+  /* ── SUCCESS ── */
+  function buildSuccess() {
+    document.getElementById('sum-plan').textContent = selectedPlan + ' — ' + planPrices[selectedPlan];
+    document.getElementById('sum-seg').textContent  = selectedSeg;
+    const d = new Date(); d.setDate(d.getDate() + 14);
+    document.getElementById('sum-trial').textContent =
+      d.toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
+  }
+
+  // init
+  renderStages();
+  renderFields();
+</script>
+</body>
+</html>

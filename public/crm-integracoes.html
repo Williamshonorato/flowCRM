@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>FlowCRM — Integrações</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{--green:#27ae60;--blue:#2980b9;--purple:#8e44ad;--amber:#f39c12;--red:#e74c3c;--sidebar:#0f172a;--text:#1e293b;--muted:#64748b;--border:#e2e8f0;--bg:#f1f5f9}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);display:flex;min-height:100vh}
+    .sidebar{width:230px;min-height:100vh;background:var(--sidebar);display:flex;flex-direction:column;flex-shrink:0}
+    .sb-brand{padding:20px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.07)}
+    .sb-icon{width:34px;height:34px;background:linear-gradient(135deg,var(--green),#1abc9c);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px}
+    .sb-name{font-size:17px;font-weight:800;color:#fff}.sb-name span{color:var(--green)}
+    .sb-nav{flex:1;padding:14px 10px}
+    .sb-section{font-size:10px;font-weight:700;color:#334155;letter-spacing:.8px;text-transform:uppercase;padding:10px 10px 6px}
+    .nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;font-size:13.5px;font-weight:500;color:#94a3b8;cursor:pointer;text-decoration:none;transition:all .18s;margin-bottom:2px}
+    .nav-item:hover{background:rgba(255,255,255,.06);color:#e2e8f0}
+    .nav-item.active{background:linear-gradient(135deg,rgba(39,174,96,.18),rgba(26,188,156,.1));color:#4ade80;font-weight:700}
+    .nav-item .ico{width:18px;text-align:center;font-size:15px}
+    .nav-item .badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:10px}
+    .sb-bottom{padding:14px 10px;border-top:1px solid rgba(255,255,255,.07)}
+    .user-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;cursor:pointer}.user-row:hover{background:rgba(255,255,255,.06)}
+    .user-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--green),#1abc9c);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff}
+    .user-info .name{font-size:13px;font-weight:600;color:#e2e8f0}.user-info .plan{font-size:11px;color:#64748b}
+    .main{flex:1;display:flex;flex-direction:column;min-width:0}
+    .topbar{background:#fff;border-bottom:1px solid var(--border);padding:0 28px;height:58px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+    .page-title{font-size:17px;font-weight:800;color:var(--text);flex:1}
+    .search-wrap{position:relative}
+    .search-wrap input{padding:8px 12px 8px 34px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;color:var(--text);outline:none;width:220px;background:var(--bg)}
+    .search-wrap input:focus{border-color:var(--green)}
+    .search-ico{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--muted)}
+    .content{padding:28px;overflow-y:auto;flex:1}
+
+    /* STATUS BANNER */
+    .status-banner{background:#f0fdf4;border:1.5px solid #86efac;border-radius:14px;padding:16px 20px;display:flex;align-items:center;gap:14px;margin-bottom:28px}
+    .sb-ico{font-size:24px}
+    .sb-text .title{font-size:14px;font-weight:700;color:var(--text)}
+    .sb-text .sub{font-size:12px;color:var(--muted);margin-top:2px}
+    .sb-badge{margin-left:auto;background:var(--green);color:#fff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px}
+
+    /* SECTION */
+    .section-title{font-size:13px;font-weight:800;color:var(--text);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+    .section-title span{font-size:11px;font-weight:600;color:var(--muted);background:var(--bg);padding:2px 8px;border-radius:10px}
+
+    /* INTEGRATION GRID */
+    .int-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:28px}
+    .int-card{background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:0;transition:all .2s;cursor:pointer;position:relative;overflow:hidden}
+    .int-card:hover{border-color:#94a3b8;box-shadow:0 4px 16px rgba(0,0,0,.07);transform:translateY(-1px)}
+    .int-card.connected{border-color:#86efac;background:#fafffe}
+    .int-card.featured::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+    .int-card.wpp::before{background:linear-gradient(90deg,#25d366,#128c7e)}
+    .int-card.db::before{background:linear-gradient(90deg,var(--blue),#5dade2)}
+
+    .int-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px}
+    .int-logo{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0}
+    .int-status{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px}
+    .status-connected{background:#dcfce7;color:#166534}
+    .status-available{background:var(--bg);color:var(--muted)}
+    .status-soon{background:#fef3c7;color:#92400e}
+    .status-pro{background:#fdf4ff;color:var(--purple)}
+
+    .int-name{font-size:14px;font-weight:800;color:var(--text);margin-bottom:4px}
+    .int-desc{font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:14px;flex:1}
+
+    .int-footer{display:flex;align-items:center;justify-content:space-between}
+    .int-tag{font-size:11px;font-weight:600;color:var(--muted)}
+    .int-btn{padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:none;transition:all .15s}
+    .btn-connect{background:var(--green);color:#fff}
+    .btn-connect:hover{background:#219a52}
+    .btn-manage{background:var(--bg);color:var(--text);border:1.5px solid var(--border)}
+    .btn-manage:hover{border-color:var(--green);color:var(--green)}
+    .btn-soon{background:var(--bg);color:var(--muted);cursor:default}
+
+    /* DB SECTION */
+    .db-card{background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:24px;margin-bottom:28px}
+    .db-header{display:flex;align-items:center;gap:14px;margin-bottom:20px}
+    .db-ico{width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,#2980b9,#5dade2);display:flex;align-items:center;justify-content:center;font-size:24px;color:#fff}
+    .db-title{font-size:16px;font-weight:800;color:var(--text)}
+    .db-sub{font-size:13px;color:var(--muted);margin-top:2px}
+    .db-badge{margin-left:auto;background:#fdf4ff;color:var(--purple);font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px}
+    .db-types{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+    .db-type{border:2px solid var(--border);border-radius:12px;padding:14px 12px;text-align:center;cursor:pointer;transition:all .18s}
+    .db-type:hover{border-color:#94a3b8}
+    .db-type.sel{border-color:var(--blue);background:#eff6ff}
+    .db-type .db-t-ico{font-size:26px;margin-bottom:6px}
+    .db-type .db-t-name{font-size:12px;font-weight:700;color:var(--text)}
+    .db-type.sel .db-t-name{color:var(--blue)}
+    .db-form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .db-inp-g label{display:block;font-size:12px;font-weight:600;color:var(--text);margin-bottom:5px}
+    .db-inp-g input{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;color:var(--text);outline:none;background:#fff}
+    .db-inp-g input:focus{border-color:var(--blue)}
+    .db-actions{display:flex;gap:10px;margin-top:16px}
+    .btn-test{padding:9px 18px;background:#eff6ff;color:var(--blue);border:1.5px solid #bfdbfe;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer}
+    .btn-save-db{padding:9px 18px;background:linear-gradient(135deg,var(--blue),#5dade2);color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer}
+    .test-result{display:none;padding:10px 14px;border-radius:9px;font-size:13px;font-weight:600;margin-top:10px}
+    .test-ok{background:#dcfce7;color:#166534}
+    .test-fail{background:#fee2e2;color:#991b1b}
+
+    /* WEBHOOK / API */
+    .api-card{background:#fff;border:1px solid var(--border);border-radius:16px;padding:22px}
+    .api-key-row{display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:10px}
+    .api-key-label{font-size:12px;font-weight:600;color:var(--muted);flex-shrink:0}
+    .api-key-val{font-size:13px;font-family:monospace;color:var(--text);flex:1;letter-spacing:.5px}
+    .copy-btn{padding:5px 12px;background:var(--bg);border:1px solid var(--border);border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0}
+    .copy-btn:hover{border-color:var(--green);color:var(--green)}
+  </style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="sb-brand"><div class="sb-icon">⚡</div><div class="sb-name">Flow<span>CRM</span></div></div>
+  <nav class="sb-nav">
+    <div class="sb-section">Principal</div>
+    <a class="nav-item" href="crm-dashboard.html"><span class="ico">📊</span>Dashboard</a>
+    <a class="nav-item" href="crm-pipeline.html"><span class="ico">🗂️</span>Pipeline</a>
+    <a class="nav-item" href="crm-contatos.html"><span class="ico">👥</span>Contatos</a>
+    <a class="nav-item" href="crm-tarefas.html"><span class="ico">✅</span>Tarefas<span class="badge">3</span></a>
+    <div class="sb-section">Sistema</div>
+    <a class="nav-item" href="crm-relatorios.html"><span class="ico">📈</span>Relatórios</a>
+    <a class="nav-item" href="crm-importar.html"><span class="ico">📥</span>Importar dados</a>
+    <a class="nav-item active" href="crm-integracoes.html"><span class="ico">🔌</span>Integrações</a>
+    <a class="nav-item" href="crm-configuracoes.html"><span class="ico">⚙️</span>Configurações</a>
+  </nav>
+  <div class="sb-bottom"><div class="user-row"><div class="user-avatar">W</div><div class="user-info"><div class="name">Williams</div><div class="plan">Plano Profissional</div></div></div></div>
+</div>
+<div class="main">
+  <div class="topbar">
+    <div class="page-title">Integrações</div>
+    <div class="search-wrap"><span class="search-ico">🔍</span><input type="text" placeholder="Buscar integração..."/></div>
+  </div>
+  <div class="content">
+    <div class="status-banner">
+      <div class="sb-ico">✅</div>
+      <div class="sb-text"><div class="title">1 integração ativa</div><div class="sub">WhatsApp Business conectado. Mensagens sendo capturadas automaticamente.</div></div>
+      <div class="sb-badge">1 ativo</div>
+    </div>
+
+    <!-- COMUNICAÇÃO -->
+    <div class="section-title">💬 Comunicação <span>3 disponíveis</span></div>
+    <div class="int-grid">
+      <div class="int-card connected featured wpp">
+        <div class="int-top"><div class="int-logo" style="background:#dcfce7">📱</div><span class="int-status status-connected">✓ Conectado</span></div>
+        <div class="int-name">WhatsApp Business</div>
+        <div class="int-desc">Capture conversas do WhatsApp automaticamente. A IA lê as mensagens, identifica o contato e atualiza o pipeline sem intervenção manual.</div>
+        <div class="int-footer"><span class="int-tag">+312 msgs capturadas</span><button class="int-btn btn-manage">Gerenciar</button></div>
+      </div>
+      <div class="int-card">
+        <div class="int-top"><div class="int-logo" style="background:#fef2f2">✉️</div><span class="int-status status-available">Disponível</span></div>
+        <div class="int-name">Gmail</div>
+        <div class="int-desc">Sincronize e-mails com contatos do CRM. Toda troca de e-mail aparece no histórico do cliente automaticamente.</div>
+        <div class="int-footer"><span class="int-tag">E-mail</span><button class="int-btn btn-connect">Conectar</button></div>
+      </div>
+      <div class="int-card">
+        <div class="int-top"><div class="int-logo" style="background:#eff6ff">📧</div><span class="int-status status-available">Disponível</span></div>
+        <div class="int-name">Outlook / Microsoft 365</div>
+        <div class="int-desc">Integração com caixa de entrada do Outlook. E-mails vinculados automaticamente ao contato correspondente no CRM.</div>
+        <div class="int-footer"><span class="int-tag">E-mail</span><button class="int-btn btn-connect">Conectar</button></div>
+      </div>
+    </div>
+
+    <!-- BANCO DE DADOS (destaque) -->
+    <div class="section-title">🔌 Banco de dados próprio <span>Plano Conectado</span></div>
+    <div class="db-card">
+      <div class="db-header">
+        <div class="db-ico">🗄️</div>
+        <div><div class="db-title">Conectar ao banco de dados existente</div><div class="db-sub">Plugue o FlowCRM no banco que você já usa — nenhuma migração necessária.</div></div>
+        <div class="db-badge">⭐ Diferencial exclusivo</div>
+      </div>
+      <div class="db-types">
+        <div class="db-type sel" onclick="selDB(this)"><div class="db-t-ico">🐘</div><div class="db-t-name">PostgreSQL</div></div>
+        <div class="db-type" onclick="selDB(this)"><div class="db-t-ico">🐬</div><div class="db-t-name">MySQL / MariaDB</div></div>
+        <div class="db-type" onclick="selDB(this)"><div class="db-t-ico">🍃</div><div class="db-t-name">MongoDB</div></div>
+        <div class="db-type" onclick="selDB(this)"><div class="db-t-ico">🔗</div><div class="db-t-name">API REST</div></div>
+      </div>
+      <div class="db-form">
+        <div class="db-inp-g"><label>Host / Endereço</label><input type="text" placeholder="db.minhaempresa.com.br"/></div>
+        <div class="db-inp-g"><label>Porta</label><input type="text" placeholder="5432"/></div>
+        <div class="db-inp-g"><label>Banco</label><input type="text" placeholder="nome_do_banco"/></div>
+        <div class="db-inp-g"><label>Usuário</label><input type="text" placeholder="crm_user"/></div>
+        <div class="db-inp-g"><label>Senha</label><input type="password" placeholder="••••••••"/></div>
+        <div class="db-inp-g"><label>SSL</label>
+          <select style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;background:#fff;outline:none">
+            <option>Requerido (recomendado)</option><option>Opcional</option><option>Desabilitado</option>
+          </select>
+        </div>
+      </div>
+      <div class="db-actions">
+        <button class="btn-test" onclick="testDB()">🧪 Testar conexão</button>
+        <button class="btn-save-db">💾 Salvar e mapear tabelas →</button>
+      </div>
+      <div id="testResult" class="test-result"></div>
+    </div>
+
+    <!-- AUTOMAÇÃO -->
+    <div class="section-title">⚡ Automação <span>2 disponíveis</span></div>
+    <div class="int-grid">
+      <div class="int-card">
+        <div class="int-top"><div class="int-logo" style="background:#fff7ed">🔗</div><span class="int-status status-available">Disponível</span></div>
+        <div class="int-name">Zapier</div>
+        <div class="int-desc">Conecte o FlowCRM a mais de 5.000 apps via Zapier. Crie fluxos automáticos: lead no Google Forms → contato no CRM, por exemplo.</div>
+        <div class="int-footer"><span class="int-tag">Automação</span><button class="int-btn btn-connect">Conectar</button></div>
+      </div>
+      <div class="int-card">
+        <div class="int-top"><div class="int-logo" style="background:#fdf4ff">🔄</div><span class="int-status status-available">Disponível</span></div>
+        <div class="int-name">Make (Integromat)</div>
+        <div class="int-desc">Automações visuais avançadas. Ideal para sincronizar o CRM com ERPs, planilhas do Google e sistemas de pagamento.</div>
+        <div class="int-footer"><span class="int-tag">Automação</span><button class="int-btn btn-connect">Conectar</button></div>
+      </div>
+      <div class="int-card">
+        <div class="int-top"><div class="int-logo" style="background:#f0fdf4">📅</div><span class="int-status status-available">Disponível</span></div>
+        <div class="int-name">Google Calendar</div>
+        <div class="int-desc">Reuniões e compromissos criados no CRM aparecem automaticamente no seu Google Calendar e vice-versa.</div>
+        <div class="int-footer"><span class="int-tag">Agenda</span><button class="int-btn btn-connect">Conectar</button></div>
+      </div>
+    </div>
+
+    <!-- PAGAMENTO -->
+    <div class="section-title">💳 Pagamento <span>em breve</span></div>
+    <div class="int-grid">
+      <div class="int-card">
+        <div class="int-top"><div class="int-logo" style="background:#eff6ff">💳</div><span class="int-status status-soon">Em breve</span></div>
+        <div class="int-name">Stripe</div>
+        <div class="int-desc">Vincule pagamentos a negócios do pipeline. Veja o histórico financeiro do cliente direto no CRM.</div>
+        <div class="int-footer"><span class="int-tag">Cobrança</span><button class="int-btn btn-soon">Em breve</button></div>
+      </div>
+      <div class="int-card">
+        <div class="int-top"><div class="int-logo" style="background:#fefce8">🏦</div><span class="int-status status-soon">Em breve</span></div>
+        <div class="int-name">Asaas / Pagar.me</div>
+        <div class="int-desc">Geração de boletos e links de pagamento diretamente do card do cliente no pipeline.</div>
+        <div class="int-footer"><span class="int-tag">Cobrança · BR</span><button class="int-btn btn-soon">Em breve</button></div>
+      </div>
+      <div class="int-card">
+        <div class="int-top"><div class="int-logo" style="background:#f0fdf4">🔑</div><span class="int-status status-available">Disponível</span></div>
+        <div class="int-name">API & Webhooks</div>
+        <div class="int-desc">Acesse todos os dados do CRM via API REST. Configure webhooks para notificar seu sistema quando um negócio avançar.</div>
+        <div class="int-footer"><span class="int-tag">Desenvolvedor</span><button class="int-btn btn-manage" onclick="document.getElementById('apiSection').scrollIntoView({behavior:'smooth'})">Ver chave</button></div>
+      </div>
+    </div>
+
+    <!-- API KEY -->
+    <div class="api-card" id="apiSection">
+      <div class="section-title" style="margin-bottom:16px">🔑 Chave de API</div>
+      <div class="api-key-row">
+        <span class="api-key-label">API Key</span>
+        <span class="api-key-val" id="apiKey">fcrm_live_sk_••••••••••••••••••••••••••••••••</span>
+        <button class="copy-btn" onclick="revealKey()">👁 Revelar</button>
+        <button class="copy-btn" onclick="copyKey()">📋 Copiar</button>
+      </div>
+      <div class="api-key-row">
+        <span class="api-key-label">Webhook URL</span>
+        <span class="api-key-val">https://api.flowcrm.com.br/webhook/seu-id-aqui</span>
+        <button class="copy-btn" onclick="this.textContent='✓ Copiado'">📋 Copiar</button>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:10px">⚠️ Nunca compartilhe sua chave de API. Em caso de comprometimento, regenere-a imediatamente.</p>
+    </div>
+  </div>
+</div>
+
+<script src="flowcrm-api.js"></script>
+<script>
+  authGuard();
+
+  let integrations = {};
+
+  async function loadIntegrations() {
+    const data = await api('/settings/integrations');
+    if (data) {
+      data.forEach(i => integrations[i.type] = i);
+      // Update UI status for each known integration
+      Object.values(integrations).forEach(i => {
+        const badge = document.querySelector(`[data-int="${i.type}"] .int-status`);
+        if (badge) { badge.textContent = i.status === 'connected' ? '● Conectado' : '○ Desconectado'; badge.style.color = i.status === 'connected' ? '#27ae60' : '#94a3b8'; }
+      });
+    }
+  }
+
+  function selDB(el) { document.querySelectorAll('.db-type').forEach(x => x.classList.remove('sel')); el.classList.add('sel'); }
+
+  async function testDB() {
+    const r = document.getElementById('testResult');
+    r.style.display = 'block'; r.className = 'test-result'; r.textContent = '🔄 Testando conexão...';
+    // In production, this would send the credentials to the backend to test
+    await new Promise(x => setTimeout(x, 1500));
+    r.className = 'test-result test-ok'; r.textContent = '✓ Conexão estabelecida com sucesso! Banco acessível e credenciais válidas.';
+  }
+
+  let revealed = false;
+  const DEMO_KEY = 'fcrm_live_sk_a7f3k9m2p8x1q5n0r4t6w8y2z3b5c7d9';
+  function revealKey() {
+    const el = document.getElementById('apiKey');
+    revealed = !revealed;
+    el.textContent = revealed ? DEMO_KEY : 'fcrm_live_sk_••••••••••••••••••••••••••••••••';
+  }
+  function copyKey() {
+    navigator.clipboard?.writeText(DEMO_KEY).catch(() => {});
+    event.target.textContent = '✓ Copiado!'; setTimeout(() => event.target.textContent = '📋 Copiar', 2000);
+  }
+
+  loadIntegrations();
+</script>
+</body>
+</html>

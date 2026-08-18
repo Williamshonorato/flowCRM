@@ -40,8 +40,19 @@
     .btn-sm{padding:7px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
     .btn-green{background:var(--green);color:#fff;box-shadow:0 2px 8px rgba(39,174,96,.3)}
     .btn-green:hover{background:#219a52}
+    .notif-wrap{position:relative}
     .notif{width:36px;height:36px;border-radius:9px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;position:relative}
-    .notif::after{content:'3';position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;font-size:9px;font-weight:800;width:15px;height:15px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+    .notif-badge{position:absolute;top:-4px;right:-4px;background:var(--red);color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;padding:0 3px;border-radius:8px;display:flex;align-items:center;justify-content:center}
+    .notif-dropdown{position:absolute;top:44px;right:0;width:320px;max-height:380px;overflow-y:auto;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.14);z-index:50;display:none}
+    .notif-dropdown.open{display:block}
+    .notif-dropdown-header{padding:12px 16px;font-size:13px;font-weight:800;color:var(--text);border-bottom:1px solid var(--border)}
+    .notif-item{display:flex;gap:10px;align-items:flex-start;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;text-decoration:none}
+    .notif-item:hover{background:var(--bg)}
+    .notif-item:last-child{border-bottom:none}
+    .notif-item-icon{font-size:15px;flex-shrink:0;margin-top:1px}
+    .notif-item-title{font-size:12.5px;font-weight:700;color:var(--text)}
+    .notif-item-sub{font-size:11px;color:var(--muted);margin-top:2px}
+    .notif-empty{padding:24px 16px;text-align:center;color:#94a3b8;font-size:12px}
 
     /* CONTENT */
     .content{padding:24px 28px;overflow-y:auto}
@@ -129,6 +140,28 @@
     .task-time{font-size:11px;font-weight:600;color:var(--amber);white-space:nowrap}
     .task-time.late{color:var(--red)}
     .task-time.ok{color:var(--green)}
+
+    /* FOLLOW-UP ALERTS */
+    .action-row2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+    .alert-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+    .alert-row:last-child{border-bottom:none;padding-bottom:0}
+    .alert-avatar{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;flex-shrink:0;background:var(--amber)}
+    .alert-info{flex:1;min-width:0}
+    .alert-name{font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .alert-meta{font-size:11px;color:var(--muted);margin-top:2px}
+    .alert-btn{padding:6px 10px;border-radius:7px;font-size:11px;font-weight:700;border:1px solid var(--border);background:#fff;color:var(--blue);cursor:pointer;white-space:nowrap;flex-shrink:0}
+    .alert-btn:hover{background:var(--bg)}
+    .alert-btn:disabled{opacity:.6;cursor:default}
+
+    /* NEXT ACTIONS */
+    .action-item{padding:10px 0;border-bottom:1px solid var(--border)}
+    .action-item:last-child{border-bottom:none;padding-bottom:0}
+    .action-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .action-name{font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .action-value{font-size:12px;font-weight:800;color:var(--text);flex-shrink:0}
+    .action-text{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.4}
+    .action-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+    .urgency-3{background:var(--red)}.urgency-2{background:var(--amber)}.urgency-1{background:var(--blue)}
   </style>
 </head>
 <body>
@@ -144,7 +177,7 @@
     <a class="nav-item active" href="crm-dashboard.html"><span class="ico">📊</span>Dashboard</a>
     <a class="nav-item" href="crm-pipeline.html"><span class="ico">🗂️</span>Pipeline</a>
     <a class="nav-item" href="crm-contatos.html"><span class="ico">👥</span>Contatos</a>
-    <a class="nav-item" href="crm-tarefas.html"><span class="ico">✅</span>Tarefas<span class="badge">4</span></a>
+    <a class="nav-item" href="crm-tarefas.html"><span class="ico">✅</span>Tarefas<span class="badge" id="navTasksBadge" style="display:none"></span></a>
     <div class="sb-section">Sistema</div>
     <a class="nav-item" href="crm-relatorios.html"><span class="ico">📈</span>Relatórios</a>
     <a class="nav-item" href="crm-integracoes.html"><span class="ico">🔌</span>Integrações</a>
@@ -152,10 +185,10 @@
   </nav>
   <div class="sb-bottom">
     <div class="user-row">
-      <div class="user-avatar">W</div>
+      <div class="user-avatar" id="userAvatar">—</div>
       <div class="user-info">
-        <div class="name">Williams</div>
-        <div class="plan">Plano Profissional</div>
+        <div class="name" id="userName">Carregando...</div>
+        <div class="plan" id="userPlan"></div>
       </div>
     </div>
   </div>
@@ -165,10 +198,16 @@
 <div class="main">
   <div class="topbar">
     <div>
-      <div class="page-title">Dashboard <span>Clínica Vida Plena</span></div>
+      <div class="page-title">Dashboard <span id="tenantName"></span></div>
     </div>
     <div class="topbar-actions">
-      <div class="notif">🔔</div>
+      <div class="notif-wrap">
+        <div class="notif" id="notifBtn" onclick="toggleNotifDropdown(event)">🔔<span class="notif-badge" id="notifBadge" style="display:none"></span></div>
+        <div class="notif-dropdown" id="notifDropdown">
+          <div class="notif-dropdown-header">Notificações</div>
+          <div id="notifList"></div>
+        </div>
+      </div>
       <button class="btn-sm btn-green" onclick="window.location.href='crm-pipeline.html'">+ Novo negócio</button>
     </div>
   </div>
@@ -225,34 +264,12 @@
         <div class="chart-header">
           <div>
             <div class="chart-title">Negócios por estágio</div>
-            <div class="chart-sub">27 negócios ativos</div>
+            <div class="chart-sub" id="donutSub">—</div>
           </div>
         </div>
         <div class="donut-wrap">
-          <svg class="donut-svg" width="140" height="140" viewBox="0 0 140 140">
-            <!-- stroke-dasharray = pct * 2π*44 = pct * 276.46 -->
-            <circle cx="70" cy="70" r="44" fill="none" stroke="#f1f5f9" stroke-width="22"/>
-            <!-- Fechado 11% = 30.4 offset=0 -->
-            <circle cx="70" cy="70" r="44" fill="none" stroke="#27ae60" stroke-width="22"
-              stroke-dasharray="30.4 246.1" stroke-dashoffset="69.1" stroke-linecap="butt"/>
-            <!-- Proposta 30% = 82.9 offset=-30.4 -->
-            <circle cx="70" cy="70" r="44" fill="none" stroke="#2980b9" stroke-width="22"
-              stroke-dasharray="82.9 193.6" stroke-dashoffset="38.7" stroke-linecap="butt"/>
-            <!-- Contato 26% = 71.9 offset=-113.3 -->
-            <circle cx="70" cy="70" r="44" fill="none" stroke="#8e44ad" stroke-width="22"
-              stroke-dasharray="71.9 204.6" stroke-dashoffset="-44.2" stroke-linecap="butt"/>
-            <!-- Lead 33% = 91.2 offset=-185.2 -->
-            <circle cx="70" cy="70" r="44" fill="none" stroke="#f39c12" stroke-width="22"
-              stroke-dasharray="91.2 185.3" stroke-dashoffset="-116.1" stroke-linecap="butt"/>
-            <text x="70" y="65" text-anchor="middle" font-size="18" font-weight="800" fill="#1e293b">27</text>
-            <text x="70" y="81" text-anchor="middle" font-size="10" fill="#64748b">negócios</text>
-          </svg>
-          <div class="donut-legend">
-            <div class="legend-row"><div class="legend-dot" style="background:var(--amber)"></div><span class="legend-label">Novo lead</span><span class="legend-pct">33%<span class="legend-count">(9)</span></span></div>
-            <div class="legend-row"><div class="legend-dot" style="background:var(--purple)"></div><span class="legend-label">Em contato</span><span class="legend-pct">26%<span class="legend-count">(7)</span></span></div>
-            <div class="legend-row"><div class="legend-dot" style="background:var(--blue)"></div><span class="legend-label">Proposta</span><span class="legend-pct">30%<span class="legend-count">(8)</span></span></div>
-            <div class="legend-row"><div class="legend-dot" style="background:var(--green)"></div><span class="legend-label">Fechado</span><span class="legend-pct">11%<span class="legend-count">(3)</span></span></div>
-          </div>
+          <svg class="donut-svg" width="140" height="140" viewBox="0 0 140 140" id="donutSvg"></svg>
+          <div class="donut-legend" id="donutLegend"></div>
         </div>
       </div>
     </div>
@@ -275,6 +292,24 @@
           <a class="see-all" href="crm-tarefas.html">Ver todas →</a>
         </div>
         <div id="tasksList"><div style="padding:20px;color:#94a3b8;text-align:center">Carregando...</div></div>
+      </div>
+    </div>
+
+    <!-- FOLLOW-UP ALERTS + NEXT ACTIONS -->
+    <div class="action-row2">
+      <div class="list-card">
+        <div class="list-header">
+          <div class="list-title">Sem follow-up agendado</div>
+          <span class="see-all" style="cursor:default" id="followupCount"></span>
+        </div>
+        <div id="followupList"><div style="padding:20px;color:#94a3b8;text-align:center">Carregando...</div></div>
+      </div>
+      <div class="list-card">
+        <div class="list-header">
+          <div class="list-title">Próxima ação recomendada</div>
+          <a class="see-all" href="crm-pipeline.html">Ver pipeline →</a>
+        </div>
+        <div id="nextActionsList"><div style="padding:20px;color:#94a3b8;text-align:center">Carregando...</div></div>
       </div>
     </div>
 
@@ -325,6 +360,108 @@
     }).join('') || '<div style="padding:20px;color:#94a3b8;text-align:center">Sem tarefas hoje 🎉</div>';
   }
 
+  function renderFollowupAlerts(alerts) {
+    document.getElementById('followupCount').textContent = (alerts || []).length ? alerts.length + (alerts.length > 1 ? ' contatos' : ' contato') : '';
+    document.getElementById('followupList').innerHTML = (alerts || []).map(a => `
+      <div class="alert-row" data-contact="${a.contactId}">
+        <div class="alert-avatar">${initials(a.contactName)}</div>
+        <div class="alert-info">
+          <div class="alert-name">${a.contactName}</div>
+          <div class="alert-meta">${a.daysSince === 0 ? 'Mensagem hoje' : `Mensagem há ${a.daysSince} dia${a.daysSince > 1 ? 's' : ''}`} · sem follow-up</div>
+        </div>
+        <button class="alert-btn" onclick="createFollowup('${a.contactId}', this)">+ Tarefa</button>
+      </div>`).join('') || '<div style="padding:20px;color:#94a3b8;text-align:center">Nenhum contato pendente 🎉</div>';
+  }
+
+  async function createFollowup(contactId, btn) {
+    btn.disabled = true; btn.textContent = '...';
+    const task = await api('/tasks', { method: 'POST', body: JSON.stringify({ contactId, title: 'Follow-up de mensagem recente', type: 'follow', priority: 'high', dueDate: new Date().toISOString() }) });
+    if (task) {
+      btn.textContent = '✓ Criada';
+      btn.closest('.alert-row').style.opacity = '.55';
+    } else {
+      btn.disabled = false; btn.textContent = '+ Tarefa';
+    }
+  }
+
+  function renderNextActions(actions) {
+    document.getElementById('nextActionsList').innerHTML = (actions || []).map(a => `
+      <div class="action-item">
+        <div class="action-top">
+          <div class="action-name"><span class="action-dot urgency-${a.urgency}"></span>${a.contactName}</div>
+          <div class="action-value">${fmtMoney(a.value)}</div>
+        </div>
+        <div class="action-text">${a.action}</div>
+      </div>`).join('') || '<div style="padding:20px;color:#94a3b8;text-align:center">Nenhuma ação urgente agora 👍</div>';
+  }
+
+  function renderDonut(funnel, activeDeals) {
+    const total = (funnel || []).reduce((s, f) => s + f.count, 0);
+    const C = 2 * Math.PI * 44;
+    let cum = 0;
+    const bg = `<circle cx="70" cy="70" r="44" fill="none" stroke="#f1f5f9" stroke-width="22"/>`;
+    const segs = (funnel || []).filter(f => f.count > 0).map(f => {
+      const pct = total ? f.count / total * 100 : 0;
+      const len = pct / 100 * C;
+      const dashoffset = -(cum / 100 * C);
+      cum += pct;
+      return `<circle cx="70" cy="70" r="44" fill="none" stroke="${f.color}" stroke-width="22" stroke-dasharray="${len.toFixed(1)} ${(C - len).toFixed(1)}" stroke-dashoffset="${dashoffset.toFixed(1)}" stroke-linecap="butt" transform="rotate(-90 70 70)"/>`;
+    }).join('');
+    const centerText = `<text x="70" y="65" text-anchor="middle" font-size="18" font-weight="800" fill="#1e293b">${total}</text><text x="70" y="81" text-anchor="middle" font-size="10" fill="#64748b">negócios</text>`;
+    document.getElementById('donutSvg').innerHTML = bg + segs + centerText;
+    document.getElementById('donutSub').textContent = `${activeDeals} negócio${activeDeals === 1 ? '' : 's'} ativo${activeDeals === 1 ? '' : 's'}`;
+    document.getElementById('donutLegend').innerHTML = (funnel || []).map(f => {
+      const pct = total ? Math.round(f.count / total * 100) : 0;
+      return `<div class="legend-row"><div class="legend-dot" style="background:${f.color}"></div><span class="legend-label">${f.name}</span><span class="legend-pct">${pct}%<span class="legend-count">(${f.count})</span></span></div>`;
+    }).join('') || '<div style="color:#94a3b8;font-size:12px">Sem negócios ainda</div>';
+  }
+
+  function toggleNotifDropdown(e) {
+    e.stopPropagation();
+    document.getElementById('notifDropdown').classList.toggle('open');
+  }
+  document.addEventListener('click', (e) => {
+    const dd = document.getElementById('notifDropdown');
+    if (dd.classList.contains('open') && !dd.contains(e.target) && !e.target.closest('#notifBtn')) {
+      dd.classList.remove('open');
+    }
+  });
+
+  function renderNotifDropdown(overdueTasksList, followUpAlerts) {
+    const items = [
+      ...(overdueTasksList || []).map(t => ({
+        icon: '🔴', title: t.title,
+        sub: `${t.contact?.name || 'Sem contato'} · tarefa atrasada`,
+        href: 'crm-tarefas.html',
+      })),
+      ...(followUpAlerts || []).map(a => ({
+        icon: '🟠', title: a.contactName,
+        sub: a.daysSince === 0 ? 'Mensagem hoje · sem follow-up agendado' : `Mensagem há ${a.daysSince} dia${a.daysSince > 1 ? 's' : ''} · sem follow-up agendado`,
+        href: '#followupList',
+      })),
+    ];
+    document.getElementById('notifList').innerHTML = items.length
+      ? items.map(i => `<a class="notif-item" href="${i.href}"><span class="notif-item-icon">${i.icon}</span><div><div class="notif-item-title">${i.title}</div><div class="notif-item-sub">${i.sub}</div></div></a>`).join('')
+      : '<div class="notif-empty">Nenhuma notificação por enquanto 🎉</div>';
+  }
+
+  function setBadge(id, count) {
+    const el = document.getElementById(id);
+    if (count > 0) { el.textContent = count > 9 ? '9+' : count; el.style.display = 'flex'; }
+    else { el.style.display = 'none'; }
+  }
+
+  const PLAN_LABELS = { starter: 'Plano Starter', professional: 'Plano Profissional', connected: 'Plano Connected', enterprise: 'Plano Enterprise' };
+
+  async function loadUserInfo() {
+    const me = await api('/auth/me');
+    if (!me) return;
+    document.getElementById('userAvatar').textContent = initials(me.user.name);
+    document.getElementById('userName').textContent = me.user.name;
+    document.getElementById('userPlan').textContent = PLAN_LABELS[me.tenant.plan] || me.tenant.plan;
+    document.getElementById('tenantName').textContent = me.tenant.name;
+  }
+
   async function toggleTask(id, el) {
     const isDone = !el.classList.contains('done');
     el.classList.toggle('done');
@@ -338,10 +475,11 @@
   }
 
   async function init() {
+    loadUserInfo();
     const data = await api('/dashboard');
     if (!data) return;
 
-    const { kpis, monthlyRevenue, recentDeals, upcomingTasks } = data;
+    const { kpis, monthlyRevenue, funnel, recentDeals, upcomingTasks, overdueTasksList, followUpAlerts, nextActions } = data;
 
     // KPIs
     document.getElementById('kpi-revenue').textContent = fmtMoney(kpis.revenue);
@@ -356,8 +494,15 @@
     document.getElementById('kpi-tasks-delta').className = 'kpi-delta ' + (kpis.overdueTasks > 0 ? 'down' : 'up');
 
     renderBarChart(monthlyRevenue);
+    renderDonut(funnel, kpis.activeDeals);
     renderDeals(recentDeals);
     renderTasks(upcomingTasks);
+    renderFollowupAlerts(followUpAlerts);
+    renderNextActions(nextActions);
+
+    setBadge('navTasksBadge', kpis.todayTasks);
+    setBadge('notifBadge', kpis.overdueTasks + (followUpAlerts?.length || 0));
+    renderNotifDropdown(overdueTasksList, followUpAlerts);
   }
 
   init();

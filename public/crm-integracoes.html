@@ -103,6 +103,10 @@
     .api-key-val{font-size:13px;font-family:monospace;color:var(--text);flex:1;letter-spacing:.5px}
     .copy-btn{padding:5px 12px;background:var(--bg);border:1px solid var(--border);border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0}
     .copy-btn:hover{border-color:var(--green);color:var(--green)}
+
+    /* TOAST */
+    #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1e293b;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.2);opacity:0;pointer-events:none;transition:all .25s;z-index:100}
+    #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   </style>
 </head>
 <body>
@@ -128,32 +132,32 @@
     <div class="search-wrap"><span class="search-ico">🔍</span><input type="text" placeholder="Buscar integração..."/></div>
   </div>
   <div class="content">
-    <div class="status-banner">
-      <div class="sb-ico">✅</div>
-      <div class="sb-text"><div class="title">1 integração ativa</div><div class="sub">WhatsApp Business conectado. Mensagens sendo capturadas automaticamente.</div></div>
-      <div class="sb-badge">1 ativo</div>
+    <div class="status-banner" id="statusBanner">
+      <div class="sb-ico" id="statusIco">⏳</div>
+      <div class="sb-text"><div class="title" id="statusTitle">Carregando integrações…</div><div class="sub" id="statusSub"></div></div>
+      <div class="sb-badge" id="statusBadge">…</div>
     </div>
 
     <!-- COMUNICAÇÃO -->
     <div class="section-title">💬 Comunicação <span>3 disponíveis</span></div>
     <div class="int-grid">
-      <div class="int-card connected featured wpp">
-        <div class="int-top"><div class="int-logo" style="background:#dcfce7">📱</div><span class="int-status status-connected">✓ Conectado</span></div>
+      <div class="int-card" data-int="whatsapp" id="wppCard">
+        <div class="int-top"><div class="int-logo" style="background:#dcfce7">📱</div><span class="int-status status-available" id="wppStatus">Desconectado</span></div>
         <div class="int-name">WhatsApp Business</div>
         <div class="int-desc">Capture conversas do WhatsApp automaticamente. A IA lê as mensagens, identifica o contato e atualiza o pipeline sem intervenção manual.</div>
-        <div class="int-footer"><span class="int-tag">+312 msgs capturadas</span><button class="int-btn btn-manage">Gerenciar</button></div>
+        <div class="int-footer"><span class="int-tag" id="wppMsgCount">— msgs capturadas</span><button class="int-btn btn-manage" id="wppBtn" onclick="toggleWhatsapp()">Conectar</button></div>
       </div>
       <div class="int-card">
         <div class="int-top"><div class="int-logo" style="background:#fef2f2">✉️</div><span class="int-status status-available">Disponível</span></div>
         <div class="int-name">Gmail</div>
         <div class="int-desc">Sincronize e-mails com contatos do CRM. Toda troca de e-mail aparece no histórico do cliente automaticamente.</div>
-        <div class="int-footer"><span class="int-tag">E-mail</span><button class="int-btn btn-connect">Conectar</button></div>
+        <div class="int-footer"><span class="int-tag">E-mail</span><button class="int-btn btn-connect" onclick="notReady('Gmail')">Conectar</button></div>
       </div>
       <div class="int-card">
         <div class="int-top"><div class="int-logo" style="background:#eff6ff">📧</div><span class="int-status status-available">Disponível</span></div>
         <div class="int-name">Outlook / Microsoft 365</div>
         <div class="int-desc">Integração com caixa de entrada do Outlook. E-mails vinculados automaticamente ao contato correspondente no CRM.</div>
-        <div class="int-footer"><span class="int-tag">E-mail</span><button class="int-btn btn-connect">Conectar</button></div>
+        <div class="int-footer"><span class="int-tag">E-mail</span><button class="int-btn btn-connect" onclick="notReady('Outlook / Microsoft 365')">Conectar</button></div>
       </div>
     </div>
 
@@ -185,7 +189,7 @@
       </div>
       <div class="db-actions">
         <button class="btn-test" onclick="testDB()">🧪 Testar conexão</button>
-        <button class="btn-save-db">💾 Salvar e mapear tabelas →</button>
+        <button class="btn-save-db" onclick="notReady('Conectar banco de dados próprio')">💾 Salvar e mapear tabelas →</button>
       </div>
       <div id="testResult" class="test-result"></div>
     </div>
@@ -197,19 +201,19 @@
         <div class="int-top"><div class="int-logo" style="background:#fff7ed">🔗</div><span class="int-status status-available">Disponível</span></div>
         <div class="int-name">Zapier</div>
         <div class="int-desc">Conecte o FlowCRM a mais de 5.000 apps via Zapier. Crie fluxos automáticos: lead no Google Forms → contato no CRM, por exemplo.</div>
-        <div class="int-footer"><span class="int-tag">Automação</span><button class="int-btn btn-connect">Conectar</button></div>
+        <div class="int-footer"><span class="int-tag">Automação</span><button class="int-btn btn-connect" onclick="notReady('Zapier')">Conectar</button></div>
       </div>
       <div class="int-card">
         <div class="int-top"><div class="int-logo" style="background:#fdf4ff">🔄</div><span class="int-status status-available">Disponível</span></div>
         <div class="int-name">Make (Integromat)</div>
         <div class="int-desc">Automações visuais avançadas. Ideal para sincronizar o CRM com ERPs, planilhas do Google e sistemas de pagamento.</div>
-        <div class="int-footer"><span class="int-tag">Automação</span><button class="int-btn btn-connect">Conectar</button></div>
+        <div class="int-footer"><span class="int-tag">Automação</span><button class="int-btn btn-connect" onclick="notReady('Make (Integromat)')">Conectar</button></div>
       </div>
       <div class="int-card">
         <div class="int-top"><div class="int-logo" style="background:#f0fdf4">📅</div><span class="int-status status-available">Disponível</span></div>
         <div class="int-name">Google Calendar</div>
         <div class="int-desc">Reuniões e compromissos criados no CRM aparecem automaticamente no seu Google Calendar e vice-versa.</div>
-        <div class="int-footer"><span class="int-tag">Agenda</span><button class="int-btn btn-connect">Conectar</button></div>
+        <div class="int-footer"><span class="int-tag">Agenda</span><button class="int-btn btn-connect" onclick="notReady('Google Calendar')">Conectar</button></div>
       </div>
     </div>
 
@@ -247,40 +251,88 @@
       </div>
       <div class="api-key-row">
         <span class="api-key-label">Webhook URL</span>
-        <span class="api-key-val">https://api.flowcrm.com.br/webhook/seu-id-aqui</span>
-        <button class="copy-btn" onclick="this.textContent='✓ Copiado'">📋 Copiar</button>
+        <span class="api-key-val" id="webhookUrl">carregando…</span>
+        <button class="copy-btn" onclick="copyWebhookUrl()">📋 Copiar</button>
       </div>
       <p style="font-size:12px;color:var(--muted);margin-top:10px">⚠️ Nunca compartilhe sua chave de API. Em caso de comprometimento, regenere-a imediatamente.</p>
     </div>
   </div>
 </div>
 
+<div id="toast"></div>
+
 <script src="flowcrm-api.js"></script>
 <script>
   authGuard();
 
-  let integrations = {};
+  document.getElementById('webhookUrl').textContent = location.origin + '/whatsapp/webhook';
+
+  let toastTimer;
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+  }
+  function notReady(name) {
+    showToast(`${name} ainda não está disponível — em desenvolvimento.`);
+  }
+
+  function copyWebhookUrl() {
+    const url = document.getElementById('webhookUrl').textContent;
+    navigator.clipboard?.writeText(url).then(() => showToast('Webhook URL copiada.')).catch(() => showToast('Não foi possível copiar.'));
+  }
 
   async function loadIntegrations() {
-    const data = await api('/settings/integrations');
-    if (data) {
-      data.forEach(i => integrations[i.type] = i);
-      // Update UI status for each known integration
-      Object.values(integrations).forEach(i => {
-        const badge = document.querySelector(`[data-int="${i.type}"] .int-status`);
-        if (badge) { badge.textContent = i.status === 'connected' ? '● Conectado' : '○ Desconectado'; badge.style.color = i.status === 'connected' ? '#27ae60' : '#94a3b8'; }
-      });
+    const [list, stats] = await Promise.all([api('/settings/integrations'), api('/whatsapp/stats')]);
+
+    const wppSaved = (list || []).find(i => i.type === 'whatsapp');
+    const connected = stats?.connected || wppSaved?.status === 'connected';
+
+    document.getElementById('wppCard').classList.toggle('connected', connected);
+    document.getElementById('wppStatus').textContent = connected ? '✓ Conectado' : 'Desconectado';
+    document.getElementById('wppStatus').className = 'int-status ' + (connected ? 'status-connected' : 'status-available');
+    document.getElementById('wppMsgCount').textContent = `${stats?.messageCount ?? 0} msgs capturadas`;
+    document.getElementById('wppBtn').textContent = connected ? 'Desconectar' : 'Conectar';
+
+    const banner = document.getElementById('statusBanner');
+    if (connected) {
+      banner.style.background = '#f0fdf4'; banner.style.borderColor = '#86efac';
+      document.getElementById('statusIco').textContent = '✅';
+      document.getElementById('statusTitle').textContent = '1 integração ativa';
+      document.getElementById('statusSub').textContent = 'WhatsApp Business conectado. Mensagens sendo capturadas automaticamente.';
+      document.getElementById('statusBadge').textContent = '1 ativo';
+    } else {
+      banner.style.background = '#fefce8'; banner.style.borderColor = '#fde68a';
+      document.getElementById('statusIco').textContent = '⚠️';
+      document.getElementById('statusTitle').textContent = 'Nenhuma integração ativa';
+      document.getElementById('statusSub').textContent = 'Conecte o WhatsApp Business para começar a capturar conversas automaticamente.';
+      document.getElementById('statusBadge').textContent = '0 ativo';
     }
+  }
+
+  async function toggleWhatsapp() {
+    const btn = document.getElementById('wppBtn');
+    const connected = btn.textContent === 'Desconectar';
+    btn.disabled = true;
+    if (connected) {
+      await api('/settings/integrations/whatsapp', { method: 'DELETE' });
+    } else {
+      await api('/settings/integrations/whatsapp', { method: 'POST', body: JSON.stringify({ config: {} }) });
+      showToast('Marcado como conectado. Para receber mensagens de verdade, configure o webhook da Evolution API apontando pra URL abaixo.');
+    }
+    btn.disabled = false;
+    loadIntegrations();
   }
 
   function selDB(el) { document.querySelectorAll('.db-type').forEach(x => x.classList.remove('sel')); el.classList.add('sel'); }
 
   async function testDB() {
     const r = document.getElementById('testResult');
-    r.style.display = 'block'; r.className = 'test-result'; r.textContent = '🔄 Testando conexão...';
-    // In production, this would send the credentials to the backend to test
-    await new Promise(x => setTimeout(x, 1500));
-    r.className = 'test-result test-ok'; r.textContent = '✓ Conexão estabelecida com sucesso! Banco acessível e credenciais válidas.';
+    r.style.display = 'block';
+    r.className = 'test-result test-fail';
+    r.textContent = '⚠️ Conectar a um banco de dados próprio ainda não está disponível — funcionalidade em desenvolvimento.';
   }
 
   let revealed = false;

@@ -1,8 +1,19 @@
 import { Router } from 'express'
 import prisma from '../lib/prisma.js'
 import { extractName, extractEmail, extractPhone, detectIntent } from '../lib/whatsappParser.js'
+import { requireAuth } from '../middleware/auth.js'
 
 const router = Router()
+
+// GET /whatsapp/stats — status real da integração + total de mensagens capturadas do tenant
+router.get('/stats', requireAuth, async (req, res) => {
+  const { tenantId } = req.user
+  const [integration, messageCount] = await Promise.all([
+    prisma.integration.findUnique({ where: { tenantId_type: { tenantId, type: 'whatsapp' } } }),
+    prisma.message.count({ where: { contact: { tenantId } } }),
+  ])
+  res.json({ connected: integration?.status === 'connected', messageCount })
+})
 
 // Webhook para receber mensagens do WhatsApp (ou adaptadores)
 router.post('/webhook', async (req, res) => {

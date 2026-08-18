@@ -62,6 +62,8 @@
     .int-name{font-size:14px;font-weight:800;color:var(--text);margin-bottom:4px}
     .int-desc{font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:14px;flex:1}
 
+    .webhook-inp{width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;color:var(--text);outline:none;margin-bottom:12px}
+    .webhook-inp:focus{border-color:var(--blue)}
     .int-footer{display:flex;align-items:center;justify-content:space-between}
     .int-tag{font-size:11px;font-weight:600;color:var(--muted)}
     .int-btn{padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:none;transition:all .15s}
@@ -153,11 +155,11 @@
         <div class="int-desc">Sincronize e-mails com contatos do CRM. Toda troca de e-mail aparece no histórico do cliente automaticamente.</div>
         <div class="int-footer"><span class="int-tag" id="gmailTag">E-mail</span><button class="int-btn btn-connect" id="gmailBtn" onclick="connectGmail()">Conectar</button></div>
       </div>
-      <div class="int-card">
-        <div class="int-top"><div class="int-logo" style="background:#eff6ff">📧</div><span class="int-status status-available">Disponível</span></div>
+      <div class="int-card" data-int="outlook" id="outlookCard">
+        <div class="int-top"><div class="int-logo" style="background:#eff6ff">📧</div><span class="int-status status-available" id="outlookStatus">Disponível</span></div>
         <div class="int-name">Outlook / Microsoft 365</div>
         <div class="int-desc">Integração com caixa de entrada do Outlook. E-mails vinculados automaticamente ao contato correspondente no CRM.</div>
-        <div class="int-footer"><span class="int-tag">E-mail</span><button class="int-btn btn-connect" onclick="notReady('Outlook / Microsoft 365')">Conectar</button></div>
+        <div class="int-footer"><span class="int-tag" id="outlookTag">E-mail</span><button class="int-btn btn-connect" id="outlookBtn" onclick="connectOutlook()">Conectar</button></div>
       </div>
     </div>
 
@@ -197,23 +199,25 @@
     <!-- AUTOMAÇÃO -->
     <div class="section-title">⚡ Automação <span>2 disponíveis</span></div>
     <div class="int-grid">
-      <div class="int-card">
-        <div class="int-top"><div class="int-logo" style="background:#fff7ed">🔗</div><span class="int-status status-available">Disponível</span></div>
+      <div class="int-card" data-int="zapier" id="zapierCard">
+        <div class="int-top"><div class="int-logo" style="background:#fff7ed">🔗</div><span class="int-status status-available" id="zapierStatus">Disponível</span></div>
         <div class="int-name">Zapier</div>
-        <div class="int-desc">Conecte o FlowCRM a mais de 5.000 apps via Zapier. Crie fluxos automáticos: lead no Google Forms → contato no CRM, por exemplo.</div>
-        <div class="int-footer"><span class="int-tag">Automação</span><button class="int-btn btn-connect" onclick="notReady('Zapier')">Conectar</button></div>
+        <div class="int-desc">Conecte o FlowCRM a mais de 5.000 apps via Zapier. Toda vez que um contato for criado ou um negócio mudar de estágio, o FlowCRM chama a URL de webhook abaixo (use um trigger "Catch Hook" do Zapier).</div>
+        <input type="text" class="webhook-inp" id="zapierInput" placeholder="Cole a Webhook URL do Zapier aqui" />
+        <div class="int-footer"><span class="int-tag" id="zapierTag">Automação</span><button class="int-btn btn-connect" id="zapierBtn" onclick="saveWebhook('zapier')">Conectar</button></div>
       </div>
-      <div class="int-card">
-        <div class="int-top"><div class="int-logo" style="background:#fdf4ff">🔄</div><span class="int-status status-available">Disponível</span></div>
+      <div class="int-card" data-int="make" id="makeCard">
+        <div class="int-top"><div class="int-logo" style="background:#fdf4ff">🔄</div><span class="int-status status-available" id="makeStatus">Disponível</span></div>
         <div class="int-name">Make (Integromat)</div>
-        <div class="int-desc">Automações visuais avançadas. Ideal para sincronizar o CRM com ERPs, planilhas do Google e sistemas de pagamento.</div>
-        <div class="int-footer"><span class="int-tag">Automação</span><button class="int-btn btn-connect" onclick="notReady('Make (Integromat)')">Conectar</button></div>
+        <div class="int-desc">Automações visuais avançadas. Cole a URL do módulo "Webhooks → Custom webhook" do Make pra receber os eventos do FlowCRM.</div>
+        <input type="text" class="webhook-inp" id="makeInput" placeholder="Cole a Webhook URL do Make aqui" />
+        <div class="int-footer"><span class="int-tag" id="makeTag">Automação</span><button class="int-btn btn-connect" id="makeBtn" onclick="saveWebhook('make')">Conectar</button></div>
       </div>
-      <div class="int-card">
-        <div class="int-top"><div class="int-logo" style="background:#f0fdf4">📅</div><span class="int-status status-available">Disponível</span></div>
+      <div class="int-card" data-int="google_calendar" id="calendarCard">
+        <div class="int-top"><div class="int-logo" style="background:#f0fdf4">📅</div><span class="int-status status-available" id="calendarStatus">Disponível</span></div>
         <div class="int-name">Google Calendar</div>
         <div class="int-desc">Reuniões e compromissos criados no CRM aparecem automaticamente no seu Google Calendar e vice-versa.</div>
-        <div class="int-footer"><span class="int-tag">Agenda</span><button class="int-btn btn-connect" onclick="notReady('Google Calendar')">Conectar</button></div>
+        <div class="int-footer"><span class="int-tag" id="calendarTag">Agenda</span><button class="int-btn btn-connect" id="calendarBtn" onclick="connectCalendar()">Conectar</button></div>
       </div>
     </div>
 
@@ -245,9 +249,10 @@
       <div class="section-title" style="margin-bottom:16px">🔑 Chave de API</div>
       <div class="api-key-row">
         <span class="api-key-label">API Key</span>
-        <span class="api-key-val" id="apiKey">fcrm_live_sk_••••••••••••••••••••••••••••••••</span>
+        <span class="api-key-val" id="apiKey">carregando…</span>
         <button class="copy-btn" onclick="revealKey()">👁 Revelar</button>
         <button class="copy-btn" onclick="copyKey()">📋 Copiar</button>
+        <button class="copy-btn" onclick="regenerateKey()">🔄 Regenerar</button>
       </div>
       <div class="api-key-row">
         <span class="api-key-label">Webhook URL</span>
@@ -295,43 +300,56 @@
     loadIntegrations();
   }
 
-  function handleGmailRedirect() {
-    const params = new URLSearchParams(location.search);
-    if (params.get('gmail') === 'connected') showToast('Gmail conectado com sucesso.');
-    if (params.get('gmail') === 'error') showToast('Não foi possível conectar o Gmail. Tente novamente.');
-    if (params.has('gmail')) window.history.replaceState({}, '', location.pathname);
+  function setCardStatus(prefix, connected, tagWhenConnected, tagWhenNot) {
+    document.getElementById(prefix + 'Card').classList.toggle('connected', connected);
+    document.getElementById(prefix + 'Status').textContent = connected ? '✓ Conectado' : 'Disponível';
+    document.getElementById(prefix + 'Status').className = 'int-status ' + (connected ? 'status-connected' : 'status-available');
+    const tag = document.getElementById(prefix + 'Tag');
+    if (tag) tag.textContent = connected ? tagWhenConnected : tagWhenNot;
+    const btn = document.getElementById(prefix + 'Btn');
+    btn.textContent = connected ? 'Desconectar' : 'Conectar';
+    btn.disabled = false;
   }
 
   async function loadIntegrations() {
     const [list, stats] = await Promise.all([api('/settings/integrations'), api('/whatsapp/stats')]);
+    const byType = Object.fromEntries((list || []).map(i => [i.type, i]));
 
-    const wppSaved = (list || []).find(i => i.type === 'whatsapp');
-    const connected = stats?.connected || wppSaved?.status === 'connected';
-
-    const gmailSaved = (list || []).find(i => i.type === 'gmail');
-    const gmailConnected = gmailSaved?.status === 'connected';
-    document.getElementById('gmailCard').classList.toggle('connected', gmailConnected);
-    document.getElementById('gmailStatus').textContent = gmailConnected ? '✓ Conectado' : 'Disponível';
-    document.getElementById('gmailStatus').className = 'int-status ' + (gmailConnected ? 'status-connected' : 'status-available');
-    document.getElementById('gmailTag').textContent = gmailConnected ? (gmailSaved.config?.email || 'Conectado') : 'E-mail';
-    const gmailBtn = document.getElementById('gmailBtn');
-    gmailBtn.textContent = gmailConnected ? 'Desconectar' : 'Conectar';
-    gmailBtn.onclick = gmailConnected ? disconnectGmail : connectGmail;
-    gmailBtn.disabled = false;
-
-    document.getElementById('wppCard').classList.toggle('connected', connected);
-    document.getElementById('wppStatus').textContent = connected ? '✓ Conectado' : 'Desconectado';
-    document.getElementById('wppStatus').className = 'int-status ' + (connected ? 'status-connected' : 'status-available');
+    const wppConnected = stats?.connected || byType.whatsapp?.status === 'connected';
+    document.getElementById('wppCard').classList.toggle('connected', wppConnected);
+    document.getElementById('wppStatus').textContent = wppConnected ? '✓ Conectado' : 'Desconectado';
+    document.getElementById('wppStatus').className = 'int-status ' + (wppConnected ? 'status-connected' : 'status-available');
     document.getElementById('wppMsgCount').textContent = `${stats?.messageCount ?? 0} msgs capturadas`;
-    document.getElementById('wppBtn').textContent = connected ? 'Desconectar' : 'Conectar';
+    document.getElementById('wppBtn').textContent = wppConnected ? 'Desconectar' : 'Conectar';
 
+    const gmailConnected = byType.gmail?.status === 'connected';
+    setCardStatus('gmail', gmailConnected, byType.gmail?.config?.email || 'Conectado', 'E-mail');
+    document.getElementById('gmailBtn').onclick = gmailConnected ? disconnectGmail : connectGmail;
+
+    const outlookConnected = byType.outlook?.status === 'connected';
+    setCardStatus('outlook', outlookConnected, byType.outlook?.config?.email || 'Conectado', 'E-mail');
+    document.getElementById('outlookBtn').onclick = outlookConnected ? disconnectOutlook : connectOutlook;
+
+    const calendarConnected = byType.google_calendar?.status === 'connected';
+    setCardStatus('calendar', calendarConnected, byType.google_calendar?.config?.email || 'Conectado', 'Agenda');
+    document.getElementById('calendarBtn').onclick = calendarConnected ? disconnectCalendar : connectCalendar;
+
+    const zapierConnected = byType.zapier?.status === 'connected';
+    setCardStatus('zapier', zapierConnected, 'Conectado', 'Automação');
+    document.getElementById('zapierInput').style.display = zapierConnected ? 'none' : 'block';
+
+    const makeConnected = byType.make?.status === 'connected';
+    setCardStatus('make', makeConnected, 'Conectado', 'Automação');
+    document.getElementById('makeInput').style.display = makeConnected ? 'none' : 'block';
+
+    const activeCount = [wppConnected, gmailConnected, outlookConnected, calendarConnected, zapierConnected, makeConnected].filter(Boolean).length;
     const banner = document.getElementById('statusBanner');
-    if (connected) {
+    if (activeCount > 0) {
       banner.style.background = '#f0fdf4'; banner.style.borderColor = '#86efac';
       document.getElementById('statusIco').textContent = '✅';
-      document.getElementById('statusTitle').textContent = '1 integração ativa';
-      document.getElementById('statusSub').textContent = 'WhatsApp Business conectado. Mensagens sendo capturadas automaticamente.';
-      document.getElementById('statusBadge').textContent = '1 ativo';
+      document.getElementById('statusTitle').textContent = `${activeCount} integração${activeCount > 1 ? 'ões' : ''} ativa${activeCount > 1 ? 's' : ''}`;
+      document.getElementById('statusSub').textContent = 'Sincronizando automaticamente com os serviços conectados.';
+      document.getElementById('statusBadge').textContent = `${activeCount} ativo${activeCount > 1 ? 's' : ''}`;
     } else {
       banner.style.background = '#fefce8'; banner.style.borderColor = '#fde68a';
       document.getElementById('statusIco').textContent = '⚠️';
@@ -365,18 +383,79 @@
   }
 
   let revealed = false;
-  const DEMO_KEY = 'fcrm_live_sk_a7f3k9m2p8x1q5n0r4t6w8y2z3b5c7d9';
+  let realApiKey = null;
+  function maskKey(k) { return k.slice(0, 13) + '•'.repeat(k.length - 13); }
+
+  async function loadApiKey() {
+    const data = await api('/settings/api-key');
+    realApiKey = data?.apiKey || null;
+    document.getElementById('apiKey').textContent = realApiKey ? maskKey(realApiKey) : 'erro ao carregar';
+  }
   function revealKey() {
+    if (!realApiKey) return;
     const el = document.getElementById('apiKey');
     revealed = !revealed;
-    el.textContent = revealed ? DEMO_KEY : 'fcrm_live_sk_••••••••••••••••••••••••••••••••';
+    el.textContent = revealed ? realApiKey : maskKey(realApiKey);
   }
   function copyKey() {
-    navigator.clipboard?.writeText(DEMO_KEY).catch(() => {});
+    if (!realApiKey) return;
+    navigator.clipboard?.writeText(realApiKey).catch(() => {});
     event.target.textContent = '✓ Copiado!'; setTimeout(() => event.target.textContent = '📋 Copiar', 2000);
   }
+  async function regenerateKey() {
+    if (!confirm('Isso invalida a chave atual — qualquer integração usando ela vai parar de funcionar. Continuar?')) return;
+    const data = await api('/settings/api-key/regenerate', { method: 'POST' });
+    if (data?.apiKey) { realApiKey = data.apiKey; revealed = false; document.getElementById('apiKey').textContent = maskKey(realApiKey); showToast('API key regenerada.'); }
+  }
 
-  handleGmailRedirect();
+  async function connectOutlook() {
+    window.location.href = '/outlook/connect?token=' + encodeURIComponent(getToken());
+  }
+  async function disconnectOutlook() {
+    document.getElementById('outlookBtn').disabled = true;
+    await api('/settings/integrations/outlook', { method: 'DELETE' });
+    loadIntegrations();
+  }
+
+  async function connectCalendar() {
+    window.location.href = '/calendar/connect?token=' + encodeURIComponent(getToken());
+  }
+  async function disconnectCalendar() {
+    document.getElementById('calendarBtn').disabled = true;
+    await api('/settings/integrations/google_calendar', { method: 'DELETE' });
+    loadIntegrations();
+  }
+
+  async function saveWebhook(type) {
+    const input = document.getElementById(type + 'Input');
+    const url = input.value.trim();
+    const btn = document.getElementById(type + 'Btn');
+    if (btn.textContent === 'Desconectar') {
+      btn.disabled = true;
+      await api('/settings/integrations/' + type, { method: 'DELETE' });
+      loadIntegrations();
+      return;
+    }
+    if (!url || !/^https?:\/\//.test(url)) { showToast('Cole uma Webhook URL válida.'); return; }
+    btn.disabled = true;
+    await api('/settings/integrations/' + type, { method: 'POST', body: JSON.stringify({ config: { webhookUrl: url } }) });
+    btn.disabled = false;
+    showToast((type === 'zapier' ? 'Zapier' : 'Make') + ' conectado. Crie um contato ou mova um negócio de estágio pra testar.');
+    loadIntegrations();
+  }
+
+  function handleOAuthRedirects() {
+    const params = new URLSearchParams(location.search);
+    const msgs = { gmail: 'Gmail', outlook: 'Outlook', calendar: 'Google Calendar' };
+    for (const [key, label] of Object.entries(msgs)) {
+      if (params.get(key) === 'connected') showToast(`${label} conectado com sucesso.`);
+      if (params.get(key) === 'error') showToast(`Não foi possível conectar o ${label}. Tente novamente.`);
+    }
+    if ([...params.keys()].some(k => k in msgs)) window.history.replaceState({}, '', location.pathname);
+  }
+
+  handleOAuthRedirects();
+  loadApiKey();
   loadIntegrations();
 </script>
 </body>

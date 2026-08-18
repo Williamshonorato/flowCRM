@@ -1,11 +1,30 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 import prisma from '../lib/prisma.js'
 import { requireAuth, requireAdmin } from '../middleware/auth.js'
 
 const router = Router()
 router.use(requireAuth)
+
+// ── API KEY ───────────────────────────────────────────────────────────────────
+function generateApiKey() {
+  return 'fcrm_live_sk_' + crypto.randomBytes(24).toString('hex')
+}
+
+router.get('/api-key', async (req, res) => {
+  let tenant = await prisma.tenant.findUnique({ where: { id: req.user.tenantId } })
+  if (!tenant.apiKey) {
+    tenant = await prisma.tenant.update({ where: { id: tenant.id }, data: { apiKey: generateApiKey() } })
+  }
+  res.json({ apiKey: tenant.apiKey })
+})
+
+router.post('/api-key/regenerate', requireAdmin, async (req, res) => {
+  const tenant = await prisma.tenant.update({ where: { id: req.user.tenantId }, data: { apiKey: generateApiKey() } })
+  res.json({ apiKey: tenant.apiKey })
+})
 
 // ── NEGÓCIO ──────────────────────────────────────────────────────────────────
 router.get('/business', async (req, res) => {

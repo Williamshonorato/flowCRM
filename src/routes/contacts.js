@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import prisma from '../lib/prisma.js'
 import { requireAuth } from '../middleware/auth.js'
+import { dispatchWebhook } from '../lib/webhooks.js'
 
 const router = Router()
 router.use(requireAuth)
@@ -78,6 +79,7 @@ router.post('/', async (req, res) => {
   const contact = await prisma.contact.create({ data: { tenantId, ...parsed.data } })
 
   await prisma.activity.create({ data: { tenantId, userId, contactId: contact.id, type: 'contact_created', content: `Contato "${contact.name}" criado.` } })
+  dispatchWebhook(tenantId, 'contact.created', contact)
 
   res.status(201).json(contact)
 })

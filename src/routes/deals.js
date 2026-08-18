@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import prisma from '../lib/prisma.js'
 import { requireAuth } from '../middleware/auth.js'
+import { dispatchWebhook } from '../lib/webhooks.js'
 
 const router = Router()
 router.use(requireAuth)
@@ -94,6 +95,7 @@ router.patch('/:id', async (req, res) => {
     if (newStage && newStage.name !== 'Fechado') closedAt = null
 
     await prisma.activity.create({ data: { tenantId, userId, dealId: existing.id, contactId: existing.contactId, type: 'stage_change', content: `Negócio movido de "${existing.stage.name}" para "${newStage?.name}".` } })
+    dispatchWebhook(tenantId, 'deal.stage_changed', { dealId: existing.id, title: existing.title, from: existing.stage.name, to: newStage?.name })
   }
 
   const deal = await prisma.deal.update({ where: { id: req.params.id }, data: { ...parsed.data, closedAt } })

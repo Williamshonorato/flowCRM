@@ -303,6 +303,19 @@
   </div>
 </div>
 
+<!-- WHATSAPP COMPOSE -->
+<div class="overlay" id="wppOverlay" onclick="if(event.target===this)closeWppModal()">
+  <div class="modal" style="width:400px">
+    <h3>💬 Enviar WhatsApp</h3>
+    <div class="inp-g"><label>Para</label><input type="text" id="wpp-to" disabled/></div>
+    <div class="inp-g"><label>Mensagem</label><textarea id="wpp-msg" placeholder="Digite sua mensagem..." rows="4"></textarea></div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeWppModal()">Cancelar</button>
+      <button class="modal-save" id="wpp-send-btn" onclick="sendWhatsappMessage()">Enviar →</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script src="flowcrm-api.js"></script>
@@ -409,16 +422,40 @@
         <div class="ct-cell muted">${c.assignedTo?.name || '—'}</div>
         <div class="ct-cell muted" style="font-size:12px">${new Date(c.createdAt).toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})}</div>
         <div class="ct-actions">
-          <button class="act-btn" title="WhatsApp" onclick="event.stopPropagation();quickWhatsapp('${c.phone || ''}')">💬</button>
+          <button class="act-btn" title="WhatsApp" onclick="event.stopPropagation();quickWhatsapp('${c.phone || ''}','${c.id}','${c.name.replace(/'/g,"\\'")}')">💬</button>
           <button class="act-btn" title="Pipeline" onclick="event.stopPropagation();window.location.href='crm-pipeline.html'">🗂️</button>
         </div>
       </div>`;
     }).join('') || '<div style="padding:30px;text-align:center;color:#94a3b8">Nenhum contato encontrado.</div>';
   }
 
-  function quickWhatsapp(phone) {
+  let wppConnected = false;
+  let wppTarget = { phone: '', contactId: null, name: '' };
+
+  function quickWhatsapp(phone, contactId, name) {
     if (!phone) { showToast('Esse contato não tem telefone cadastrado.'); return; }
-    window.open('https://wa.me/' + phone.replace(/[^0-9]/g, ''), '_blank');
+    if (!wppConnected) { window.open('https://wa.me/' + phone.replace(/[^0-9]/g, ''), '_blank'); return; }
+    wppTarget = { phone, contactId: contactId || null, name: name || phone };
+    document.getElementById('wpp-to').value = wppTarget.name;
+    document.getElementById('wpp-msg').value = '';
+    document.getElementById('wppOverlay').classList.add('open');
+  }
+  function closeWppModal() { document.getElementById('wppOverlay').classList.remove('open'); }
+
+  async function sendWhatsappMessage() {
+    const message = document.getElementById('wpp-msg').value.trim();
+    if (!message) { showToast('Escreva uma mensagem.'); return; }
+    const btn = document.getElementById('wpp-send-btn');
+    btn.disabled = true; btn.textContent = 'Enviando...';
+    const result = await api('/whatsapp/send', { method: 'POST', body: JSON.stringify({
+      contactId: wppTarget.contactId, phone: wppTarget.phone, message,
+    })});
+    btn.disabled = false; btn.textContent = 'Enviar →';
+    if (result) {
+      showToast('Mensagem enviada.');
+      closeWppModal();
+      if (currentContactId) openDetail(currentContactId);
+    }
   }
 
   function filterContacts(v) { searchText = v.toLowerCase(); page = 1; loadContacts(); }
@@ -436,7 +473,8 @@
 
   function openWhatsapp() {
     const phone = document.getElementById('dp-sub').dataset.phone;
-    quickWhatsapp(phone);
+    const name = document.getElementById('dp-name').textContent;
+    quickWhatsapp(phone, currentContactId, name);
   }
   function openEmail() {
     const email = document.getElementById('dp-sub').dataset.email;
@@ -498,6 +536,7 @@
     if (contact) { closeModal(); loadFilters(); loadContacts(); }
   }
 
+  api('/whatsapp/stats').then(s => { wppConnected = !!s?.connected; });
   loadFilters().then(loadContacts);
 </script>
 </body>

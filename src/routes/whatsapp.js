@@ -15,6 +15,70 @@ router.get('/stats', requireAuth, async (req, res) => {
   res.json({ connected: integration?.status === 'connected', messageCount })
 })
 
+// POST /whatsapp/send — manda mensagem de saída pela Evolution API da empresa
+router.post('/send', requireAuth, async (req, res) => {
+  const { tenantId, userId } = req.user
+  const { contactId, phone, message } = req.body
+  if (!message || !message.trim()) return res.status(400).json({ error: 'Mensagem obrigatória.' })
+
+  let contact = null
+  if (contactId) {
+    contact = await prisma.contact.findFirst({ where: { id: contactId, tenantId } })
+    if (!contact) return res.status(404).json({ error: 'Contato não encontrado.' })
+  }
+
+  const toPhone = ((contact?.phone || phone || '')).replace(/[^0-9]/g, '')
+  if (!toPhone) return res.status(400).json({ error: 'Telefone do destinatário não informado.' })
+
+  const integration = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId, type: 'whatsapp' } } })
+  const config = integration?.config || {}
+  if (!integration || integration.status !== 'connected' || !config.apiUrl || !config.instance) {
+    return res.status(400).json({ error: 'WhatsApp não conectado. Configure a Evolution API em Integrações.' })
+  }
+
+  let evoData
+  try {
+    const evoRes = await fetch(`${config.apiUrl.replace(/\/$/, '')}/message/sendText/${config.instance}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(config.apiKey ? { apikey: config.apiKey } : {}) },
+      body: JSON.stringify({ number: toPhone, text: message }),
+    })
+    evoData = await evoRes.json().catch(() => ({}))
+    if (!evoRes.ok) {
+      return res.status(502).json({ error: evoData?.response?.message || evoData?.error || 'A Evolution API recusou o envio.', detail: evoData })
+    }
+  } catch (err) {
+    return res.status(502).json({ error: 'Não foi possível conectar na Evolution API. Confira a URL configurada.', detail: err.message })
+  }
+
+  // Nesse ponto a mensagem JÁ foi enviada de verdade pelo WhatsApp — se salvar o registro
+  // falhar por qualquer motivo (ex: whatsappMessageId duplicado), não podemos reportar erro
+  // pro usuário, senão ele reenvia a mesma mensagem achando que falhou.
+  let saved
+  try {
+    saved = await prisma.message.create({
+      data: {
+        contactId: contact?.id || null,
+        from: 'me',
+        to: toPhone,
+        body: message,
+        direction: 'out',
+        whatsappMessageId: evoData?.key?.id || null,
+        raw: evoData,
+      },
+    })
+  } catch (err) {
+    console.error('whatsapp send: falha ao salvar registro (mensagem já foi enviada)', err.message)
+    saved = { contactId: contact?.id || null, to: toPhone, body: message, direction: 'out', warning: 'Mensagem enviada, mas houve um erro ao salvar o registro no histórico.' }
+  }
+
+  if (contact) {
+    await prisma.activity.create({ data: { tenantId, userId, contactId: contact.id, type: 'whatsapp', content: `WhatsApp enviado: "${message.slice(0, 80)}"` } }).catch(() => {})
+  }
+
+  res.status(201).json(saved)
+})
+
 // Webhook para receber mensagens do WhatsApp (ou adaptadores) — uma URL por empresa,
 // já que cada uma conecta seu próprio número/instância da Evolution API.
 router.post('/webhook/:tenantId', async (req, res) => {

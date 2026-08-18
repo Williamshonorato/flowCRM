@@ -146,7 +146,12 @@
       <div class="int-card" data-int="whatsapp" id="wppCard">
         <div class="int-top"><div class="int-logo" style="background:#dcfce7">📱</div><span class="int-status status-available" id="wppStatus">Desconectado</span></div>
         <div class="int-name">WhatsApp Business</div>
-        <div class="int-desc">Capture conversas do WhatsApp automaticamente. A IA lê as mensagens, identifica o contato e atualiza o pipeline sem intervenção manual.</div>
+        <div class="int-desc">Capture conversas do WhatsApp automaticamente e mande mensagens direto do CRM. A IA lê as mensagens, identifica o contato e atualiza o pipeline sem intervenção manual.</div>
+        <div id="wppConfig" style="display:none">
+          <input type="text" class="webhook-inp" id="wppApiUrl" placeholder="URL da Evolution API (ex: http://localhost:8080)" />
+          <input type="text" class="webhook-inp" id="wppApiKey" placeholder="API Key da Evolution" />
+          <input type="text" class="webhook-inp" id="wppInstance" placeholder="Nome da instância (ex: flowcrm)" />
+        </div>
         <div class="int-footer"><span class="int-tag" id="wppMsgCount">— msgs capturadas</span><button class="int-btn btn-manage" id="wppBtn" onclick="toggleWhatsapp()">Conectar</button></div>
       </div>
       <div class="int-card" data-int="gmail" id="gmailCard">
@@ -324,6 +329,12 @@
     document.getElementById('wppStatus').className = 'int-status ' + (wppConnected ? 'status-connected' : 'status-available');
     document.getElementById('wppMsgCount').textContent = `${stats?.messageCount ?? 0} msgs capturadas`;
     document.getElementById('wppBtn').textContent = wppConnected ? 'Desconectar' : 'Conectar';
+    document.getElementById('wppConfig').style.display = wppConnected ? 'none' : 'none';
+    if (wppConnected && byType.whatsapp?.config) {
+      document.getElementById('wppApiUrl').value = byType.whatsapp.config.apiUrl || '';
+      document.getElementById('wppApiKey').value = byType.whatsapp.config.apiKey || '';
+      document.getElementById('wppInstance').value = byType.whatsapp.config.instance || '';
+    }
 
     const gmailConnected = byType.gmail?.status === 'connected';
     setCardStatus('gmail', gmailConnected, byType.gmail?.config?.email || 'Conectado', 'E-mail');
@@ -365,14 +376,32 @@
   async function toggleWhatsapp() {
     const btn = document.getElementById('wppBtn');
     const connected = btn.textContent === 'Desconectar';
-    btn.disabled = true;
+    const cfgBox = document.getElementById('wppConfig');
+
     if (connected) {
+      btn.disabled = true;
       await api('/settings/integrations/whatsapp', { method: 'DELETE' });
-    } else {
-      await api('/settings/integrations/whatsapp', { method: 'POST', body: JSON.stringify({ config: {} }) });
-      showToast('Marcado como conectado. Para receber mensagens de verdade, configure o webhook da Evolution API apontando pra URL abaixo.');
+      btn.disabled = false;
+      loadIntegrations();
+      return;
     }
+
+    if (cfgBox.style.display === 'none') {
+      // primeiro clique: só revela os campos de configuração
+      cfgBox.style.display = 'block';
+      btn.textContent = 'Salvar e conectar';
+      return;
+    }
+
+    const apiUrl = document.getElementById('wppApiUrl').value.trim();
+    const apiKey = document.getElementById('wppApiKey').value.trim();
+    const instance = document.getElementById('wppInstance').value.trim();
+    if (!apiUrl || !instance) { showToast('Preencha ao menos a URL da Evolution e o nome da instância.'); return; }
+
+    btn.disabled = true;
+    await api('/settings/integrations/whatsapp', { method: 'POST', body: JSON.stringify({ config: { apiUrl, apiKey, instance } }) });
     btn.disabled = false;
+    showToast('WhatsApp conectado. Configure o webhook da Evolution apontando pra URL abaixo pra receber mensagens.');
     loadIntegrations();
   }
 

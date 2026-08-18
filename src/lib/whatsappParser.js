@@ -2,7 +2,7 @@
 export function extractName(text) {
   if (!text) return null
   // exemplos: "meu nome é João", "sou João", "chamo-me Ana"
-  const patterns = [/meu nome é\s+([A-ZÁÉÍÓÚÇ][a-záéíóúç]+(?:\s+[A-Z][a-z]+)?)/i, /sou\s+([A-ZÁÉÍÓÚÇ][a-záéíóúç]+(?:\s+[A-Z][a-z]+)?)/i, /chamo(?:-me| me)\s+([A-ZÁÉÍÓÚÇ][a-záéíóúç]+)/i]
+  const patterns = [/meu nome é\s+([A-ZÁÉÍÓÚÇÃÕÂÊÔ][a-záéíóúçãõâêô]+(?:\s+[A-ZÁÉÍÓÚÇÃÕÂÊÔ][a-záéíóúçãõâêô]+)?)/i, /sou\s+([A-ZÁÉÍÓÚÇÃÕÂÊÔ][a-záéíóúçãõâêô]+(?:\s+[A-ZÁÉÍÓÚÇÃÕÂÊÔ][a-záéíóúçãõâêô]+)?)/i, /chamo(?:-me| me)\s+([A-ZÁÉÍÓÚÇÃÕÂÊÔ][a-záéíóúçãõâêô]+)/i]
   for (const p of patterns) {
     const m = text.match(p)
     if (m) return m[1].trim()

@@ -1,13 +1,48 @@
-version: '3.8'
 services:
-  wppconnect:
-    image: wppconnect/server:latest
-    container_name: wppconnect-server
+  postgres:
+    image: postgres:15-alpine
+    container_name: evolution-postgres
     restart: unless-stopped
     environment:
-      - WEBHOOK_URL=http://host.docker.internal:3333/whatsapp/webhook
-      - SESSION_NAME=flowcrm-dev
-    ports:
-      - "3030:3030" # UI / API
+      - POSTGRES_USER=evolution
+      - POSTGRES_PASSWORD=evolution
+      - POSTGRES_DB=evolution
     volumes:
-      - ./data:/usr/src/app/data
+      - evolution_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evolution"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  evolution-api:
+    image: evoapicloud/evolution-api:v2.3.4
+    container_name: evolution-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVER_URL=http://localhost:8080
+      - AUTHENTICATION_API_KEY=flowcrm-dev-key
+      - AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=true
+      - WEBHOOK_GLOBAL_ENABLED=true
+      - WEBHOOK_GLOBAL_URL=http://host.docker.internal:3333/whatsapp/webhook
+      - WEBHOOK_EVENTS_MESSAGES_UPSERT=true
+      - DATABASE_ENABLED=true
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://evolution:evolution@postgres:5432/evolution
+      - DATABASE_SAVE_DATA_INSTANCE=true
+      - DATABASE_SAVE_DATA_CONTACTS=true
+      - DATABASE_SAVE_DATA_CHATS=true
+      - DATABASE_SAVE_MESSAGE_UPDATE=true
+      - CACHE_REDIS_ENABLED=false
+      - CACHE_LOCAL_ENABLED=true
+    volumes:
+      - evolution_instances:/evolution/instances
+
+volumes:
+  evolution_instances:
+  evolution_pgdata:

@@ -13,8 +13,11 @@ router.post('/webhook', async (req, res) => {
 
   try {
     const payload = req.body || {}
+    // Evolution API (Baileys) manda um evento por webhook, com a mensagem aninhada em `data`
     const messages = Array.isArray(payload.messages)
       ? payload.messages
+      : payload.data && (payload.data.key || payload.data.message)
+      ? [payload.data]
       : payload.message
       ? [payload.message]
       : [payload]
@@ -26,7 +29,16 @@ router.post('/webhook', async (req, res) => {
       if (typeof message === 'string') return message
       if (message.body) return message.body
       if (message.text) return typeof message.text === 'string' ? message.text : message.text?.body || ''
-      if (message.message) return message.message
+      if (message.message) {
+        const msg = message.message
+        if (typeof msg === 'string') return msg
+        if (msg.conversation) return msg.conversation
+        if (msg.extendedTextMessage?.text) return msg.extendedTextMessage.text
+        if (msg.imageMessage?.caption) return msg.imageMessage.caption
+        if (msg.videoMessage?.caption) return msg.videoMessage.caption
+        if (msg.buttonsResponseMessage?.selectedDisplayText) return msg.buttonsResponseMessage.selectedDisplayText
+        if (msg.listResponseMessage?.title) return msg.listResponseMessage.title
+      }
       if (message.content?.text) return message.content.text
       if (message.text?.body) return message.text.body
       if (message?.text?.caption) return message.text.caption
@@ -34,10 +46,14 @@ router.post('/webhook', async (req, res) => {
     }
 
     for (const m of messages) {
-      const from = m.from || m.sender || m.author || m.chatId || ''
+      // Ignora mensagens enviadas pela própria instância (eco do que a empresa mandou)
+      if (m.key?.fromMe) continue
+
+      const from = m.from || m.sender || m.author || m.chatId || m.key?.remoteJid || ''
       const to = m.to || m.recipient || ''
       const body = getMessageText(m)
       const whatsappId = m.id || m.messageId || m.key?.id || null
+      const pushName = m.pushName || null
 
       const phone = (from || '').replace(/[^0-9]/g, '')
 
@@ -60,14 +76,14 @@ router.post('/webhook', async (req, res) => {
       }
 
       if (!contact) {
-        // tenta extrair nome a partir do corpo
-        const name = extractName(body) || ''
+        // prioriza o nome de exibição do WhatsApp (Evolution manda em pushName); cai pro texto se não vier
+        const name = pushName || extractName(body) || ''
         const email = extractEmail(body)
         const phoneExtracted = extractPhone(body) || phone
         contact = await prisma.contact.create({ data: { tenantId: tenant.id, name, phone: phoneExtracted, email: email || null } })
       } else {
         // atualiza contato se encontrarmos mais dados
-        const name = extractName(body)
+        const name = pushName || extractName(body)
         const email = extractEmail(body)
         const updates = {}
         if (name && !contact.name) updates.name = name

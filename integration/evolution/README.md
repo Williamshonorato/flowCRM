@@ -1,26 +1,82 @@
-# Run a WhatsApp adapter (Evolution-like) for local development
+# Testar com a Evolution API (local)
 
-This project uses a webhook-based approach. For local development you can run a self-hosted WhatsApp Web adapter (like `wppconnect/server` or `open-wa/wa-automate`) and configure it to POST messages to your FlowCRM webhook at `/whatsapp/webhook`.
+Sobe a [Evolution API](https://github.com/EvolutionAPI/evolution-api) real via Docker,
+conectada por QR code a um número de WhatsApp, mandando os eventos direto pro
+webhook do FlowCRM (`/whatsapp/webhook`).
 
-Example using `wppconnect/server` (Docker Compose):
-
-1. Create the file `docker-compose.yml` in `integration/evolution` (example included).
-2. Set `WEBHOOK_URL` to `http://host.docker.internal:3333/whatsapp/webhook` on macOS, or use your machine IP if needed.
-3. Start the service:
+## 1. Subir o serviço
 
 ```bash
 cd integration/evolution
 docker compose up -d
 ```
 
-4. Open `http://localhost:3030` to scan the WhatsApp QR code.
+Isso sobe a Evolution API em `http://localhost:8080`, já configurada para
+mandar todo evento de mensagem para `http://host.docker.internal:3333/whatsapp/webhook`
+(o FlowCRM precisa estar rodando em `localhost:3333` — `npm run dev`).
 
-5. Send a message to the connected number; the adapter should POST the payload to FlowCRM.
+A API key usada nos exemplos abaixo é `flowcrm-dev-key` (definida no `docker-compose.yml`).
+Troque antes de expor isso fora da sua máquina.
 
-Notes
-- If you run FlowCRM inside Docker, adapt `WEBHOOK_URL` to point to `http://flowcrm:3333/whatsapp/webhook` or expose ports.
-- The adapter may use WebSocket/long-polling; ensure it can reach your webhook.
-- If the adapter cannot reach `host.docker.internal`, use your machine IP (e.g. `http://192.168.x.x:3333/whatsapp/webhook`).
-- For production, consider official providers or hosted adapters and handle compliance/scale accordingly.
+## 2. Criar uma instância
 
-If you want, I can add an example `docker-compose.yml` using `wppconnect/server` next.
+```bash
+curl -s -X POST http://localhost:8080/instance/create \
+  -H "Content-Type: application/json" \
+  -H "apikey: flowcrm-dev-key" \
+  -d '{
+    "instanceName": "flowcrm",
+    "qrcode": true,
+    "integration": "WHATSAPP-BAILEYS"
+  }'
+```
+
+## 3. Escanear o QR code
+
+```bash
+curl -s http://localhost:8080/instance/connect/flowcrm \
+  -H "apikey: flowcrm-dev-key"
+```
+
+A resposta traz o QR code em base64. Abra num navegador (ou decodifique pra imagem)
+e escaneie com o WhatsApp do celular (Aparelhos conectados → Conectar um aparelho).
+
+## 4. Testar
+
+Mande uma mensagem de WhatsApp para o número conectado. A Evolution deve
+disparar um `POST /whatsapp/webhook` no FlowCRM, que cria/atualiza o contato,
+salva a mensagem e — se detectar intenção de interesse — cria um negócio e uma
+tarefa de follow-up automaticamente.
+
+Para conferir sem depender de WhatsApp real, simule o payload que a Evolution
+manda (formato `messages.upsert`, mensagem aninhada em `data`):
+
+```bash
+curl -s -X POST http://localhost:3333/whatsapp/webhook \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event": "messages.upsert",
+    "instance": "flowcrm",
+    "data": {
+      "key": { "remoteJid": "5511987654321@s.whatsapp.net", "fromMe": false, "id": "TESTE001" },
+      "pushName": "Cliente Teste",
+      "message": { "conversation": "Oi, quero um orçamento" }
+    },
+    "sender": "5511999999999@s.whatsapp.net"
+  }'
+```
+
+## Notas
+
+- O webhook em `src/routes/whatsapp.js` reconhece o formato da Evolution
+  (`data.key.remoteJid`, `data.message.conversation`/`extendedTextMessage`/etc.,
+  `data.pushName`) e ignora mensagens com `fromMe: true` (ecos do que a própria
+  empresa mandou).
+- Se quiser exigir autenticação no webhook, defina `WHATSAPP_TOKEN` no `.env`
+  do FlowCRM — o Evolution precisa então mandar esse valor no header
+  `x-whatsapp-token` (configurável em `WEBHOOK_GLOBAL_HEADERS` da Evolution).
+- Se a Evolution não conseguir alcançar `host.docker.internal`, troque pelo IP
+  da sua máquina na rede local (ex: `http://192.168.x.x:3333/whatsapp/webhook`).
+- Para produção, avalie um provedor oficial (WhatsApp Business API via Meta) —
+  a Evolution/Baileys usa engenharia reversa do WhatsApp Web e não é um canal
+  oficialmente suportado pela Meta.

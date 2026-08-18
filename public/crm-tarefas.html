@@ -200,12 +200,7 @@
       <div class="inp-g"><label>Horário</label><input type="time" id="m-time" value="09:00"/></div>
     </div>
     <div class="inp-g"><label>Contato vinculado</label>
-      <select id="m-contact">
-        <option value="">— Nenhum —</option>
-        <option>Maria Clara Souza</option><option>João Pedro Alves</option>
-        <option>Ana Beatriz Lima</option><option>Roberto Mendes</option>
-        <option>Carla Fernanda</option><option>Paulo Sérgio Costa</option>
-      </select>
+      <select id="m-contact"><option value="">— Nenhum —</option></select>
     </div>
     <div class="inp-g"><label>Prioridade</label>
       <select id="m-prio"><option value="high">🔴 Alta</option><option value="mid" selected>🟡 Média</option><option value="low">🟢 Baixa</option></select>
@@ -333,8 +328,22 @@
   function setType(v, el) { currentType = v; document.querySelectorAll('.type-item').forEach(x => x.classList.remove('active')); el.classList.add('active'); loadTasks(); }
 
   let selectedType = 'call';
+  let contactsCache = [];
   function selType(el) { document.querySelectorAll('.type-opt').forEach(x => x.classList.remove('sel')); el.classList.add('sel'); selectedType = el.dataset.t; }
-  function openModal() { document.getElementById('m-date').value = today; document.getElementById('overlay').classList.add('open'); }
+
+  async function loadContactOptions() {
+    if (contactsCache.length) return;
+    const data = await api('/contacts?limit=200&sort=name');
+    contactsCache = data?.contacts || [];
+    const sel = document.getElementById('m-contact');
+    sel.innerHTML = '<option value="">— Nenhum —</option>' + contactsCache.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  }
+
+  function openModal() {
+    document.getElementById('m-date').value = today;
+    document.getElementById('overlay').classList.add('open');
+    loadContactOptions();
+  }
   function closeModal() { document.getElementById('overlay').classList.remove('open'); }
   function openTask() {}
 
@@ -344,7 +353,9 @@
     const dueDate = document.getElementById('m-date').value + 'T' + (document.getElementById('m-time').value || '09:00') + ':00';
     const task = await api('/tasks', { method: 'POST', body: JSON.stringify({
       title, type: selectedType, dueDate,
-      priority: document.getElementById('m-prio').value || 'mid',
+      priority:  document.getElementById('m-prio').value || 'mid',
+      contactId: document.getElementById('m-contact').value || undefined,
+      notes:     document.getElementById('m-obs').value || undefined,
     })});
     if (task) { closeModal(); loadTasks(); }
   }

@@ -579,7 +579,10 @@
 
   api('/whatsapp/stats').then(s => { wppConnected = !!s?.connected; });
   api('/settings/integrations').then(list => { gmailConnected = (list || []).some(i => i.type === 'gmail' && i.status === 'connected'); });
-  loadFilters().then(loadContacts);
+  loadFilters().then(loadContacts).then(() => {
+    const openId = new URLSearchParams(location.search).get('contactId');
+    if (openId) openDetail(openId);
+  });
 </script>
 </body>
 </html>

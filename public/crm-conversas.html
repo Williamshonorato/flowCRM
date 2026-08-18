@@ -87,6 +87,26 @@
 
     #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1e293b;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.2);opacity:0;pointer-events:none;transition:all .25s;z-index:100}
     #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+    /* PROFILE MODAL */
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:none;align-items:center;justify-content:center}
+    .overlay.open{display:flex}
+    .modal{background:#fff;border-radius:20px;padding:28px;width:380px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.18)}
+    .modal-close{float:right;width:28px;height:28px;border-radius:7px;border:1px solid var(--border);background:#fff;font-size:14px;cursor:pointer}
+    .modal-close:hover{background:var(--bg)}
+    .pm-avatar{width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#fff;margin:4px 0 14px}
+    .pm-new-badge{display:inline-flex;align-items:center;gap:6px;background:#fff7ed;color:var(--amber);font-size:12px;font-weight:700;padding:6px 12px;border-radius:9px;margin-bottom:16px}
+    .pm-g{margin-bottom:12px}
+    .pm-g label{display:block;font-size:12px;font-weight:600;color:var(--text);margin-bottom:5px}
+    .pm-g input,.pm-g select{width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-size:13.5px;color:var(--text);outline:none;background:#fff}
+    .pm-g input:focus,.pm-g select:focus{border-color:var(--green)}
+    .pm-g input:disabled{background:var(--bg);color:var(--muted)}
+    .pm-row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .pm-actions{display:flex;gap:10px;margin-top:18px}
+    .pm-save{flex:2;padding:11px;border:none;border-radius:9px;background:linear-gradient(135deg,var(--green),#1abc9c);font-size:13.5px;font-weight:700;color:#fff;cursor:pointer}
+    .pm-save:disabled{opacity:.6;cursor:default}
+    .pm-full{flex:1;padding:11px;border:1.5px solid var(--border);border-radius:9px;background:#fff;font-size:13px;font-weight:600;color:var(--text);cursor:pointer}
+    .pm-full:hover{border-color:var(--green);color:var(--green)}
   </style>
 </head>
 <body>
@@ -125,6 +145,36 @@
         <div class="ico">💬</div>
         <div>Selecione uma conversa pra ver as mensagens</div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- PERFIL DO CONTATO -->
+<div class="overlay" id="profileOverlay" onclick="if(event.target===this)closeProfileModal()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeProfileModal()">✕</button>
+    <div class="pm-avatar" id="pm-avatar">?</div>
+    <div id="pm-newBadge" class="pm-new-badge" style="display:none">🆕 Contato criado automaticamente pelo WhatsApp — complete os dados</div>
+
+    <div class="pm-g"><label>Nome</label><input type="text" id="pm-name" placeholder="Nome do contato"/></div>
+    <div class="pm-g"><label>Telefone</label><input type="text" id="pm-phone" disabled/></div>
+    <div class="pm-g"><label>E-mail</label><input type="email" id="pm-email" placeholder="email@exemplo.com"/></div>
+    <div class="pm-row2">
+      <div class="pm-g"><label>Empresa</label><input type="text" id="pm-company" placeholder="Empresa"/></div>
+      <div class="pm-g"><label>Origem</label>
+        <select id="pm-origin">
+          <option value="whatsapp">WhatsApp</option><option value="indicacao">Indicação</option>
+          <option value="instagram">Instagram</option><option value="google_ads">Google Ads</option><option value="outro">Outro</option>
+        </select>
+      </div>
+    </div>
+    <div class="pm-g"><label>Temperatura</label>
+      <select id="pm-temp"><option value="new">🆕 Novo</option><option value="hot">🔥 Quente</option><option value="warm">🌡️ Morno</option><option value="cold">❄️ Frio</option></select>
+    </div>
+
+    <div class="pm-actions">
+      <button class="pm-full" onclick="window.location.href='crm-contatos.html?contactId='+pmContactId">Ficha completa →</button>
+      <button class="pm-save" id="pm-save-btn" onclick="saveProfile()">Salvar</button>
     </div>
   </div>
 </div>
@@ -206,7 +256,7 @@
       <div class="thread-header">
         <div class="conv-avatar" style="background:${palColor(0)}">${initials(data.contact.name)}</div>
         <div><div class="thread-header-name">${data.contact.name}</div><div class="thread-header-sub">${data.contact.phone || ''}</div></div>
-        <button class="th-btn" onclick="window.location.href='crm-contatos.html'">Ver ficha do contato</button>
+        <button class="th-btn" onclick="openProfileModal('${contactId}')">Ver ficha do contato</button>
       </div>
       <div class="thread-messages" id="threadMessages"></div>
       <div class="thread-reply">
@@ -241,6 +291,52 @@
       textarea.value = '';
       showToast('Mensagem enviada.');
       openConversation(currentConv);
+    }
+  }
+
+  let pmContactId = null;
+
+  async function openProfileModal(contactId) {
+    const contact = await api('/contacts/' + contactId);
+    if (!contact) return;
+    pmContactId = contactId;
+
+    document.getElementById('pm-avatar').textContent = initials(contact.name);
+    document.getElementById('pm-avatar').style.background = palColor(0);
+    document.getElementById('pm-name').value = contact.name || '';
+    document.getElementById('pm-phone').value = contact.phone || '';
+    document.getElementById('pm-email').value = contact.email || '';
+    document.getElementById('pm-company').value = contact.company || '';
+    document.getElementById('pm-origin').value = contact.origin || 'whatsapp';
+    document.getElementById('pm-temp').value = contact.temperature || 'new';
+
+    // Contato criado automaticamente pelo webhook do WhatsApp tem só nome+telefone —
+    // sem e-mail, empresa ou negócio nenhum ainda. Avisa e convida a completar o cadastro.
+    const isMinimal = !contact.email && !contact.company && (!contact.deals || contact.deals.length === 0);
+    document.getElementById('pm-newBadge').style.display = isMinimal ? 'flex' : 'none';
+
+    document.getElementById('profileOverlay').classList.add('open');
+  }
+  function closeProfileModal() { document.getElementById('profileOverlay').classList.remove('open'); }
+
+  async function saveProfile() {
+    const name = document.getElementById('pm-name').value.trim();
+    if (!name) { showToast('Informe o nome do contato.'); return; }
+    const btn = document.getElementById('pm-save-btn');
+    btn.disabled = true; btn.textContent = 'Salvando...';
+    const result = await api('/contacts/' + pmContactId, { method: 'PATCH', body: JSON.stringify({
+      name,
+      email: document.getElementById('pm-email').value.trim() || null,
+      company: document.getElementById('pm-company').value.trim() || null,
+      origin: document.getElementById('pm-origin').value,
+      temperature: document.getElementById('pm-temp').value,
+    })});
+    btn.disabled = false; btn.textContent = 'Salvar';
+    if (result) {
+      showToast('Contato atualizado.');
+      document.getElementById('pm-newBadge').style.display = 'none';
+      loadConversations();
+      if (currentConv === pmContactId) openConversation(currentConv);
     }
   }
 

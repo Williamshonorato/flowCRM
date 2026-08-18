@@ -30,7 +30,7 @@ router.get('/', async (req, res) => {
           ...(stageId && { stageId }),
           ...(search && { title: { contains: search, mode: 'insensitive' } }),
         },
-        include: { contact: { select: { id: true, name: true, phone: true } } },
+        include: { contact: { select: { id: true, name: true, phone: true, origin: true, temperature: true } } },
         orderBy: { updatedAt: 'desc' },
       },
     },

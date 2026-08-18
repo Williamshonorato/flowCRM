@@ -39,7 +39,18 @@
     .search-wrap input{padding:7px 12px 7px 34px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;color:var(--text);outline:none;width:200px;background:var(--bg)}
     .search-wrap input:focus{border-color:var(--green)}
     .search-ico{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--muted)}
+    .filter-wrap{position:relative}
     .filter-btn{padding:7px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;color:var(--muted);background:#fff;cursor:pointer;display:flex;align-items:center;gap:6px}
+    .filter-btn.active{border-color:var(--green);color:var(--green);background:rgba(39,174,96,.06)}
+    .filter-dropdown{position:absolute;top:44px;right:0;width:260px;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.14);z-index:50;display:none;padding:16px}
+    .filter-dropdown.open{display:block}
+    .filter-group{margin-bottom:14px}
+    .filter-group:last-child{margin-bottom:0}
+    .filter-group-title{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px}
+    .filter-opt{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;color:var(--text);cursor:pointer}
+    .filter-opt input{cursor:pointer}
+    .filter-clear{width:100%;margin-top:4px;padding:8px;border:1px solid var(--border);border-radius:8px;background:#fff;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer}
+    .filter-clear:hover{border-color:var(--red);color:var(--red)}
     .btn-green{padding:8px 16px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(39,174,96,.3)}
     .btn-green:hover{background:#219a52}
 
@@ -134,7 +145,20 @@
       <span class="search-ico">🔍</span>
       <input type="text" placeholder="Buscar negócio..." oninput="filterCards(this.value)"/>
     </div>
-    <button class="filter-btn">🎛️ Filtrar</button>
+    <div class="filter-wrap">
+      <button class="filter-btn" id="filterBtn" onclick="toggleFilterDropdown(event)">🎛️ Filtrar</button>
+      <div class="filter-dropdown" id="filterDropdown">
+        <div class="filter-group">
+          <div class="filter-group-title">Origem</div>
+          <div id="filterOrigins"></div>
+        </div>
+        <div class="filter-group">
+          <div class="filter-group-title">Temperatura</div>
+          <div id="filterTemps"></div>
+        </div>
+        <button class="filter-clear" onclick="clearFilters()">Limpar filtros</button>
+      </div>
+    </div>
     <button class="btn-green" onclick="openModal()">+ Novo negócio</button>
   </div>
 
@@ -178,6 +202,9 @@
   let stages = [];
   let dragId = null;
   let modalStageIdx = 0;
+  let currentSearch = '';
+  const activeFilters = { origins: new Set(), temperatures: new Set() };
+  const originLabels = { whatsapp: 'WhatsApp', indicacao: 'Indicação', instagram: 'Instagram', google_ads: 'Google Ads', outro: 'Outros' };
 
   function colrGrad(c) {
     const map = { '#f39c12':'#f1c40f','#2980b9':'#5dade2','#8e44ad':'#c084fc','#16a085':'#1abc9c','#27ae60':'#2ecc71' };
@@ -185,11 +212,59 @@
   }
   const tempLabels = { hot:'🔥 Quente', warm:'🌡️ Morno', cold:'❄️ Frio', new:'🆕 Novo' };
 
+  function toggleFilterDropdown(e) {
+    e.stopPropagation();
+    document.getElementById('filterDropdown').classList.toggle('open');
+  }
+  document.addEventListener('click', (e) => {
+    const dd = document.getElementById('filterDropdown');
+    if (dd.classList.contains('open') && !dd.contains(e.target) && !e.target.closest('#filterBtn')) {
+      dd.classList.remove('open');
+    }
+  });
+
+  function renderFilterOptions() {
+    const originsSeen = new Set();
+    stages.forEach(col => col.deals.forEach(d => originsSeen.add(d.contact?.origin || 'outro')));
+    document.getElementById('filterOrigins').innerHTML = [...originsSeen].sort().map(o => `
+      <label class="filter-opt"><input type="checkbox" ${activeFilters.origins.has(o) ? 'checked' : ''} onchange="toggleOriginFilter('${o}')"/>${originLabels[o] || o}</label>
+    `).join('') || '<div style="font-size:12px;color:#94a3b8">Nenhum lead ainda</div>';
+
+    document.getElementById('filterTemps').innerHTML = Object.entries(tempLabels).map(([k, label]) => `
+      <label class="filter-opt"><input type="checkbox" ${activeFilters.temperatures.has(k) ? 'checked' : ''} onchange="toggleTempFilter('${k}')"/>${label}</label>
+    `).join('');
+  }
+
+  function toggleOriginFilter(v) { activeFilters.origins.has(v) ? activeFilters.origins.delete(v) : activeFilters.origins.add(v); applyFilters(); }
+  function toggleTempFilter(v) { activeFilters.temperatures.has(v) ? activeFilters.temperatures.delete(v) : activeFilters.temperatures.add(v); applyFilters(); }
+
+  function clearFilters() {
+    activeFilters.origins.clear();
+    activeFilters.temperatures.clear();
+    renderFilterOptions();
+    applyFilters();
+  }
+
+  function applyFilters() {
+    const count = activeFilters.origins.size + activeFilters.temperatures.size;
+    const btn = document.getElementById('filterBtn');
+    btn.textContent = count ? `🎛️ Filtrar (${count})` : '🎛️ Filtrar';
+    btn.classList.toggle('active', count > 0);
+    render(currentSearch);
+  }
+
   function render(filter = '') {
     const kanban = document.getElementById('kanban');
     kanban.innerHTML = '';
     stages.forEach((col, ci) => {
-      const colDeals = col.deals.filter(d => !filter || d.title.toLowerCase().includes(filter.toLowerCase()) || (d.contact?.name || '').toLowerCase().includes(filter.toLowerCase()));
+      const colDeals = col.deals.filter(d => {
+        const matchesSearch = !filter || d.title.toLowerCase().includes(filter.toLowerCase()) || (d.contact?.name || '').toLowerCase().includes(filter.toLowerCase());
+        const origin = d.contact?.origin || 'outro';
+        const temp = d.contact?.temperature || 'new';
+        const matchesOrigin = activeFilters.origins.size === 0 || activeFilters.origins.has(origin);
+        const matchesTemp = activeFilters.temperatures.size === 0 || activeFilters.temperatures.has(temp);
+        return matchesSearch && matchesOrigin && matchesTemp;
+      });
       const total = colDeals.reduce((s, d) => s + Number(d.value), 0);
       const div = document.createElement('div');
       div.className = 'column';
@@ -210,6 +285,7 @@
               </div>
               <div class="card-value">${fmtMoney(d.value)}</div>
               <div class="card-footer">
+                ${d.contact?.temperature ? `<span class="card-tag tag-${d.contact.temperature}">${tempLabels[d.contact.temperature]}</span>` : ''}
                 <span class="card-date">${new Date(d.updatedAt).toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})}</span>
               </div>
               <div class="card-actions">
@@ -236,7 +312,7 @@
     await api('/deals/' + id, { method: 'PATCH', body: JSON.stringify({ stageId: newStageId }) });
   }
 
-  function filterCards(v) { render(v); }
+  function filterCards(v) { currentSearch = v; render(v); }
 
   function initDrag() {
     document.querySelectorAll('.deal-card').forEach(c => {
@@ -278,6 +354,7 @@
     if (!data) return;
     stages = data;
     render();
+    renderFilterOptions();
     const highlightId = new URLSearchParams(location.search).get('stageId');
     if (highlightId) {
       const idx = stages.findIndex(s => s.id === highlightId);

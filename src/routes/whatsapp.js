@@ -26,6 +26,13 @@ router.post('/webhook/:tenantId', async (req, res) => {
   const tenant = await prisma.tenant.findUnique({ where: { id: req.params.tenantId } })
   if (!tenant) return res.status(404).json({ error: 'Empresa não encontrada.' })
 
+  // A Evolution manda webhook pra vários tipos de evento, não só mensagem
+  // (qrcode.updated, connection.update, etc). Ignora tudo que não for mensagem de chat.
+  const eventType = req.body?.event
+  if (eventType && eventType !== 'messages.upsert') {
+    return res.json({ ok: true, ignored: eventType })
+  }
+
   try {
     const payload = req.body || {}
     // Evolution API (Baileys) manda um evento por webhook, com a mensagem aninhada em `data`
@@ -71,6 +78,9 @@ router.post('/webhook/:tenantId', async (req, res) => {
       const pushName = m.pushName || null
 
       const phone = (from || '').replace(/[^0-9]/g, '')
+
+      // Sem telefone não dá pra saber quem mandou — ignora em vez de criar contato em branco
+      if (!phone) continue
 
       // Encontra ou cria contato pelo telefone, sempre dentro desta empresa
       let contact = null

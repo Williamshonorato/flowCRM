@@ -14,6 +14,7 @@ import settingsRouter  from './routes/settings.js'
 import importRouter    from './routes/import.js'
 import campaignsRouter from './routes/campaigns.js'
 import whatsappRouter  from './routes/whatsapp.js'
+import gmailRouter      from './routes/gmail.js'
 
 const app = express()
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -36,6 +37,7 @@ app.use('/settings',   settingsRouter)
 app.use('/import',     importRouter)
 app.use('/campaigns',  campaignsRouter)
 app.use('/whatsapp',   whatsappRouter)
+app.use('/gmail',      gmailRouter)
 
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok', version: '1.0.0', timestamp: new Date().toISOString() }))

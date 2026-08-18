@@ -147,11 +147,11 @@
         <div class="int-desc">Capture conversas do WhatsApp automaticamente. A IA lê as mensagens, identifica o contato e atualiza o pipeline sem intervenção manual.</div>
         <div class="int-footer"><span class="int-tag" id="wppMsgCount">— msgs capturadas</span><button class="int-btn btn-manage" id="wppBtn" onclick="toggleWhatsapp()">Conectar</button></div>
       </div>
-      <div class="int-card">
-        <div class="int-top"><div class="int-logo" style="background:#fef2f2">✉️</div><span class="int-status status-available">Disponível</span></div>
+      <div class="int-card" data-int="gmail" id="gmailCard">
+        <div class="int-top"><div class="int-logo" style="background:#fef2f2">✉️</div><span class="int-status status-available" id="gmailStatus">Disponível</span></div>
         <div class="int-name">Gmail</div>
         <div class="int-desc">Sincronize e-mails com contatos do CRM. Toda troca de e-mail aparece no histórico do cliente automaticamente.</div>
-        <div class="int-footer"><span class="int-tag">E-mail</span><button class="int-btn btn-connect" onclick="notReady('Gmail')">Conectar</button></div>
+        <div class="int-footer"><span class="int-tag" id="gmailTag">E-mail</span><button class="int-btn btn-connect" id="gmailBtn" onclick="connectGmail()">Conectar</button></div>
       </div>
       <div class="int-card">
         <div class="int-top"><div class="int-logo" style="background:#eff6ff">📧</div><span class="int-status status-available">Disponível</span></div>
@@ -284,11 +284,40 @@
     navigator.clipboard?.writeText(url).then(() => showToast('Webhook URL copiada.')).catch(() => showToast('Não foi possível copiar.'));
   }
 
+  async function connectGmail() {
+    const token = getToken();
+    window.location.href = '/gmail/connect?token=' + encodeURIComponent(token);
+  }
+
+  async function disconnectGmail() {
+    document.getElementById('gmailBtn').disabled = true;
+    await api('/settings/integrations/gmail', { method: 'DELETE' });
+    loadIntegrations();
+  }
+
+  function handleGmailRedirect() {
+    const params = new URLSearchParams(location.search);
+    if (params.get('gmail') === 'connected') showToast('Gmail conectado com sucesso.');
+    if (params.get('gmail') === 'error') showToast('Não foi possível conectar o Gmail. Tente novamente.');
+    if (params.has('gmail')) window.history.replaceState({}, '', location.pathname);
+  }
+
   async function loadIntegrations() {
     const [list, stats] = await Promise.all([api('/settings/integrations'), api('/whatsapp/stats')]);
 
     const wppSaved = (list || []).find(i => i.type === 'whatsapp');
     const connected = stats?.connected || wppSaved?.status === 'connected';
+
+    const gmailSaved = (list || []).find(i => i.type === 'gmail');
+    const gmailConnected = gmailSaved?.status === 'connected';
+    document.getElementById('gmailCard').classList.toggle('connected', gmailConnected);
+    document.getElementById('gmailStatus').textContent = gmailConnected ? '✓ Conectado' : 'Disponível';
+    document.getElementById('gmailStatus').className = 'int-status ' + (gmailConnected ? 'status-connected' : 'status-available');
+    document.getElementById('gmailTag').textContent = gmailConnected ? (gmailSaved.config?.email || 'Conectado') : 'E-mail';
+    const gmailBtn = document.getElementById('gmailBtn');
+    gmailBtn.textContent = gmailConnected ? 'Desconectar' : 'Conectar';
+    gmailBtn.onclick = gmailConnected ? disconnectGmail : connectGmail;
+    gmailBtn.disabled = false;
 
     document.getElementById('wppCard').classList.toggle('connected', connected);
     document.getElementById('wppStatus').textContent = connected ? '✓ Conectado' : 'Desconectado';
@@ -347,6 +376,7 @@
     event.target.textContent = '✓ Copiado!'; setTimeout(() => event.target.textContent = '📋 Copiar', 2000);
   }
 
+  handleGmailRedirect();
   loadIntegrations();
 </script>
 </body>

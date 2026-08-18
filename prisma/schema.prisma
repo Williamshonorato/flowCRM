@@ -115,6 +115,7 @@ model User {
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   tasks     Task[]
   activities Activity[]
+  assignedContacts Contact[] @relation("ContactAssignee")
 
   @@unique([tenantId, email])
 }
@@ -157,16 +158,19 @@ model Contact {
   temperature  String   @default("new") // hot | warm | cold | new
   customData   Json     @default("{}")  // campos personalizados
   notes        String?
+  assignedToId String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   tenant     Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignedTo User?                @relation("ContactAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   deals      Deal[]
   messages   Message[]
   tasks      Task[]
   activities Activity[]
   dispatches AutomationDispatch[]
 
+  @@index([tenantId, assignedToId])
   @@unique([tenantId, email])
   @@index([tenantId])
 }

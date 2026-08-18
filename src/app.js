@@ -17,6 +17,9 @@ import whatsappRouter  from './routes/whatsapp.js'
 import gmailRouter      from './routes/gmail.js'
 import calendarRouter   from './routes/calendar.js'
 import outlookRouter    from './routes/outlook.js'
+import membersRouter    from './routes/members.js'
+import treasuryRouter   from './routes/treasury.js'
+import datasourceRouter from './routes/datasource.js'
 
 const app = express()
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -42,6 +45,9 @@ app.use('/whatsapp',   whatsappRouter)
 app.use('/gmail',      gmailRouter)
 app.use('/calendar',   calendarRouter)
 app.use('/outlook',    outlookRouter)
+app.use('/members',    membersRouter)
+app.use('/treasury',   treasuryRouter)
+app.use('/datasource', datasourceRouter)
 
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok', version: '1.0.0', timestamp: new Date().toISOString() }))

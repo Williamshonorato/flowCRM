@@ -34,6 +34,69 @@ model Tenant {
   imports         ImportLog[]
   automationRules AutomationRule[]
   dispatches      AutomationDispatch[]
+  members         Member[]
+  contributions   Contribution[]
+  expenses        TreasuryExpense[]
+}
+
+// ── MEMBER (inscrito no sindicato) ────────────────────────────────────────────
+model Member {
+  id           String    @id @default(cuid())
+  tenantId     String
+  name         String
+  document     String?   // CPF
+  registration String?   // matrícula funcional
+  rank         String?   // categoria / cargo
+  email        String?
+  phone        String?
+  status       String    @default("active") // active | inactive
+  joinedAt     DateTime  @default(now())
+  notes        String?
+  customData   Json      @default("{}")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contributions Contribution[]
+
+  @@index([tenantId])
+  @@unique([tenantId, document])
+}
+
+// ── CONTRIBUTION (mensalidade paga pelo inscrito) ─────────────────────────────
+model Contribution {
+  id        String    @id @default(cuid())
+  tenantId  String
+  memberId  String
+  amount    Decimal   @default(0) @db.Decimal(12, 2)
+  dueDate   DateTime
+  paidAt    DateTime?
+  status    String    @default("pending") // pending | paid | overdue
+  reference String?   // ex: "mensalidade 08/2026"
+  createdAt DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([memberId])
+  @@index([tenantId, status])
+}
+
+// ── TREASURY EXPENSE (despesa administrativa do sindicato) ───────────────────
+model TreasuryExpense {
+  id          String   @id @default(cuid())
+  tenantId    String
+  description String
+  category    String?
+  amount      Decimal  @default(0) @db.Decimal(12, 2)
+  date        DateTime
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, date])
 }
 
 // ── USER ─────────────────────────────────────────────────────────────────────

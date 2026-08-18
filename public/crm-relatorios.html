@@ -124,17 +124,17 @@
   <div class="topbar">
     <div class="page-title">Relatórios</div>
     <select class="period-select" onchange="changePeriod(this.value)">
-      <option>Junho 2026</option><option>Maio 2026</option><option>Últimos 3 meses</option><option>2026 completo</option>
+      <option value="month">Este mês</option><option value="quarter">Este trimestre</option><option value="year">Este ano</option>
     </select>
     <button class="btn-export">⬇️ Exportar PDF</button>
   </div>
   <div class="content">
     <!-- KPIs -->
     <div class="kpi-grid">
-      <div class="kpi g"><span class="kpi-ico">💰</span><div class="kpi-label">Receita do período</div><div class="kpi-value">R$ 38.500</div><div class="kpi-delta up">↑ +18% vs mês anterior</div></div>
-      <div class="kpi b"><span class="kpi-ico">🎯</span><div class="kpi-label">Conversão geral</div><div class="kpi-value">32%</div><div class="kpi-delta up">↑ +4pp vs mês anterior</div></div>
-      <div class="kpi p"><span class="kpi-ico">🔄</span><div class="kpi-label">Ciclo médio de venda</div><div class="kpi-value">14 dias</div><div class="kpi-delta neutral">estável</div></div>
-      <div class="kpi a"><span class="kpi-ico">📉</span><div class="kpi-label">Churn do mês</div><div class="kpi-value">1,8%</div><div class="kpi-delta up">↓ abaixo da meta (3%)</div></div>
+      <div class="kpi g"><span class="kpi-ico">💰</span><div class="kpi-label">Receita do período</div><div class="kpi-value" id="kpi-revenue">—</div><div class="kpi-delta" id="kpi-revenue-delta"></div></div>
+      <div class="kpi b"><span class="kpi-ico">🎯</span><div class="kpi-label">Conversão geral</div><div class="kpi-value" id="kpi-conv">—</div><div class="kpi-delta" id="kpi-conv-delta"></div></div>
+      <div class="kpi p"><span class="kpi-ico">🔄</span><div class="kpi-label">Ciclo médio de venda</div><div class="kpi-value" id="kpi-cycle">—</div><div class="kpi-delta" id="kpi-cycle-delta"></div></div>
+      <div class="kpi a"><span class="kpi-ico">📉</span><div class="kpi-label">Churn do período</div><div class="kpi-value" id="kpi-churn">—</div><div class="kpi-delta" id="kpi-churn-delta"></div></div>
     </div>
 
     <!-- CHARTS -->
@@ -145,7 +145,7 @@
         </div>
         <div class="line-chart-wrap"><svg class="line-chart" id="lineChart" viewBox="0 0 500 180" preserveAspectRatio="none"></svg></div>
       </div>
-      <div class="card">
+      <div class="card" id="funnelCard">
         <div class="card-header"><div><div class="card-title">Funil de conversão</div><div class="card-sub">Taxa entre estágios</div></div></div>
         <div class="funnel" id="funnel"></div>
       </div>
@@ -153,7 +153,7 @@
 
     <!-- BOTTOM -->
     <div class="bottom-row">
-      <div class="card">
+      <div class="card" id="origemCard">
         <div class="card-header"><div><div class="card-title">Origem dos leads</div><div class="card-sub">De onde vêm os clientes</div></div></div>
         <div class="origem-list" id="origemList"></div>
       </div>
@@ -162,26 +162,13 @@
         <div class="rank-list" id="rankList"></div>
       </div>
       <div class="card">
-        <div class="card-header"><div><div class="card-title">Metas do mês</div><div class="card-sub">Junho 2026</div></div></div>
-        <div class="meta-list" id="metaList"></div>
+        <div class="card-header"><div><div class="card-title">Metas do mês</div><div class="card-sub" id="metaPeriodLabel"></div></div></div>
+        <div class="meta-list" id="metaList"><div style="font-size:12px;color:var(--muted)">Metas ainda não configuradas.</div></div>
       </div>
     </div>
 
     <!-- INSIGHTS IA -->
-    <div class="insights">
-      <div class="insight">
-        <div class="insight-ico">🤖</div>
-        <div><div class="insight-title">IA · Oportunidade</div><div class="insight-text">3 leads estão parados há mais de 7 dias na etapa "Em contato". Um follow-up agora pode recuperar R$ 5.900 em negócios.</div><div class="insight-action">Ver leads →</div></div>
-      </div>
-      <div class="insight">
-        <div class="insight-ico">⚠️</div>
-        <div><div class="insight-title">Atenção · Conversão</div><div class="insight-text">A conversão de "Proposta → Fechado" caiu de 45% para 28% este mês. Revise sua argumentação de preço.</div><div class="insight-action">Ver propostas →</div></div>
-      </div>
-      <div class="insight">
-        <div class="insight-ico">🏆</div>
-        <div><div class="insight-title">Destaque · Canal</div><div class="insight-text">WhatsApp representa 50% dos leads e tem a maior taxa de conversão (38%). Priorize esse canal.</div><div class="insight-action">Ver origens →</div></div>
-      </div>
-    </div>
+    <div class="insights" id="insightsList"></div>
   </div>
 </div>
 
@@ -237,25 +224,78 @@
       </div>`).join('');
   }
 
-  async function loadReports(period = 'month') {
-    const data = await api('/reports?period=' + period);
+  function deltaHtml(value, unit, { goodDirection = 'up', neutralZero = true } = {}) {
+    if (value === null || value === undefined) return { text: 'sem dados no período anterior', cls: 'neutral' };
+    if (neutralZero && value === 0) return { text: 'estável vs período anterior', cls: 'neutral' };
+    const rising = value > 0;
+    const isGood = goodDirection === 'up' ? rising : !rising;
+    const arrow = rising ? '↑' : '↓';
+    const sign = rising ? '+' : '';
+    return { text: `${arrow} ${sign}${value}${unit} vs período anterior`, cls: isGood ? 'up' : 'down' };
+  }
+
+  function renderKpis(data) {
+    document.getElementById('kpi-revenue').textContent = fmtMoney(data.revenue);
+    document.getElementById('kpi-conv').textContent = data.conversion + '%';
+    document.getElementById('kpi-cycle').textContent = data.cycleDays != null ? data.cycleDays + ' dias' : 'Sem dados';
+    document.getElementById('kpi-churn').textContent = data.churn + '%';
+
+    const rev = deltaHtml(data.revenueDeltaPct, '%');
+    const conv = deltaHtml(data.conversionDeltaPp, 'pp');
+    const cycle = deltaHtml(data.cycleDeltaDays, ' dias', { goodDirection: 'down' });
+    const churn = deltaHtml(data.churnDeltaPp, 'pp', { goodDirection: 'down' });
+
+    const set = (id, d) => { const el = document.getElementById(id); el.textContent = d.text; el.className = 'kpi-delta ' + d.cls; };
+    set('kpi-revenue-delta', rev);
+    set('kpi-conv-delta', conv);
+    set('kpi-cycle-delta', cycle);
+    set('kpi-churn-delta', churn);
+  }
+
+  function insightControlHtml(control) {
+    if (!control || control.type !== 'stuckDays') return '';
+    const opts = control.options.map(d => `<option value="${d}" ${d === control.value ? 'selected' : ''}>${d} dias</option>`).join('');
+    return `<select onchange="changeStuckDays(this.value)" style="margin-left:8px;font-size:11px;padding:2px 5px;border:1px solid var(--border);border-radius:6px;color:var(--muted);background:#fff;cursor:pointer">${opts}</select>`;
+  }
+
+  function renderInsights(insights) {
+    document.getElementById('insightsList').innerHTML = (insights || []).map(i => `
+      <div class="insight">
+        <div class="insight-ico">${i.icon}</div>
+        <div>
+          <div class="insight-title" style="display:flex;align-items:center">${i.title}${insightControlHtml(i.control)}</div>
+          <div class="insight-text">${i.text}</div>
+          ${i.actionUrl ? `<a class="insight-action" href="${i.actionUrl}" style="text-decoration:none;display:inline-block">${i.actionLabel}</a>` : ''}
+        </div>
+      </div>`).join('');
+  }
+
+  function periodLabel(period) {
+    const now = new Date();
+    if (period === 'year') return String(now.getFullYear());
+    if (period === 'quarter') return `T${Math.floor(now.getMonth()/3)+1} ${now.getFullYear()}`;
+    return now.toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
+  }
+
+  let currentPeriod = 'month';
+  let currentStuckDays = 7;
+
+  async function loadReports(period = currentPeriod, stuckDays = currentStuckDays) {
+    currentPeriod = period;
+    currentStuckDays = stuckDays;
+    const data = await api('/reports?period=' + period + '&stuckDays=' + stuckDays);
     if (!data) return;
-    // KPI cards (if they exist in HTML)
-    ['kpi-revenue','kpi-conv','kpi-churn'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) {
-        if (id === 'kpi-revenue') el.textContent = fmtMoney(data.revenue);
-        if (id === 'kpi-conv') el.textContent = data.conversion + '%';
-        if (id === 'kpi-churn') el.textContent = data.churn + '%';
-      }
-    });
+    document.getElementById('metaPeriodLabel').textContent = periodLabel(period);
+    renderKpis(data);
     renderLineChart(data.monthlyRevenue);
     renderFunnel(data.funnel);
     renderOrigens(data.origins);
     renderRanking(data.topDeals);
+    renderInsights(data.insights);
   }
 
-  function changePeriod(v) { loadReports(v); }
+  function changePeriod(v) { loadReports(v, currentStuckDays); }
+  function changeStuckDays(v) { loadReports(currentPeriod, +v); }
   loadReports();
 </script>
 </body>

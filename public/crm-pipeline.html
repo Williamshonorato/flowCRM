@@ -278,6 +278,15 @@
     if (!data) return;
     stages = data;
     render();
+    const highlightId = new URLSearchParams(location.search).get('stageId');
+    if (highlightId) {
+      const idx = stages.findIndex(s => s.id === highlightId);
+      if (idx !== -1) {
+        const col = document.querySelectorAll('.column')[idx];
+        col?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        if (col) { col.style.boxShadow = '0 0 0 2px #f39c12'; }
+      }
+    }
   }
   init();
 </script>

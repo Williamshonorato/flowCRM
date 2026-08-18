@@ -181,9 +181,13 @@ model Message {
   contactId         String?
   from              String
   to                String?
+  subject           String?
   body              String
+  channel           String   @default("whatsapp") // whatsapp | email
   direction         String   @default("in") // in | out
   whatsappMessageId String?  @unique
+  trackingId        String?  @unique
+  openedAt          DateTime?
   raw               Json?
   createdAt         DateTime @default(now())
 

@@ -316,6 +316,20 @@
   </div>
 </div>
 
+<!-- E-MAIL COMPOSE -->
+<div class="overlay" id="emailOverlay" onclick="if(event.target===this)closeEmailModal()">
+  <div class="modal" style="width:460px">
+    <h3>✉️ Enviar e-mail</h3>
+    <div class="inp-g"><label>Para</label><input type="text" id="email-to" disabled/></div>
+    <div class="inp-g"><label>Assunto</label><input type="text" id="email-subject" placeholder="Assunto"/></div>
+    <div class="inp-g"><label>Mensagem</label><textarea id="email-body" placeholder="Digite sua mensagem..." rows="6"></textarea></div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeEmailModal()">Cancelar</button>
+      <button class="modal-save" id="email-send-btn" onclick="sendEmailMessage()">Enviar →</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script src="flowcrm-api.js"></script>
@@ -476,10 +490,36 @@
     const name = document.getElementById('dp-name').textContent;
     quickWhatsapp(phone, currentContactId, name);
   }
+  let gmailConnected = false;
+  let emailTarget = { email: '', contactId: null, name: '' };
+
   function openEmail() {
     const email = document.getElementById('dp-sub').dataset.email;
     if (!email) { showToast('Esse contato não tem e-mail cadastrado.'); return; }
-    window.location.href = 'mailto:' + email;
+    if (!gmailConnected) { window.location.href = 'mailto:' + email; return; }
+    emailTarget = { email, contactId: currentContactId, name: document.getElementById('dp-name').textContent };
+    document.getElementById('email-to').value = `${emailTarget.name} <${email}>`;
+    document.getElementById('email-subject').value = '';
+    document.getElementById('email-body').value = '';
+    document.getElementById('emailOverlay').classList.add('open');
+  }
+  function closeEmailModal() { document.getElementById('emailOverlay').classList.remove('open'); }
+
+  async function sendEmailMessage() {
+    const subject = document.getElementById('email-subject').value.trim();
+    const body = document.getElementById('email-body').value.trim();
+    if (!subject || !body) { showToast('Preencha assunto e mensagem.'); return; }
+    const btn = document.getElementById('email-send-btn');
+    btn.disabled = true; btn.textContent = 'Enviando...';
+    const result = await api('/gmail/send', { method: 'POST', body: JSON.stringify({
+      contactId: emailTarget.contactId, to: emailTarget.email, subject, body,
+    })});
+    btn.disabled = false; btn.textContent = 'Enviar →';
+    if (result) {
+      showToast('E-mail enviado.');
+      closeEmailModal();
+      if (currentContactId) openDetail(currentContactId);
+    }
   }
 
   const activityIcons = { note:'📝', call:'📞', email:'✉️', whatsapp:'💬', stage_change:'🔀', deal_created:'💼', contact_created:'👤' };
@@ -537,6 +577,7 @@
   }
 
   api('/whatsapp/stats').then(s => { wppConnected = !!s?.connected; });
+  api('/settings/integrations').then(list => { gmailConnected = (list || []).some(i => i.type === 'gmail' && i.status === 'connected'); });
   loadFilters().then(loadContacts);
 </script>
 </body>

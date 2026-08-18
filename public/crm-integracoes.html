@@ -270,7 +270,10 @@
 <script>
   authGuard();
 
-  document.getElementById('webhookUrl').textContent = location.origin + '/whatsapp/webhook';
+  // A URL do webhook é única por empresa — a Evolution API dessa empresa deve apontar exatamente pra ela
+  api('/auth/me').then(data => {
+    if (data?.tenant?.id) document.getElementById('webhookUrl').textContent = `${location.origin}/whatsapp/webhook/${data.tenant.id}`;
+  });
 
   let toastTimer;
   function showToast(msg) {

@@ -29,7 +29,8 @@ services:
       - AUTHENTICATION_API_KEY=flowcrm-dev-key
       - AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=true
       - WEBHOOK_GLOBAL_ENABLED=true
-      - WEBHOOK_GLOBAL_URL=http://host.docker.internal:3333/whatsapp/webhook
+      # Troque SEU_TENANT_ID pelo ID da empresa (tela Integrações → Webhook URL) — cada empresa precisa da sua própria instância/stack
+      - WEBHOOK_GLOBAL_URL=http://host.docker.internal:3333/whatsapp/webhook/SEU_TENANT_ID
       - WEBHOOK_EVENTS_MESSAGES_UPSERT=true
       - DATABASE_ENABLED=true
       - DATABASE_PROVIDER=postgresql

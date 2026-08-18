@@ -15,12 +15,16 @@ router.get('/stats', requireAuth, async (req, res) => {
   res.json({ connected: integration?.status === 'connected', messageCount })
 })
 
-// Webhook para receber mensagens do WhatsApp (ou adaptadores)
-router.post('/webhook', async (req, res) => {
+// Webhook para receber mensagens do WhatsApp (ou adaptadores) — uma URL por empresa,
+// já que cada uma conecta seu próprio número/instância da Evolution API.
+router.post('/webhook/:tenantId', async (req, res) => {
   const token = process.env.WHATSAPP_TOKEN
   if (token && req.headers['x-whatsapp-token'] !== token) {
     return res.status(401).json({ error: 'Token inválido.' })
   }
+
+  const tenant = await prisma.tenant.findUnique({ where: { id: req.params.tenantId } })
+  if (!tenant) return res.status(404).json({ error: 'Empresa não encontrada.' })
 
   try {
     const payload = req.body || {}
@@ -68,22 +72,10 @@ router.post('/webhook', async (req, res) => {
 
       const phone = (from || '').replace(/[^0-9]/g, '')
 
-      // Encontra ou cria contato pelo telefone
+      // Encontra ou cria contato pelo telefone, sempre dentro desta empresa
       let contact = null
       if (phone) {
-        contact = await prisma.contact.findFirst({ where: { phone: phone } })
-      }
-      // Determina tenant padrão (cria um se necessário)
-      let tenant = await prisma.tenant.findFirst()
-      if (!tenant) {
-        tenant = await prisma.tenant.create({
-          data: {
-            name: 'DEFAULT',
-            slug: 'default-' + Date.now(),
-            segment: 'other',
-            stages: { create: [{ name: 'Novo', color: '#64748b', order: 0 }] },
-          },
-        })
+        contact = await prisma.contact.findFirst({ where: { phone, tenantId: tenant.id } })
       }
 
       if (!contact) {

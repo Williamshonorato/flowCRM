@@ -188,10 +188,13 @@ model Message {
   whatsappMessageId String?  @unique
   trackingId        String?  @unique
   openedAt          DateTime?
+  readAt            DateTime?
   raw               Json?
   createdAt         DateTime @default(now())
 
   contact Contact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([contactId, createdAt])
 }
 
 // ── DEAL (negócio no pipeline) ────────────────────────────────────────────────

@@ -15,6 +15,57 @@ router.get('/stats', requireAuth, async (req, res) => {
   res.json({ connected: integration?.status === 'connected', messageCount })
 })
 
+// GET /whatsapp/conversations — inbox: um item por contato, com a última mensagem e não-lidas
+router.get('/conversations', requireAuth, async (req, res) => {
+  const { tenantId } = req.user
+
+  const contacts = await prisma.contact.findMany({
+    where: { tenantId, messages: { some: { channel: 'whatsapp' } } },
+    select: {
+      id: true, name: true, phone: true,
+      messages: { where: { channel: 'whatsapp' }, orderBy: { createdAt: 'desc' }, take: 1 },
+    },
+  })
+
+  const unreadCounts = await prisma.message.groupBy({
+    by: ['contactId'],
+    where: { contact: { tenantId }, channel: 'whatsapp', direction: 'in', readAt: null },
+    _count: true,
+  })
+  const unreadMap = Object.fromEntries(unreadCounts.map(u => [u.contactId, u._count]))
+
+  const conversations = contacts
+    .map(c => ({
+      contactId: c.id,
+      name: c.name,
+      phone: c.phone,
+      lastMessage: c.messages[0] || null,
+      unreadCount: unreadMap[c.id] || 0,
+    }))
+    .sort((a, b) => new Date(b.lastMessage?.createdAt || 0) - new Date(a.lastMessage?.createdAt || 0))
+
+  res.json(conversations)
+})
+
+// GET /whatsapp/conversations/:contactId/messages — thread completa; marca as recebidas como lidas
+router.get('/conversations/:contactId/messages', requireAuth, async (req, res) => {
+  const { tenantId } = req.user
+  const contact = await prisma.contact.findFirst({ where: { id: req.params.contactId, tenantId } })
+  if (!contact) return res.status(404).json({ error: 'Contato não encontrado.' })
+
+  const messages = await prisma.message.findMany({
+    where: { contactId: contact.id, channel: 'whatsapp' },
+    orderBy: { createdAt: 'asc' },
+  })
+
+  await prisma.message.updateMany({
+    where: { contactId: contact.id, channel: 'whatsapp', direction: 'in', readAt: null },
+    data: { readAt: new Date() },
+  })
+
+  res.json({ contact: { id: contact.id, name: contact.name, phone: contact.phone }, messages })
+})
+
 // POST /whatsapp/send — manda mensagem de saída pela Evolution API da empresa
 router.post('/send', requireAuth, async (req, res) => {
   const { tenantId, userId } = req.user

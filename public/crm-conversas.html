@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>FlowCRM — Conversas</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{
+      --green:#27ae60;--blue:#2980b9;--purple:#8e44ad;--amber:#f39c12;--red:#e74c3c;
+      --sidebar:#0f172a;--text:#1e293b;--muted:#64748b;--border:#e2e8f0;--bg:#f1f5f9;
+    }
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);display:flex;min-height:100vh}
+
+    /* SIDEBAR */
+    .sidebar{width:230px;min-height:100vh;background:var(--sidebar);display:flex;flex-direction:column;flex-shrink:0}
+    .sb-brand{padding:20px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.07)}
+    .sb-icon{width:34px;height:34px;background:linear-gradient(135deg,var(--green),#1abc9c);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px}
+    .sb-name{font-size:17px;font-weight:800;color:#fff}.sb-name span{color:var(--green)}
+    .sb-nav{flex:1;padding:14px 10px}
+    .sb-section{font-size:10px;font-weight:700;color:#334155;letter-spacing:.8px;text-transform:uppercase;padding:10px 10px 6px}
+    .nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;font-size:13.5px;font-weight:500;color:#94a3b8;cursor:pointer;text-decoration:none;transition:all .18s;margin-bottom:2px}
+    .nav-item:hover{background:rgba(255,255,255,.06);color:#e2e8f0}
+    .nav-item.active{background:linear-gradient(135deg,rgba(39,174,96,.18),rgba(26,188,156,.1));color:#4ade80;font-weight:700}
+    .nav-item .ico{width:18px;text-align:center;font-size:15px}
+    .nav-item .badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:10px}
+    .sb-bottom{padding:14px 10px;border-top:1px solid rgba(255,255,255,.07)}
+    .user-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;cursor:pointer}
+    .user-row:hover{background:rgba(255,255,255,.06)}
+    .user-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--green),#1abc9c);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;flex-shrink:0}
+    .user-info .name{font-size:13px;font-weight:600;color:#e2e8f0}
+    .user-info .plan{font-size:11px;color:#64748b}
+
+    /* MAIN */
+    .main{flex:1;display:flex;flex-direction:column;min-width:0}
+    .topbar{background:#fff;border-bottom:1px solid var(--border);padding:0 24px;height:58px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+    .page-title{font-size:17px;font-weight:800;color:var(--text);flex:1}
+    .wpp-status{font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px}
+    .wpp-on{background:#dcfce7;color:#166534}
+    .wpp-off{background:#fee2e2;color:#991b1b}
+
+    .body{display:flex;flex:1;overflow:hidden}
+
+    /* CONVERSATION LIST */
+    .conv-list{width:320px;background:#fff;border-right:1px solid var(--border);overflow-y:auto;flex-shrink:0}
+    .conv-search{padding:14px 16px;border-bottom:1px solid var(--border)}
+    .conv-search input{width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;outline:none;background:var(--bg)}
+    .conv-search input:focus{border-color:var(--green)}
+    .conv-item{display:flex;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s}
+    .conv-item:hover{background:#f8fafc}
+    .conv-item.active{background:#f0fdf4}
+    .conv-avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;flex-shrink:0}
+    .conv-body{flex:1;min-width:0}
+    .conv-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+    .conv-name{font-size:13.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .conv-time{font-size:11px;color:var(--muted);flex-shrink:0}
+    .conv-preview{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:2px}
+    .conv-snippet{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .conv-unread{background:var(--green);color:#fff;font-size:10px;font-weight:800;padding:2px 7px;border-radius:10px;flex-shrink:0}
+    .conv-empty{padding:40px 20px;text-align:center;color:#94a3b8;font-size:13px}
+
+    /* THREAD */
+    .thread{flex:1;display:flex;flex-direction:column;min-width:0}
+    .thread-empty{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:#94a3b8}
+    .thread-empty .ico{font-size:40px}
+    .thread-header{background:#fff;border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+    .thread-header .conv-avatar{width:38px;height:38px}
+    .thread-header-name{font-size:14.5px;font-weight:800;color:var(--text)}
+    .thread-header-sub{font-size:12px;color:var(--muted)}
+    .th-btn{margin-left:auto;padding:7px 14px;border:1.5px solid var(--border);border-radius:8px;background:#fff;font-size:12.5px;font-weight:700;color:var(--text);cursor:pointer}
+    .th-btn:hover{border-color:var(--green);color:var(--green)}
+
+    .thread-messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:10px;background:#f8fafc}
+    .msg-row{display:flex}
+    .msg-row.out{justify-content:flex-end}
+    .msg-bubble{max-width:60%;padding:9px 13px;border-radius:14px;font-size:13.5px;line-height:1.45;position:relative}
+    .msg-row.in .msg-bubble{background:#fff;border:1px solid var(--border);color:var(--text);border-bottom-left-radius:4px}
+    .msg-row.out .msg-bubble{background:var(--green);color:#fff;border-bottom-right-radius:4px}
+    .msg-time{font-size:10px;margin-top:4px;opacity:.7}
+
+    .thread-reply{background:#fff;border-top:1px solid var(--border);padding:14px 20px;flex-shrink:0;display:flex;gap:10px}
+    .thread-reply textarea{flex:1;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-size:13.5px;font-family:inherit;resize:none;outline:none;max-height:100px}
+    .thread-reply textarea:focus{border-color:var(--green)}
+    .reply-send{padding:0 20px;border:none;border-radius:10px;background:var(--green);color:#fff;font-weight:700;font-size:13.5px;cursor:pointer}
+    .reply-send:hover{background:#219a52}
+    .reply-send:disabled{opacity:.6;cursor:default}
+
+    #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1e293b;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.2);opacity:0;pointer-events:none;transition:all .25s;z-index:100}
+    #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  </style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sb-brand"><div class="sb-icon">⚡</div><div class="sb-name">Flow<span>CRM</span></div></div>
+  <nav class="sb-nav">
+    <div class="sb-section">Principal</div>
+    <a class="nav-item" href="crm-dashboard.html"><span class="ico">📊</span>Dashboard</a>
+    <a class="nav-item" href="crm-pipeline.html"><span class="ico">🗂️</span>Pipeline</a>
+    <a class="nav-item" href="crm-contatos.html"><span class="ico">👥</span>Contatos</a>
+    <a class="nav-item active" href="crm-conversas.html"><span class="ico">💬</span>Conversas<span class="badge" id="sbUnread" style="display:none">0</span></a>
+    <a class="nav-item" href="crm-tarefas.html"><span class="ico">✅</span>Tarefas</a>
+    <div class="sb-section">Sistema</div>
+    <a class="nav-item" href="crm-relatorios.html"><span class="ico">📈</span>Relatórios</a>
+    <a class="nav-item" href="crm-integracoes.html"><span class="ico">🔌</span>Integrações</a>
+    <a class="nav-item" href="crm-configuracoes.html"><span class="ico">⚙️</span>Configurações</a>
+  </nav>
+  <div class="sb-bottom"><div class="user-row"><div class="user-avatar">W</div><div class="user-info"><div class="name">Williams</div><div class="plan">Plano Profissional</div></div></div></div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <div class="page-title">Conversas</div>
+    <span class="wpp-status wpp-off" id="wppStatusBadge">verificando...</span>
+  </div>
+
+  <div class="body">
+    <div class="conv-list" id="convList">
+      <div class="conv-search"><input type="text" placeholder="Buscar conversa..." oninput="filterConvs(this.value)"/></div>
+      <div id="convItems"></div>
+    </div>
+
+    <div class="thread" id="threadArea">
+      <div class="thread-empty" id="threadEmpty">
+        <div class="ico">💬</div>
+        <div>Selecione uma conversa pra ver as mensagens</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="flowcrm-api.js"></script>
+<script>
+  authGuard();
+
+  let conversations = [];
+  let currentConv = null;
+  let searchText = '';
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(t._timer); t._timer = setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  function fmtTime(iso) {
+    const d = new Date(iso);
+    const now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    return sameDay ? d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+                   : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  }
+
+  async function checkWppStatus() {
+    const stats = await api('/whatsapp/stats');
+    const badge = document.getElementById('wppStatusBadge');
+    if (stats?.connected) { badge.textContent = '✓ WhatsApp conectado'; badge.className = 'wpp-status wpp-on'; }
+    else { badge.textContent = 'WhatsApp desconectado'; badge.className = 'wpp-status wpp-off'; }
+  }
+
+  async function loadConversations() {
+    const data = await api('/whatsapp/conversations');
+    conversations = data || [];
+    renderConvList();
+    const totalUnread = conversations.reduce((s, c) => s + c.unreadCount, 0);
+    const badge = document.getElementById('sbUnread');
+    if (totalUnread > 0) { badge.style.display = 'inline-block'; badge.textContent = totalUnread; }
+    else badge.style.display = 'none';
+  }
+
+  function renderConvList() {
+    const box = document.getElementById('convItems');
+    const filtered = conversations.filter(c => !searchText || c.name.toLowerCase().includes(searchText));
+    if (!filtered.length) {
+      box.innerHTML = `<div class="conv-empty">${conversations.length ? 'Nenhuma conversa encontrada.' : 'Nenhuma conversa ainda. Quando alguém mandar mensagem no WhatsApp conectado, aparece aqui.'}</div>`;
+      return;
+    }
+    box.innerHTML = filtered.map((c, i) => `
+      <div class="conv-item ${currentConv === c.contactId ? 'active' : ''}" onclick="openConversation('${c.contactId}')">
+        <div class="conv-avatar" style="background:${palColor(i)}">${initials(c.name)}</div>
+        <div class="conv-body">
+          <div class="conv-top"><div class="conv-name">${c.name}</div><div class="conv-time">${c.lastMessage ? fmtTime(c.lastMessage.createdAt) : ''}</div></div>
+          <div class="conv-preview">
+            <div class="conv-snippet">${c.lastMessage ? (c.lastMessage.direction === 'out' ? 'Você: ' : '') + c.lastMessage.body : ''}</div>
+            ${c.unreadCount ? `<div class="conv-unread">${c.unreadCount}</div>` : ''}
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function filterConvs(v) { searchText = v.toLowerCase(); renderConvList(); }
+
+  async function openConversation(contactId) {
+    currentConv = contactId;
+    renderConvList();
+
+    const data = await api('/whatsapp/conversations/' + contactId + '/messages');
+    if (!data) return;
+
+    const area = document.getElementById('threadArea');
+    const conv = conversations.find(c => c.contactId === contactId);
+    area.innerHTML = `
+      <div class="thread-header">
+        <div class="conv-avatar" style="background:${palColor(0)}">${initials(data.contact.name)}</div>
+        <div><div class="thread-header-name">${data.contact.name}</div><div class="thread-header-sub">${data.contact.phone || ''}</div></div>
+        <button class="th-btn" onclick="window.location.href='crm-contatos.html'">Ver ficha do contato</button>
+      </div>
+      <div class="thread-messages" id="threadMessages"></div>
+      <div class="thread-reply">
+        <textarea id="replyText" placeholder="Digite sua mensagem..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendReply()}"></textarea>
+        <button class="reply-send" id="replySendBtn" onclick="sendReply()">Enviar →</button>
+      </div>
+    `;
+    renderMessages(data.messages);
+    loadConversations();
+  }
+
+  function renderMessages(messages) {
+    const box = document.getElementById('threadMessages');
+    if (!box) return;
+    box.innerHTML = messages.map(m => `
+      <div class="msg-row ${m.direction}">
+        <div class="msg-bubble">${m.body.replace(/</g, '&lt;')}<div class="msg-time">${fmtTime(m.createdAt)}</div></div>
+      </div>
+    `).join('');
+    box.scrollTop = box.scrollHeight;
+  }
+
+  async function sendReply() {
+    const textarea = document.getElementById('replyText');
+    const message = textarea.value.trim();
+    if (!message || !currentConv) return;
+    const btn = document.getElementById('replySendBtn');
+    btn.disabled = true;
+    const result = await api('/whatsapp/send', { method: 'POST', body: JSON.stringify({ contactId: currentConv, message }) });
+    btn.disabled = false;
+    if (result) {
+      textarea.value = '';
+      showToast('Mensagem enviada.');
+      openConversation(currentConv);
+    }
+  }
+
+  checkWppStatus();
+  loadConversations();
+</script>
+</body>
+</html>

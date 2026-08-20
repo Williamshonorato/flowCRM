@@ -111,6 +111,39 @@
 
     #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1e293b;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.2);opacity:0;pointer-events:none;transition:all .25s;z-index:100}
     #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+    /* WIZARD */
+    .btn-purple{padding:9px 18px;background:linear-gradient(135deg,var(--purple),#a855f7);color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer}
+    .btn-purple:hover{opacity:.92}
+    .wizard-overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;z-index:200;padding:20px}
+    .wizard-overlay.open{display:flex}
+    .wizard-modal{background:#fff;border-radius:20px;width:100%;max-width:920px;max-height:90vh;display:flex;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.3)}
+    .wizard-main{flex:1;padding:32px;overflow-y:auto;display:flex;flex-direction:column;min-width:0}
+    .wizard-crumb{font-size:11.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px}
+    .wizard-title{font-size:19px;font-weight:800;color:var(--text);margin-bottom:20px;line-height:1.35}
+    .wizard-body{flex:1}
+    .wizard-body textarea,.wizard-body input[type=text]{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;font-family:inherit;outline:none}
+    .wizard-body textarea:focus,.wizard-body input:focus{border-color:var(--green)}
+    .wizard-body textarea{min-height:90px;resize:vertical}
+    .wz-opt-row{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+    .wz-opt-row input:first-child{flex:0 0 38%}
+    .wz-add{padding:10px;border:1.5px dashed var(--border);border-radius:10px;background:#fff;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;width:100%}
+    .wz-add:hover{border-color:var(--green);color:var(--green)}
+    .wz-choices{display:grid;gap:10px;margin-top:4px}
+    .wz-choice{border:1.5px solid var(--border);border-radius:12px;padding:14px 16px;cursor:pointer;display:flex;gap:12px;align-items:center;transition:all .15s}
+    .wz-choice:hover{border-color:#94a3b8}
+    .wz-choice.selected{border-color:var(--green);background:#f0fdf4}
+    .wz-choice .ico{font-size:20px}
+    .wz-choice .lbl{font-weight:700;font-size:13.5px;color:var(--text)}
+    .wz-choice-input{margin-top:12px}
+    .wizard-footer{display:flex;justify-content:space-between;align-items:center;margin-top:24px;gap:10px}
+    .wizard-nav{display:flex;gap:8px}
+    .wizard-phone-wrap{width:280px;flex-shrink:0;background:#0b141a;padding:24px 18px;display:flex;flex-direction:column;align-items:center}
+    .wizard-phone{width:100%;background:#e5ddd5;border-radius:22px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.35);display:flex;flex-direction:column;height:440px}
+    .wp-header{background:#075e54;color:#fff;padding:12px 14px;font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:8px;flex-shrink:0}
+    .wp-body{flex:1;padding:14px;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+    .wp-bubble{background:#fff;border-radius:8px;padding:9px 11px;font-size:12.5px;color:#111;max-width:92%;box-shadow:0 1px 1px rgba(0,0,0,.12);white-space:pre-wrap;line-height:1.55}
+    .wp-empty{color:#7d8f8d;font-size:12px;text-align:center;margin-top:50px;padding:0 20px}
   </style>
 </head>
 <body>
@@ -136,7 +169,8 @@
 <div class="main">
   <div class="topbar">
     <div class="page-title" id="pageTitle">Automações</div>
-    <button class="btn-green" id="newFlowBtn" onclick="openEditor()">+ Novo fluxo</button>
+    <button class="btn-cancel" id="newFlowBtn" onclick="openEditor()">+ Fluxo em branco</button>
+    <button class="btn-purple" id="wizardBtn" onclick="openWizard()">🧙 Criar bot de menu (guiado)</button>
   </div>
 
   <div class="content">
@@ -196,6 +230,26 @@
 </div>
 
 <div id="toast"></div>
+
+<div class="wizard-overlay" id="wizardOverlay">
+  <div class="wizard-modal">
+    <div class="wizard-main">
+      <div class="wizard-crumb" id="wzCrumb"></div>
+      <div class="wizard-title" id="wzTitle"></div>
+      <div class="wizard-body" id="wzBody"></div>
+      <div class="wizard-footer">
+        <button class="btn-cancel" onclick="closeWizard()">Cancelar</button>
+        <div class="wizard-nav" id="wzNav"></div>
+      </div>
+    </div>
+    <div class="wizard-phone-wrap">
+      <div class="wizard-phone">
+        <div class="wp-header">🤖 Prévia do WhatsApp</div>
+        <div class="wp-body" id="wzPhoneBody"></div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script src="flowcrm-api.js"></script>
 <script>
@@ -463,6 +517,7 @@
     document.getElementById('listView').classList.add('hidden');
     document.getElementById('editorView').classList.add('open');
     document.getElementById('newFlowBtn').style.display = 'none';
+    document.getElementById('wizardBtn').style.display = 'none';
     document.getElementById('deleteBtn').style.display = editingId ? 'inline-block' : 'none';
     document.getElementById('testCard').style.display = editingId ? 'block' : 'none';
 
@@ -502,6 +557,7 @@
     document.getElementById('listView').classList.remove('hidden');
     document.getElementById('editorView').classList.remove('open');
     document.getElementById('newFlowBtn').style.display = 'inline-block';
+    document.getElementById('wizardBtn').style.display = 'inline-block';
     editingId = null;
     loadFlows();
   }
@@ -557,6 +613,246 @@
         <div class="run-steps">${(r.log || []).map(l => `${l.type}: ${JSON.stringify(l.result)}`).join(' · ') || 'sem passos ainda'}</div>
       </div>
     `).join('') || '<div style="font-size:12.5px;color:#94a3b8">Nenhuma execução ainda.</div>';
+  }
+
+  // ---------- Assistente guiado (bot de menu no WhatsApp) ----------
+  // Monta a mesma estrutura de "steps" que o editor manual usa (um passo tipo "menu"
+  // com config.message + config.options[]), só que perguntando uma coisa de cada vez
+  // e mostrando uma prévia ao vivo de como fica no WhatsApp.
+  let wzRoot = null;
+  let wzQueue = [];
+  let wzNode = null;       // { step, crumb }
+  let wzPhase = 'message'; // message | options | actions | review
+  let wzOptIndex = 0;
+
+  function wzStepId() { return 'step_' + Math.random().toString(36).slice(2, 10); }
+  function wzOptId() { return 'opt_' + Math.random().toString(36).slice(2, 10); }
+
+  function openWizard() {
+    wzRoot = { id: wzStepId(), type: 'menu', config: { message: '', options: [] } };
+    wzQueue = [];
+    wzNode = { step: wzRoot, crumb: 'Menu principal' };
+    wzPhase = 'message';
+    wzOptIndex = 0;
+    document.getElementById('wizardOverlay').classList.add('open');
+    renderWizard();
+  }
+  function closeWizard() {
+    document.getElementById('wizardOverlay').classList.remove('open');
+  }
+
+  function wzEnsureOptions() {
+    if (!Array.isArray(wzNode.step.config.options)) wzNode.step.config.options = [];
+  }
+
+  function renderWizard() {
+    const crumbEl = document.getElementById('wzCrumb');
+    const titleEl = document.getElementById('wzTitle');
+    const bodyEl = document.getElementById('wzBody');
+    const navEl = document.getElementById('wzNav');
+    crumbEl.textContent = wzNode.crumb;
+
+    if (wzPhase === 'message') {
+      titleEl.textContent = wzNode.step === wzRoot
+        ? 'Qual mensagem o bot manda assim que alguém escrever no WhatsApp?'
+        : 'E nesse submenu, qual mensagem o bot manda?';
+      bodyEl.innerHTML = `<textarea id="wz-message" placeholder="Ex: Oi! Sou o assistente virtual, como posso ajudar?" oninput="wzSetMessage(this.value)">${wzNode.step.config.message || ''}</textarea>`;
+      navEl.innerHTML = `<button class="btn-save" onclick="wzToOptions()">Próximo →</button>`;
+    }
+
+    if (wzPhase === 'options') {
+      wzEnsureOptions();
+      titleEl.textContent = 'Quais opções a pessoa pode escolher?';
+      bodyEl.innerHTML = `
+        <div id="wz-opts">${wzNode.step.config.options.map(o => wzOptRowHtml(o)).join('')}</div>
+        <button class="wz-add" onclick="wzAddOption()">+ Adicionar opção</button>`;
+      navEl.innerHTML = `
+        <button class="btn-cancel" onclick="wzBackToMessage()">← Voltar</button>
+        <button class="btn-save" onclick="wzToActions()">Próximo →</button>`;
+    }
+
+    if (wzPhase === 'actions') {
+      wzEnsureOptions();
+      const opt = wzNode.step.config.options[wzOptIndex];
+      const chosen = wzActionOf(opt);
+      titleEl.textContent = `Quando a pessoa escolher "${opt.label || 'essa opção'}", o que acontece?`;
+      bodyEl.innerHTML = `
+        <div class="wz-choices">
+          ${wzChoiceHtml(opt, 'message', '💬', 'Mandar uma mensagem', chosen)}
+          ${wzChoiceHtml(opt, 'task', '✅', 'Criar uma tarefa pra equipe', chosen)}
+          ${wzChoiceHtml(opt, 'submenu', '📋', 'Abrir outro menu (submenu)', chosen)}
+        </div>
+        <div id="wz-action-extra">${wzActionExtraHtml(opt, chosen)}</div>`;
+      navEl.innerHTML = `
+        <button class="btn-cancel" onclick="wzBackAction()">← Voltar</button>
+        <button class="btn-save" onclick="wzNextOption()">${wzOptIndex === wzNode.step.config.options.length - 1 ? 'Concluir →' : 'Próxima opção →'}</button>`;
+    }
+
+    if (wzPhase === 'review') {
+      titleEl.textContent = 'Tudo pronto! Dê um nome pro fluxo e ative.';
+      bodyEl.innerHTML = `
+        <div class="inp-g"><label>Nome do fluxo</label><input type="text" id="wz-name" placeholder="Ex: Bot de atendimento WhatsApp" value="Bot de atendimento WhatsApp"/></div>
+        <p style="font-size:12.5px;color:var(--muted)">Confira a prévia ao lado — é exatamente isso que a pessoa vai ver no WhatsApp.</p>`;
+      navEl.innerHTML = `
+        <button class="btn-cancel" onclick="wzBackToLastActions()">← Voltar</button>
+        <button class="btn-save" onclick="wzSave()">✅ Salvar e ativar</button>`;
+    }
+
+    renderWizardPhone();
+  }
+
+  function wzOptRowHtml(o) {
+    return `<div class="wz-opt-row">
+      <input type="text" value="${o.label || ''}" placeholder="Nome (ex: Vendas)" oninput="wzSetOptField('${o.id}','label',this.value)"/>
+      <input type="text" value="${(o.keywords || []).join(', ')}" placeholder="Palavras-chave (ex: vendas, comprar)" oninput="wzSetOptField('${o.id}','keywords',this.value)"/>
+      <button class="step-btn danger" onclick="wzRemoveOption('${o.id}')">✕</button>
+    </div>`;
+  }
+
+  function wzAddOption() {
+    wzEnsureOptions();
+    wzNode.step.config.options.push({ id: wzOptId(), label: '', keywords: [], steps: [] });
+    renderWizard();
+  }
+  function wzRemoveOption(id) {
+    wzNode.step.config.options = wzNode.step.config.options.filter(o => o.id !== id);
+    renderWizard();
+  }
+  function wzSetOptField(id, key, value) {
+    const o = wzNode.step.config.options.find(x => x.id === id);
+    if (key === 'keywords') o.keywords = value.split(',').map(k => k.trim()).filter(Boolean);
+    else o[key] = value;
+    renderWizardPhone();
+  }
+  function wzSetMessage(value) {
+    wzNode.step.config.message = value;
+    renderWizardPhone();
+  }
+
+  function wzToOptions() {
+    if (!wzNode.step.config.message.trim()) { showToast('Escreva a mensagem antes de continuar.'); return; }
+    wzEnsureOptions();
+    if (!wzNode.step.config.options.length) {
+      wzNode.step.config.options.push({ id: wzOptId(), label: '', keywords: [], steps: [] });
+    }
+    wzPhase = 'options';
+    renderWizard();
+  }
+  function wzBackToMessage() { wzPhase = 'message'; renderWizard(); }
+
+  function wzToActions() {
+    const opts = wzNode.step.config.options;
+    if (!opts.length || opts.some(o => !o.label.trim())) { showToast('Dê um nome pra cada opção.'); return; }
+    wzOptIndex = 0;
+    wzPhase = 'actions';
+    renderWizard();
+  }
+
+  function wzActionOf(opt) {
+    const s = (opt.steps || [])[0];
+    if (!s) return null;
+    if (s.type === 'menu') return 'submenu';
+    if (s.type === 'create_task') return 'task';
+    if (s.type === 'send_whatsapp') return 'message';
+    return null;
+  }
+
+  function wzChoiceHtml(opt, action, icon, label, chosen) {
+    return `<div class="wz-choice ${chosen === action ? 'selected' : ''}" onclick="wzChooseAction('${opt.id}','${action}')">
+      <span class="ico">${icon}</span><span class="lbl">${label}</span>
+    </div>`;
+  }
+  function wzActionExtraHtml(opt, chosen) {
+    const s = (opt.steps || [])[0];
+    if (chosen === 'message') return `<div class="wz-choice-input"><textarea placeholder="O que o bot responde?" oninput="wzSetActionValue('${opt.id}','message',this.value)">${s?.config?.message || ''}</textarea></div>`;
+    if (chosen === 'task') return `<div class="wz-choice-input"><input type="text" placeholder="Título da tarefa (ex: Ligar pro cliente)" oninput="wzSetActionValue('${opt.id}','task',this.value)" value="${s?.config?.title || ''}"/></div>`;
+    if (chosen === 'submenu') return `<p style="font-size:12.5px;color:var(--muted);margin-top:8px">Você vai configurar as opções desse submenu em seguida.</p>`;
+    return '';
+  }
+
+  function wzChooseAction(optId, action) {
+    const opt = wzNode.step.config.options.find(o => o.id === optId);
+    if (action === 'message') {
+      opt.steps = [{ id: wzStepId(), type: 'send_whatsapp', config: { message: opt.steps?.[0]?.config?.message || '' } }];
+    } else if (action === 'task') {
+      opt.steps = [{ id: wzStepId(), type: 'create_task', config: { title: opt.steps?.[0]?.config?.title || '' } }];
+    } else if (action === 'submenu') {
+      opt.steps = [{ id: wzStepId(), type: 'menu', config: { message: '', options: [] } }];
+    }
+    renderWizard();
+  }
+  function wzSetActionValue(optId, action, value) {
+    const opt = wzNode.step.config.options.find(o => o.id === optId);
+    const s = opt.steps[0];
+    if (action === 'message') s.config.message = value;
+    if (action === 'task') s.config.title = value;
+  }
+
+  function wzBackAction() {
+    if (wzOptIndex > 0) { wzOptIndex--; renderWizard(); return; }
+    wzPhase = 'options'; renderWizard();
+  }
+
+  function wzNextOption() {
+    const opt = wzNode.step.config.options[wzOptIndex];
+    if (!wzActionOf(opt)) { showToast('Escolha o que acontece nessa opção.'); return; }
+    const s = opt.steps[0];
+    if (s.type === 'send_whatsapp' && !s.config.message?.trim()) { showToast('Escreva a mensagem de resposta.'); return; }
+    if (s.type === 'create_task' && !s.config.title?.trim()) { showToast('Dê um título pra tarefa.'); return; }
+    if (s.type === 'menu') { wzQueue.push({ step: s, crumb: wzNode.crumb + ' › ' + opt.label }); }
+
+    if (wzOptIndex < wzNode.step.config.options.length - 1) {
+      wzOptIndex++;
+      renderWizard();
+      return;
+    }
+    if (wzQueue.length) {
+      wzNode = wzQueue.shift();
+      wzPhase = 'message';
+      wzOptIndex = 0;
+    } else {
+      wzPhase = 'review';
+    }
+    renderWizard();
+  }
+
+  function wzBackToLastActions() {
+    wzPhase = 'actions';
+    wzOptIndex = wzNode.step.config.options.length - 1;
+    renderWizard();
+  }
+
+  function renderWizardPhone() {
+    const box = document.getElementById('wzPhoneBody');
+    const msg = wzNode.step.config.message || '';
+    const opts = wzNode.step.config.options || [];
+    if (!msg.trim() && !opts.length) {
+      box.innerHTML = '<div class="wp-empty">A prévia aparece aqui enquanto você configura o bot.</div>';
+      return;
+    }
+    const list = opts.map((o, i) => `${i + 1}. ${o.label || '(sem nome)'}`).join('\n');
+    const safeMsg = (msg || '(sem mensagem)').replace(/</g, '&lt;');
+    const safeList = list.replace(/</g, '&lt;');
+    box.innerHTML = `<div class="wp-bubble">${safeMsg}${safeList ? '\n\n' + safeList : ''}</div>`;
+  }
+
+  async function wzSave() {
+    const name = document.getElementById('wz-name').value.trim();
+    if (!name) { showToast('Dê um nome pro fluxo.'); return; }
+    const payload = {
+      name,
+      description: 'Criado com o assistente guiado',
+      active: true,
+      triggerType: 'whatsapp_message_received',
+      triggerConfig: {},
+      steps: [wzRoot],
+    };
+    const result = await api('/automations/flows', { method: 'POST', body: JSON.stringify(payload) });
+    if (result) {
+      showToast('Bot criado e ativado!');
+      closeWizard();
+      loadFlows();
+    }
   }
 
   loadFlows();

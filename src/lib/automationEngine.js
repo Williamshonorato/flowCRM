@@ -63,25 +63,21 @@ async function executeStep(step, ctx) {
 
     case 'send_whatsapp': {
       if (!contact?.phone) return { skipped: 'contato sem telefone' }
-      const integration = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId, type: 'whatsapp' } } })
-      const config = integration?.config || {}
-      if (!integration || integration.status !== 'connected' || !config.apiUrl || !config.instance) return { skipped: 'WhatsApp não conectado' }
-      const toPhone = contact.phone.replace(/[^0-9]/g, '')
-      try {
-        const evoRes = await fetch(`${config.apiUrl.replace(/\/$/, '')}/message/sendText/${config.instance}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(config.apiKey ? { apikey: config.apiKey } : {}) },
-          body: JSON.stringify({ number: toPhone, text: step.config?.message || '' }),
-        })
-        const data = await evoRes.json().catch(() => ({}))
-        if (!evoRes.ok) return { skipped: 'Evolution recusou o envio' }
-        await prisma.message.create({
-          data: { contactId: contact.id, from: 'me', to: toPhone, body: step.config?.message || '', channel: 'whatsapp', direction: 'out', whatsappMessageId: data?.key?.id || null, raw: data },
-        }).catch(() => {})
-        return { done: true }
-      } catch (err) {
-        return { skipped: err.message }
-      }
+      const sent = await sendWhatsappText(tenantId, contact, step.config?.message || '')
+      return sent.ok ? { done: true } : { skipped: sent.error }
+    }
+
+    // Manda a pergunta com as opções numeradas e pausa a execução esperando a resposta —
+    // é o que dá "memória de conversa" ao bot (a próxima mensagem da pessoa não vira um
+    // gatilho novo, vira resposta desse menu).
+    case 'menu': {
+      if (!contact?.phone) return { skipped: 'contato sem telefone' }
+      const options = Array.isArray(step.config?.options) ? step.config.options : []
+      if (!options.length) return { skipped: 'menu sem opções configuradas' }
+      const text = formatMenuMessage(step.config?.message || '', options)
+      const sent = await sendWhatsappText(tenantId, contact, text)
+      if (!sent.ok) return { skipped: sent.error }
+      return { menu: true }
     }
 
     case 'webhook': {
@@ -111,6 +107,45 @@ async function executeStep(step, ctx) {
   }
 }
 
+// Envia texto puro pelo WhatsApp da empresa — usado pelo passo send_whatsapp e pelo menu.
+async function sendWhatsappText(tenantId, contact, message) {
+  const integration = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId, type: 'whatsapp' } } })
+  const config = integration?.config || {}
+  if (!integration || integration.status !== 'connected' || !config.apiUrl || !config.instance) return { ok: false, error: 'WhatsApp não conectado' }
+  const toPhone = contact.phone.replace(/[^0-9]/g, '')
+  try {
+    const evoRes = await fetch(`${config.apiUrl.replace(/\/$/, '')}/message/sendText/${config.instance}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(config.apiKey ? { apikey: config.apiKey } : {}) },
+      body: JSON.stringify({ number: toPhone, text: message }),
+    })
+    const data = await evoRes.json().catch(() => ({}))
+    if (!evoRes.ok) return { ok: false, error: 'Evolution recusou o envio' }
+    await prisma.message.create({
+      data: { contactId: contact.id, from: 'me', to: toPhone, body: message, channel: 'whatsapp', direction: 'out', whatsappMessageId: data?.key?.id || null, raw: data },
+    }).catch(() => {})
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err.message }
+  }
+}
+
+function formatMenuMessage(message, options) {
+  const list = options.map((o, i) => `${i + 1}. ${o.label}`).join('\n')
+  return `${message}\n\n${list}`
+}
+
+// Casa a resposta da pessoa com uma das opções do menu: por palavra-chave configurada,
+// ou pela posição numérica ("2" bate com a segunda opção), sempre sem diferenciar maiúsculas.
+function matchMenuOption(options, reply) {
+  const normalized = String(reply || '').trim().toLowerCase()
+  const byKeyword = options.find(o => (o.keywords || []).some(k => normalized === String(k).toLowerCase() || normalized.includes(String(k).toLowerCase())))
+  if (byKeyword) return byKeyword
+  const asNumber = parseInt(normalized, 10)
+  if (!isNaN(asNumber) && options[asNumber - 1]) return options[asNumber - 1]
+  return null
+}
+
 function resolveField(field, ctx) {
   const { contact, deal } = ctx
   switch (field) {
@@ -133,12 +168,14 @@ function compare(value, operator, target) {
   }
 }
 
-// Avança uma execução a partir do stepIndex atual até encontrar um wait, terminar ou falhar.
+// Avança uma execução a partir do stepIndex atual até encontrar um wait, um menu, terminar ou falhar.
+// currentSteps é a lista "ativa" no momento — no começo é flow.steps; ao escolher uma opção de
+// menu, currentSteps vira a lista de passos daquela opção (permite submenus sem limite de nível).
 export async function advanceRun(runId) {
   const run = await prisma.automationFlowRun.findUnique({ where: { id: runId }, include: { flow: true } })
   if (!run || run.status === 'completed' || run.status === 'failed') return
 
-  const steps = Array.isArray(run.flow.steps) ? run.flow.steps : []
+  const steps = Array.isArray(run.currentSteps) ? run.currentSteps : (Array.isArray(run.flow.steps) ? run.flow.steps : [])
   const contact = run.contactId ? await prisma.contact.findUnique({ where: { id: run.contactId } }) : null
   const deal = run.dealId ? await prisma.deal.findUnique({ where: { id: run.dealId } }) : null
   const ctx = { tenantId: run.tenantId, userId: null, contact, deal }
@@ -157,28 +194,72 @@ export async function advanceRun(runId) {
     log.push({ stepId: step.id, type: step.type, at: new Date().toISOString(), result })
 
     if (result?.stop) {
-      await prisma.automationFlowRun.update({ where: { id: runId }, data: { status: 'completed', stepIndex: i + 1, log, finishedAt: new Date() } })
+      await prisma.automationFlowRun.update({ where: { id: runId }, data: { status: 'completed', stepIndex: i + 1, currentSteps: steps, log, finishedAt: new Date() } })
       return
     }
     if (result?.wait) {
       await prisma.automationFlowRun.update({
         where: { id: runId },
-        data: { status: 'waiting', stepIndex: i + 1, resumeAt: new Date(Date.now() + result.wait), log },
+        data: { status: 'waiting', stepIndex: i + 1, currentSteps: steps, resumeAt: new Date(Date.now() + result.wait), log },
+      })
+      return
+    }
+    if (result?.menu) {
+      await prisma.automationFlowRun.update({
+        where: { id: runId },
+        data: { status: 'waiting_reply', stepIndex: i, currentSteps: steps, log },
       })
       return
     }
     i++
   }
 
-  await prisma.automationFlowRun.update({ where: { id: runId }, data: { status: 'completed', stepIndex: i, log, finishedAt: new Date() } })
+  await prisma.automationFlowRun.update({ where: { id: runId }, data: { status: 'completed', stepIndex: i, currentSteps: steps, log, finishedAt: new Date() } })
 }
 
 export async function startFlowRun(flow, { contactId, dealId }) {
   const run = await prisma.automationFlowRun.create({
-    data: { tenantId: flow.tenantId, flowId: flow.id, contactId: contactId || null, dealId: dealId || null, status: 'running', stepIndex: 0, log: [] },
+    data: { tenantId: flow.tenantId, flowId: flow.id, contactId: contactId || null, dealId: dealId || null, status: 'running', stepIndex: 0, currentSteps: flow.steps, log: [] },
   })
   advanceRun(run.id).catch(err => console.error('automation run failed', err))
   return run
+}
+
+// Se a pessoa está no meio de um menu, trata a mensagem como resposta em vez de gatilho novo.
+// Retorna true se consumiu a mensagem (o chamador não deve avaliar outros gatilhos nesse caso).
+export async function resolveMenuReply(tenantId, contactId, messageBody) {
+  const run = await prisma.automationFlowRun.findFirst({
+    where: { tenantId, contactId, status: 'waiting_reply' },
+    orderBy: { startedAt: 'desc' },
+    include: { flow: true },
+  })
+  if (!run) return false
+
+  const steps = Array.isArray(run.currentSteps) ? run.currentSteps : []
+  const menuStep = steps[run.stepIndex]
+  if (!menuStep || menuStep.type !== 'menu') return false
+
+  const options = Array.isArray(menuStep.config?.options) ? menuStep.config.options : []
+  const match = matchMenuOption(options, messageBody)
+  const contact = await prisma.contact.findUnique({ where: { id: contactId } })
+  const log = Array.isArray(run.log) ? [...run.log] : []
+
+  if (!match) {
+    log.push({ stepId: menuStep.id, type: 'menu_invalid_reply', at: new Date().toISOString(), result: { reply: messageBody } })
+    const retryText = `Não entendi. ${formatMenuMessage(menuStep.config?.message || '', options)}`
+    if (contact) await sendWhatsappText(tenantId, contact, retryText)
+    await prisma.automationFlowRun.update({ where: { id: run.id }, data: { log } })
+    return true
+  }
+
+  log.push({ stepId: menuStep.id, type: 'menu_reply', at: new Date().toISOString(), result: { reply: messageBody, chosen: match.label } })
+  const nextSteps = Array.isArray(match.steps) ? match.steps : []
+  await prisma.automationFlowRun.update({
+    where: { id: run.id },
+    data: { status: 'running', currentSteps: nextSteps, stepIndex: 0, log },
+  })
+  await advanceRun(run.id)
+  return true
 }
 
 // Dispara todos os fluxos ativos de um tenant que casam com o gatilho informado.

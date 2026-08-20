@@ -2,7 +2,7 @@ import { Router } from 'express'
 import prisma from '../lib/prisma.js'
 import { extractName, extractEmail, extractPhone, detectIntent } from '../lib/whatsappParser.js'
 import { requireAuth } from '../middleware/auth.js'
-import { triggerFlows } from '../lib/automationEngine.js'
+import { triggerFlows, resolveMenuReply } from '../lib/automationEngine.js'
 
 const router = Router()
 
@@ -245,7 +245,11 @@ router.post('/webhook/:tenantId', async (req, res) => {
 
       // Dispara os fluxos de automação com gatilho "mensagem recebida no WhatsApp"
       // (ex: responder automaticamente com uma sequência de mensagens configurada)
-      triggerFlows(tenant.id, 'whatsapp_message_received', { contactId: contact.id, messageBody: body })
+      // Se a pessoa está no meio de um menu, a mensagem é resposta dele, não um gatilho novo
+      const consumedByMenu = await resolveMenuReply(tenant.id, contact.id, body)
+      if (!consumedByMenu) {
+        triggerFlows(tenant.id, 'whatsapp_message_received', { contactId: contact.id, messageBody: body })
+      }
 
       // Detecção simples de gatilhos para criar deal/task
       const intent = detectIntent(body)

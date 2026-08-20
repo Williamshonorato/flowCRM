@@ -68,10 +68,11 @@ model AutomationFlowRun {
   flowId     String
   contactId  String?
   dealId     String?
-  status     String    @default("running") // running | waiting | completed | failed
-  stepIndex  Int       @default(0)
-  resumeAt   DateTime?
-  log        Json      @default("[]")
+  status       String    @default("running") // running | waiting | waiting_reply | completed | failed
+  stepIndex    Int       @default(0)
+  resumeAt     DateTime?
+  currentSteps Json?     // array de passos "ativa" no momento — muda quando entra numa opção de menu
+  log          Json      @default("[]")
   startedAt  DateTime  @default(now())
   finishedAt DateTime?
 

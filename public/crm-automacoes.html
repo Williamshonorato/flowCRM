@@ -81,6 +81,15 @@
     .step-fields input,.step-fields select,.step-fields textarea{width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;outline:none;font-family:inherit}
     .add-step-btn{width:100%;padding:12px;border:1.5px dashed var(--border);border-radius:12px;background:#fff;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer}
     .add-step-btn:hover{border-color:var(--green);color:var(--green)}
+    .add-step-btn.small{padding:8px;font-size:12px;margin-top:4px}
+    .menu-options{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+    .menu-option-card{border:1.5px dashed var(--border);border-radius:10px;padding:12px;background:#fff}
+    .mo-head{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+    .mo-head input{flex:1;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:12.5px;outline:none;font-family:inherit}
+    .mo-head input:first-child{flex:0 0 40%}
+    .mo-steps{padding-left:14px;border-left:2px solid var(--border)}
+    .mo-steps .step-card{background:#fff}
+    .steps-empty{font-size:12.5px;color:#94a3b8;padding:8px 0}
 
     .ed-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:4px}
     .btn-cancel{padding:10px 18px;border:1.5px solid var(--border);border-radius:9px;background:#fff;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer}
@@ -228,6 +237,9 @@
       { key: 'amount', label: 'Quantidade', type: 'number' },
       { key: 'unit', label: 'Unidade', type: 'select', options: [['minutes','Minutos'],['hours','Horas'],['days','Dias']] },
     ]},
+    menu:           { label: '📋 Menu no WhatsApp (a pessoa escolhe uma opção)', isMenu: true, fields: [
+      { key: 'message', label: 'Mensagem (as opções são listadas automaticamente embaixo dela)', type: 'textarea', full: true },
+    ]},
   };
   const TRIGGER_NEEDS_STAGE = new Set(['deal_stage_changed']);
   const TRIGGER_NEEDS_KEYWORD = new Set(['whatsapp_message_received']);
@@ -274,27 +286,89 @@
   }
 
   function stepId() { return 'step_' + Math.random().toString(36).slice(2, 10); }
+  function optId() { return 'opt_' + Math.random().toString(36).slice(2, 10); }
 
-  function addStep() {
-    steps.push({ id: stepId(), type: 'send_whatsapp', config: {} });
+  // Um passo "menu" guarda suas opções em config.options[], e cada opção tem sua própria
+  // lista de sub-passos (config.options[i].steps), que pode conter outro "menu" — permitindo
+  // aninhar quantos níveis a pessoa quiser. Por isso a busca por id percorre a árvore inteira
+  // em vez de assumir que os passos estão sempre no array raiz.
+  function findStepDeep(id, arr = steps) {
+    for (const s of arr) {
+      if (s.id === id) return s;
+      if (s.type === 'menu' && Array.isArray(s.config?.options)) {
+        for (const opt of s.config.options) {
+          const found = findStepDeep(id, opt.steps || []);
+          if (found) return found;
+        }
+      }
+    }
+    return null;
+  }
+  function findContainerDeep(id, arr = steps) {
+    const i = arr.findIndex(s => s.id === id);
+    if (i !== -1) return { array: arr, index: i };
+    for (const s of arr) {
+      if (s.type === 'menu' && Array.isArray(s.config?.options)) {
+        for (const opt of s.config.options) {
+          if (!opt.steps) opt.steps = [];
+          const found = findContainerDeep(id, opt.steps);
+          if (found) return found;
+        }
+      }
+    }
+    return null;
+  }
+
+  function addStep(targetArray) {
+    (targetArray || steps).push({ id: stepId(), type: 'send_whatsapp', config: {} });
     renderSteps();
   }
-  function removeStep(id) { steps = steps.filter(s => s.id !== id); renderSteps(); }
+  function addStepToOption(parentStepId, optionId) {
+    const s = findStepDeep(parentStepId);
+    const opt = s.config.options.find(o => o.id === optionId);
+    if (!opt.steps) opt.steps = [];
+    opt.steps.push({ id: stepId(), type: 'send_whatsapp', config: {} });
+    renderSteps();
+  }
+  function removeStep(id) {
+    const c = findContainerDeep(id);
+    if (c) c.array.splice(c.index, 1);
+    renderSteps();
+  }
   function moveStep(id, dir) {
-    const i = steps.findIndex(s => s.id === id);
-    const j = i + dir;
-    if (j < 0 || j >= steps.length) return;
-    [steps[i], steps[j]] = [steps[j], steps[i]];
+    const c = findContainerDeep(id);
+    if (!c) return;
+    const j = c.index + dir;
+    if (j < 0 || j >= c.array.length) return;
+    [c.array[c.index], c.array[j]] = [c.array[j], c.array[c.index]];
     renderSteps();
   }
   function setStepType(id, type) {
-    const s = steps.find(x => x.id === id);
+    const s = findStepDeep(id);
     s.type = type; s.config = {};
     renderSteps();
   }
   function setStepConfig(id, key, value) {
-    const s = steps.find(x => x.id === id);
+    const s = findStepDeep(id);
     s.config[key] = value;
+  }
+
+  function addMenuOption(parentStepId) {
+    const s = findStepDeep(parentStepId);
+    if (!Array.isArray(s.config.options)) s.config.options = [];
+    s.config.options.push({ id: optId(), label: 'Nova opção', keywords: [], steps: [] });
+    renderSteps();
+  }
+  function removeMenuOption(parentStepId, optionId) {
+    const s = findStepDeep(parentStepId);
+    s.config.options = s.config.options.filter(o => o.id !== optionId);
+    renderSteps();
+  }
+  function setOptionField(parentStepId, optionId, key, value) {
+    const s = findStepDeep(parentStepId);
+    const opt = s.config.options.find(o => o.id === optionId);
+    if (key === 'keywords') opt.keywords = value.split(',').map(k => k.trim()).filter(Boolean);
+    else opt[key] = value;
   }
 
   function fieldHtml(step, field) {
@@ -317,25 +391,56 @@
     return `<div class="${cls}"><label>${field.label}</label><input type="${field.type}" value="${val}" onchange="setStepConfig('${step.id}','${field.key}',${field.type === 'number' ? 'Number(this.value)' : 'this.value'})"/></div>`;
   }
 
-  function renderSteps() {
-    const box = document.getElementById('stepsList');
-    box.innerHTML = steps.map((step, i) => {
-      const def = STEP_TYPES[step.type];
-      return `<div class="step-card">
-        <div class="step-head">
-          <div class="step-num">${i + 1}</div>
-          <select class="step-type-select" onchange="setStepType('${step.id}', this.value)">
-            ${Object.entries(STEP_TYPES).map(([k, d]) => `<option value="${k}" ${k === step.type ? 'selected' : ''}>${d.label}</option>`).join('')}
-          </select>
-          <div class="step-actions">
-            <button class="step-btn" title="Subir" onclick="moveStep('${step.id}',-1)" ${i === 0 ? 'disabled' : ''}>↑</button>
-            <button class="step-btn" title="Descer" onclick="moveStep('${step.id}',1)" ${i === steps.length - 1 ? 'disabled' : ''}>↓</button>
-            <button class="step-btn danger" title="Remover" onclick="removeStep('${step.id}')">✕</button>
-          </div>
+  function renderStepArray(arr) {
+    if (!arr.length) return '<div class="steps-empty">Nenhum passo ainda.</div>';
+    return arr.map((step, i) => renderStepCard(step, i, arr.length)).join('');
+  }
+
+  function renderStepCard(step, i, total) {
+    const def = STEP_TYPES[step.type];
+    let menuHtml = '';
+    if (def.isMenu) {
+      if (!Array.isArray(step.config.options)) step.config.options = [];
+      menuHtml = `
+        <div class="menu-options">
+          ${step.config.options.map(opt => renderMenuOption(step, opt)).join('')}
         </div>
-        <div class="step-fields">${def.fields.map(f => fieldHtml(step, f)).join('')}</div>
-      </div>`;
-    }).join('') || '<div style="font-size:12.5px;color:#94a3b8;padding:8px 0">Nenhum passo ainda — clique em "+ Adicionar passo" abaixo.</div>';
+        <button class="add-step-btn small" onclick="addMenuOption('${step.id}')">+ Adicionar opção</button>`;
+    }
+    return `<div class="step-card">
+      <div class="step-head">
+        <div class="step-num">${i + 1}</div>
+        <select class="step-type-select" onchange="setStepType('${step.id}', this.value)">
+          ${Object.entries(STEP_TYPES).map(([k, d]) => `<option value="${k}" ${k === step.type ? 'selected' : ''}>${d.label}</option>`).join('')}
+        </select>
+        <div class="step-actions">
+          <button class="step-btn" title="Subir" onclick="moveStep('${step.id}',-1)" ${i === 0 ? 'disabled' : ''}>↑</button>
+          <button class="step-btn" title="Descer" onclick="moveStep('${step.id}',1)" ${i === total - 1 ? 'disabled' : ''}>↓</button>
+          <button class="step-btn danger" title="Remover" onclick="removeStep('${step.id}')">✕</button>
+        </div>
+      </div>
+      <div class="step-fields">${def.fields.map(f => fieldHtml(step, f)).join('')}</div>
+      ${menuHtml}
+    </div>`;
+  }
+
+  function renderMenuOption(parentStep, opt) {
+    if (!Array.isArray(opt.steps)) opt.steps = [];
+    return `<div class="menu-option-card">
+      <div class="mo-head">
+        <input type="text" value="${opt.label || ''}" placeholder="Nome da opção (ex: Vendas)"
+          onchange="setOptionField('${parentStep.id}','${opt.id}','label',this.value)"/>
+        <input type="text" value="${(opt.keywords || []).join(', ')}" placeholder="Palavras-chave, separadas por vírgula (ex: vendas, comprar)"
+          onchange="setOptionField('${parentStep.id}','${opt.id}','keywords',this.value)"/>
+        <button class="step-btn danger" title="Remover opção" onclick="removeMenuOption('${parentStep.id}','${opt.id}')">✕</button>
+      </div>
+      <div class="mo-steps">${renderStepArray(opt.steps)}</div>
+      <button class="add-step-btn small" onclick="addStepToOption('${parentStep.id}','${opt.id}')">+ Adicionar passo nesta opção</button>
+    </div>`;
+  }
+
+  function renderSteps() {
+    document.getElementById('stepsList').innerHTML = renderStepArray(steps);
   }
 
   function renderTriggerConfig() {

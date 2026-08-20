@@ -4,3 +4,6 @@ node_modules
 
 /generated/prisma
 .DS_Store
+
+# Imagens enviadas por usuários nos bots de automação — conteúdo, não código
+/public/uploads/

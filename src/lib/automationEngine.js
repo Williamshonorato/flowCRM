@@ -1,7 +1,13 @@
+import fs from 'fs/promises'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import prisma from './prisma.js'
 import { sendGmailMessage } from './gmailSender.js'
 
 const APP_ORIGIN = `http://localhost:${process.env.PORT || 3333}`
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const UPLOADS_DIR = path.join(__dirname, '../../public/uploads')
+const MIME_BY_EXT = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' }
 
 // Executa um passo do fluxo. Cada tipo sabe seu próprio formato de "config" —
 // isso é o que permite passos e opções ilimitados sem mexer no schema.
@@ -63,7 +69,9 @@ async function executeStep(step, ctx) {
 
     case 'send_whatsapp': {
       if (!contact?.phone) return { skipped: 'contato sem telefone' }
-      const sent = await sendWhatsappText(tenantId, contact, step.config?.message || '')
+      const sent = step.config?.imagePath
+        ? await sendWhatsappMedia(tenantId, contact, step.config.imagePath, step.config?.message || '')
+        : await sendWhatsappText(tenantId, contact, step.config?.message || '')
       return sent.ok ? { done: true } : { skipped: sent.error }
     }
 
@@ -108,10 +116,16 @@ async function executeStep(step, ctx) {
 }
 
 // Envia texto puro pelo WhatsApp da empresa — usado pelo passo send_whatsapp e pelo menu.
-async function sendWhatsappText(tenantId, contact, message) {
+async function getWhatsappConfig(tenantId) {
   const integration = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId, type: 'whatsapp' } } })
   const config = integration?.config || {}
-  if (!integration || integration.status !== 'connected' || !config.apiUrl || !config.instance) return { ok: false, error: 'WhatsApp não conectado' }
+  if (!integration || integration.status !== 'connected' || !config.apiUrl || !config.instance) return null
+  return config
+}
+
+async function sendWhatsappText(tenantId, contact, message) {
+  const config = await getWhatsappConfig(tenantId)
+  if (!config) return { ok: false, error: 'WhatsApp não conectado' }
   const toPhone = contact.phone.replace(/[^0-9]/g, '')
   try {
     const evoRes = await fetch(`${config.apiUrl.replace(/\/$/, '')}/message/sendText/${config.instance}`, {
@@ -123,6 +137,42 @@ async function sendWhatsappText(tenantId, contact, message) {
     if (!evoRes.ok) return { ok: false, error: 'Evolution recusou o envio' }
     await prisma.message.create({
       data: { contactId: contact.id, from: 'me', to: toPhone, body: message, channel: 'whatsapp', direction: 'out', whatsappMessageId: data?.key?.id || null, raw: data },
+    }).catch(() => {})
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err.message }
+  }
+}
+
+// Manda uma imagem enviada pela pessoa no assistente/editor — a imagem fica salva em disco
+// (public/uploads/automation-images) e é lida e mandada em base64 pra Evolution API, então
+// não depende da Evolution (que roda em outro container) conseguir alcançar nosso localhost.
+async function sendWhatsappMedia(tenantId, contact, imagePath, caption) {
+  const config = await getWhatsappConfig(tenantId)
+  if (!config) return { ok: false, error: 'WhatsApp não conectado' }
+  const toPhone = contact.phone.replace(/[^0-9]/g, '')
+
+  let base64, mimetype
+  try {
+    const absPath = path.join(UPLOADS_DIR, imagePath)
+    if (!absPath.startsWith(UPLOADS_DIR + path.sep)) return { ok: false, error: 'Caminho de imagem inválido' }
+    const buf = await fs.readFile(absPath)
+    base64 = buf.toString('base64')
+    mimetype = MIME_BY_EXT[path.extname(imagePath).toLowerCase()] || 'image/jpeg'
+  } catch {
+    return { ok: false, error: 'Imagem não encontrada' }
+  }
+
+  try {
+    const evoRes = await fetch(`${config.apiUrl.replace(/\/$/, '')}/message/sendMedia/${config.instance}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(config.apiKey ? { apikey: config.apiKey } : {}) },
+      body: JSON.stringify({ number: toPhone, mediatype: 'image', mimetype, media: base64, caption, fileName: path.basename(imagePath) }),
+    })
+    const data = await evoRes.json().catch(() => ({}))
+    if (!evoRes.ok) return { ok: false, error: 'Evolution recusou o envio' }
+    await prisma.message.create({
+      data: { contactId: contact.id, from: 'me', to: toPhone, body: caption || '[imagem]', channel: 'whatsapp', direction: 'out', whatsappMessageId: data?.key?.id || null, raw: data },
     }).catch(() => {})
     return { ok: true }
   } catch (err) {

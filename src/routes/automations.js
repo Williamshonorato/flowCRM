@@ -1,11 +1,39 @@
 import { Router } from 'express'
 import { z } from 'zod'
+import multer from 'multer'
+import { randomUUID } from 'crypto'
+import fs from 'fs/promises'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import prisma from '../lib/prisma.js'
 import { requireAuth } from '../middleware/auth.js'
 import { startFlowRun } from '../lib/automationEngine.js'
 
 const router = Router()
 router.use(requireAuth)
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const UPLOAD_ROOT = path.join(__dirname, '../../public/uploads/automation-images')
+const EXT_BY_MIME = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/gif': '.gif', 'image/webp': '.webp' }
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } })
+
+// POST /automations/upload-image — usado pelo passo "mandar mensagem" quando a pessoa
+// anexa uma imagem; guarda em disco (por tenant) e devolve o caminho relativo, que fica
+// salvo em step.config.imagePath e é lido de volta na hora de mandar pelo WhatsApp.
+router.post('/upload-image', upload.single('image'), async (req, res) => {
+  const { tenantId } = req.user
+  if (!req.file) return res.status(400).json({ error: 'Nenhuma imagem enviada.' })
+  const ext = EXT_BY_MIME[req.file.mimetype]
+  if (!ext) return res.status(400).json({ error: 'Formato de imagem não suportado (use JPG, PNG, GIF ou WEBP).' })
+
+  const filename = randomUUID() + ext
+  const tenantDir = path.join(UPLOAD_ROOT, tenantId)
+  await fs.mkdir(tenantDir, { recursive: true })
+  await fs.writeFile(path.join(tenantDir, filename), req.file.buffer)
+
+  const imagePath = `automation-images/${tenantId}/${filename}`
+  res.status(201).json({ imagePath, url: `/app/uploads/${imagePath}` })
+})
 
 const stepSchema = z.object({
   id:     z.string(),

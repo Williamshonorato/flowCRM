@@ -141,6 +141,10 @@
     .wz-choice .ico{font-size:20px}
     .wz-choice .lbl{font-weight:700;font-size:13.5px;color:var(--text)}
     .wz-choice-input{margin-top:12px}
+    .wz-img-upload{display:inline-block;margin-top:10px;padding:9px 14px;border:1.5px dashed var(--border);border-radius:9px;font-size:12.5px;font-weight:700;color:var(--muted);cursor:pointer}
+    .wz-img-upload:hover{border-color:var(--green);color:var(--green)}
+    .wz-img-preview{margin-top:10px;display:flex;align-items:center;gap:10px}
+    .wz-img-preview img{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1.5px solid var(--border)}
     .wizard-footer{display:flex;justify-content:space-between;align-items:center;margin-top:24px;gap:10px}
     .wizard-nav{display:flex;gap:8px}
     .wizard-phone-wrap{width:280px;flex-shrink:0;background:#0b141a;padding:24px 18px;display:flex;flex-direction:column;align-items:center}
@@ -267,6 +271,7 @@
     ]},
     send_whatsapp:  { label: '💬 Enviar WhatsApp', fields: [
       { key: 'message', label: 'Mensagem', type: 'textarea', full: true },
+      { key: 'imagePath', label: 'Imagem (opcional)', type: 'image-upload', full: true },
     ]},
     create_task:    { label: '✅ Criar tarefa', fields: [
       { key: 'title', label: 'Título', type: 'text', full: true },
@@ -447,7 +452,42 @@
     if (field.type === 'textarea') {
       return `<div class="${cls}"><label>${field.label}</label><textarea onchange="setStepConfig('${step.id}','${field.key}',this.value)">${val}</textarea></div>`;
     }
+    if (field.type === 'image-upload') {
+      const url = step.config.imageUrl;
+      const preview = url
+        ? `<div class="wz-img-preview"><img src="${url}"/><button class="step-btn danger" type="button" title="Remover imagem" onclick="classicRemoveImage('${step.id}')">✕</button></div>`
+        : `<label class="wz-img-upload">📷 Anexar imagem<input type="file" accept="image/*" style="display:none" onchange="classicUploadImage('${step.id}', this)"/></label>`;
+      return `<div class="${cls}"><label>${field.label}</label>${preview}</div>`;
+    }
     return `<div class="${cls}"><label>${field.label}</label><input type="${field.type}" value="${val}" onchange="setStepConfig('${step.id}','${field.key}',${field.type === 'number' ? 'Number(this.value)' : 'this.value'})"/></div>`;
+  }
+
+  async function classicUploadImage(stepId, fileInput) {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('image', file);
+    showToast('Enviando imagem...');
+    try {
+      const res = await fetch(API_BASE + '/automations/upload-image', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + getToken() },
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { showToast(data.error || 'Erro ao enviar imagem.'); return; }
+      setStepConfig(stepId, 'imagePath', data.imagePath);
+      setStepConfig(stepId, 'imageUrl', data.url);
+      showToast('Imagem anexada!');
+      renderSteps();
+    } catch {
+      showToast('Erro ao enviar imagem.');
+    }
+  }
+  function classicRemoveImage(stepId) {
+    setStepConfig(stepId, 'imagePath', undefined);
+    setStepConfig(stepId, 'imageUrl', undefined);
+    renderSteps();
   }
 
   function renderStepArray(arr) {
@@ -773,7 +813,15 @@
   }
   function wzActionExtraHtml(opt, chosen) {
     const s = (opt.steps || [])[0];
-    if (chosen === 'message') return `<div class="wz-choice-input"><textarea placeholder="O que o bot responde?" oninput="wzSetActionValue('${opt.id}','message',this.value)">${s?.config?.message || ''}</textarea></div>`;
+    if (chosen === 'message') {
+      const imgHtml = s?.config?.imageUrl
+        ? `<div class="wz-img-preview"><img src="${s.config.imageUrl}"/><button class="step-btn danger" title="Remover imagem" onclick="wzRemoveImage('${opt.id}')">✕</button></div>`
+        : `<label class="wz-img-upload">📷 Anexar uma imagem (opcional)<input type="file" accept="image/*" style="display:none" onchange="wzUploadImage('${opt.id}', this)"/></label>`;
+      return `<div class="wz-choice-input">
+        <textarea placeholder="O que o bot responde?" oninput="wzSetActionValue('${opt.id}','message',this.value)">${s?.config?.message || ''}</textarea>
+        ${imgHtml}
+      </div>`;
+    }
     if (chosen === 'task') return `<div class="wz-choice-input"><input type="text" placeholder="Título da tarefa (ex: Ligar pro cliente)" oninput="wzSetActionValue('${opt.id}','task',this.value)" value="${s?.config?.title || ''}"/></div>`;
     if (chosen === 'submenu') return `<p style="font-size:12.5px;color:var(--muted);margin-top:8px">Você vai configurar as opções desse submenu em seguida.</p>`;
     return '';
@@ -782,7 +830,11 @@
   function wzChooseAction(optId, action) {
     const opt = wzNode.step.config.options.find(o => o.id === optId);
     if (action === 'message') {
-      opt.steps = [{ id: wzStepId(), type: 'send_whatsapp', config: { message: opt.steps?.[0]?.config?.message || '' } }];
+      const prev = opt.steps?.[0]?.config || {};
+      opt.steps = [{ id: wzStepId(), type: 'send_whatsapp', config: {
+        message: prev.message || '',
+        ...(prev.imagePath ? { imagePath: prev.imagePath, imageUrl: prev.imageUrl } : {}),
+      } }];
     } else if (action === 'task') {
       opt.steps = [{ id: wzStepId(), type: 'create_task', config: { title: opt.steps?.[0]?.config?.title || '' } }];
     } else if (action === 'submenu') {
@@ -795,6 +847,37 @@
     const s = opt.steps[0];
     if (action === 'message') s.config.message = value;
     if (action === 'task') s.config.title = value;
+  }
+
+  async function wzUploadImage(optId, fileInput) {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const opt = wzNode.step.config.options.find(o => o.id === optId);
+    const s = opt.steps[0];
+    const formData = new FormData();
+    formData.append('image', file);
+    showToast('Enviando imagem...');
+    try {
+      const res = await fetch(API_BASE + '/automations/upload-image', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + getToken() },
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { showToast(data.error || 'Erro ao enviar imagem.'); return; }
+      s.config.imagePath = data.imagePath;
+      s.config.imageUrl = data.url;
+      showToast('Imagem anexada!');
+      renderWizard();
+    } catch {
+      showToast('Erro ao enviar imagem.');
+    }
+  }
+  function wzRemoveImage(optId) {
+    const opt = wzNode.step.config.options.find(o => o.id === optId);
+    delete opt.steps[0].config.imagePath;
+    delete opt.steps[0].config.imageUrl;
+    renderWizard();
   }
 
   function wzBackAction() {
@@ -833,6 +916,24 @@
 
   function renderWizardPhone() {
     const box = document.getElementById('wzPhoneBody');
+
+    if (wzPhase === 'actions') {
+      const opt = wzNode.step.config.options[wzOptIndex];
+      const s = (opt.steps || [])[0];
+      if (!s) { box.innerHTML = '<div class="wp-empty">Escolha o que acontece quando a pessoa escolher essa opção.</div>'; return; }
+      if (s.type === 'send_whatsapp') {
+        const safeMsg = (s.config.message || '(sem mensagem)').replace(/</g, '&lt;');
+        const imgHtml = s.config.imageUrl ? `<img src="${s.config.imageUrl}" style="max-width:100%;border-radius:6px;margin-bottom:6px;display:block"/>` : '';
+        box.innerHTML = `<div class="wp-bubble">${imgHtml}${safeMsg}</div>`;
+      } else if (s.type === 'create_task') {
+        const safeTitle = (s.config.title || '(sem título)').replace(/</g, '&lt;');
+        box.innerHTML = `<div class="wp-empty">✅ Cria a tarefa "${safeTitle}" pra sua equipe<br>(não manda mensagem pro cliente)</div>`;
+      } else if (s.type === 'menu') {
+        box.innerHTML = '<div class="wp-empty">📋 Abre um novo menu — você configura ele na próxima tela.</div>';
+      }
+      return;
+    }
+
     const msg = wzNode.step.config.message || '';
     const opts = wzNode.step.config.options || [];
     if (!msg.trim() && !opts.length) {

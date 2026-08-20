@@ -674,7 +674,7 @@
         <div id="wz-opts">${wzNode.step.config.options.map(o => wzOptRowHtml(o)).join('')}</div>
         <button class="wz-add" onclick="wzAddOption()">+ Adicionar opção</button>
         <p style="font-size:12px;color:var(--muted);margin-top:12px">💡 Palavras-chave são opcionais: além de digitar o número (1, 2, 3...), a pessoa também pode escolher a opção digitando uma dessas palavras. Ex: "vendas, comprar" faz a opção "Vendas" responder também a essas palavras. Pode deixar em branco.</p>
-        <p style="font-size:12px;color:var(--muted);margin-top:6px">🙋 Todo menu já sai com a opção "0. Falar com um atendente" automaticamente — se a pessoa digitar 0, "atendente" ou "humano" a qualquer momento, ou errar o menu duas vezes seguidas, a conversa passa pra sua equipe (cria uma tarefa) em vez de insistir no bot. É assim que os grandes bots de atendimento funcionam.</p>`;
+        <p style="font-size:12px;color:var(--muted);margin-top:6px">🙋 Se a pessoa errar o menu duas vezes seguidas, a conversa passa automaticamente pra sua equipe (cria uma tarefa) em vez de repetir o bot pra sempre.</p>`;
       navEl.innerHTML = `
         <button class="btn-cancel" onclick="wzBackToMessage()">← Voltar</button>
         <button class="btn-save" onclick="wzToActions()">Próximo →</button>`;
@@ -840,9 +840,8 @@
       return;
     }
     const list = opts.map((o, i) => `${i + 1}. ${o.label || '(sem nome)'}`).join('\n');
-    const humanLine = opts.length ? '\n0. Falar com um atendente' : '';
     const safeMsg = (msg || '(sem mensagem)').replace(/</g, '&lt;');
-    const safeList = (list + humanLine).replace(/</g, '&lt;');
+    const safeList = list.replace(/</g, '&lt;');
     box.innerHTML = `<div class="wp-bubble">${safeMsg}${safeList ? '\n\n' + safeList : ''}</div>`;
   }
 

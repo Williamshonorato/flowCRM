@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>FlowCRM — Automações</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{
+      --green:#27ae60;--blue:#2980b9;--purple:#8e44ad;--amber:#f39c12;--red:#e74c3c;
+      --sidebar:#0f172a;--text:#1e293b;--muted:#64748b;--border:#e2e8f0;--bg:#f1f5f9;
+    }
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);display:flex;min-height:100vh}
+
+    .sidebar{width:230px;min-height:100vh;background:var(--sidebar);display:flex;flex-direction:column;flex-shrink:0}
+    .sb-brand{padding:20px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.07)}
+    .sb-icon{width:34px;height:34px;background:linear-gradient(135deg,var(--green),#1abc9c);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px}
+    .sb-name{font-size:17px;font-weight:800;color:#fff}.sb-name span{color:var(--green)}
+    .sb-nav{flex:1;padding:14px 10px}
+    .sb-section{font-size:10px;font-weight:700;color:#334155;letter-spacing:.8px;text-transform:uppercase;padding:10px 10px 6px}
+    .nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;font-size:13.5px;font-weight:500;color:#94a3b8;cursor:pointer;text-decoration:none;transition:all .18s;margin-bottom:2px}
+    .nav-item:hover{background:rgba(255,255,255,.06);color:#e2e8f0}
+    .nav-item.active{background:linear-gradient(135deg,rgba(39,174,96,.18),rgba(26,188,156,.1));color:#4ade80;font-weight:700}
+    .nav-item .ico{width:18px;text-align:center;font-size:15px}
+    .sb-bottom{padding:14px 10px;border-top:1px solid rgba(255,255,255,.07)}
+    .user-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;cursor:pointer}
+    .user-row:hover{background:rgba(255,255,255,.06)}
+    .user-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--green),#1abc9c);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;flex-shrink:0}
+    .user-info .name{font-size:13px;font-weight:600;color:#e2e8f0}
+    .user-info .plan{font-size:11px;color:#64748b}
+
+    .main{flex:1;display:flex;flex-direction:column;min-width:0}
+    .topbar{background:#fff;border-bottom:1px solid var(--border);padding:0 28px;height:58px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+    .page-title{font-size:17px;font-weight:800;color:var(--text);flex:1}
+    .btn-green{padding:9px 18px;background:var(--green);color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer}
+    .btn-green:hover{background:#219a52}
+    .content{padding:28px;overflow-y:auto;flex:1}
+
+    /* LIST */
+    .flow-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+    .flow-card{background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:20px;cursor:pointer;transition:all .15s}
+    .flow-card:hover{border-color:#94a3b8;box-shadow:0 4px 16px rgba(0,0,0,.06)}
+    .fc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+    .fc-name{font-size:15px;font-weight:800;color:var(--text)}
+    .fc-badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px}
+    .fc-active{background:#dcfce7;color:#166534}
+    .fc-inactive{background:var(--bg);color:var(--muted)}
+    .fc-desc{font-size:12.5px;color:var(--muted);margin-bottom:14px;min-height:18px}
+    .fc-meta{display:flex;gap:14px;font-size:12px;color:var(--muted)}
+    .empty-state{padding:60px 20px;text-align:center;color:#94a3b8}
+    .empty-state .ico{font-size:40px;margin-bottom:10px}
+
+    /* EDITOR */
+    .editor{display:none;max-width:760px}
+    .editor.open{display:block}
+    .flow-grid-wrap.hidden{display:none}
+    .back-link{font-size:13px;color:var(--muted);cursor:pointer;margin-bottom:16px;display:inline-block}
+    .back-link:hover{color:var(--text)}
+    .ed-card{background:#fff;border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:16px}
+    .ed-title{font-size:14px;font-weight:800;color:var(--text);margin-bottom:16px}
+    .inp-g{margin-bottom:14px}
+    .inp-g label{display:block;font-size:12.5px;font-weight:600;color:var(--text);margin-bottom:5px}
+    .inp-g input,.inp-g select,.inp-g textarea{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:13.5px;color:var(--text);outline:none;font-family:inherit;background:#fff}
+    .inp-g input:focus,.inp-g select:focus,.inp-g textarea:focus{border-color:var(--green)}
+    .inp-g textarea{resize:vertical;min-height:60px}
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .toggle-row{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;color:var(--text)}
+
+    /* STEPS */
+    .step-card{border:1.5px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;background:#fafbfc}
+    .step-head{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+    .step-num{width:24px;height:24px;border-radius:7px;background:var(--green);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .step-type-select{flex:1}
+    .step-actions{display:flex;gap:4px}
+    .step-btn{width:26px;height:26px;border-radius:7px;border:1px solid var(--border);background:#fff;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center}
+    .step-btn:hover{border-color:var(--green);color:var(--green)}
+    .step-btn.danger:hover{border-color:var(--red);color:var(--red)}
+    .step-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .step-fields .full{grid-column:1/-1}
+    .step-fields label{display:block;font-size:11.5px;font-weight:600;color:var(--muted);margin-bottom:4px}
+    .step-fields input,.step-fields select,.step-fields textarea{width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;outline:none;font-family:inherit}
+    .add-step-btn{width:100%;padding:12px;border:1.5px dashed var(--border);border-radius:12px;background:#fff;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer}
+    .add-step-btn:hover{border-color:var(--green);color:var(--green)}
+
+    .ed-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:4px}
+    .btn-cancel{padding:10px 18px;border:1.5px solid var(--border);border-radius:9px;background:#fff;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer}
+    .btn-save{padding:10px 22px;border:none;border-radius:9px;background:linear-gradient(135deg,var(--green),#1abc9c);color:#fff;font-size:13px;font-weight:700;cursor:pointer}
+    .btn-danger{padding:10px 18px;border:1.5px solid #fecaca;border-radius:9px;background:#fff;color:var(--red);font-size:13px;font-weight:700;cursor:pointer;margin-right:auto}
+    .btn-danger:hover{background:#fef2f2}
+
+    /* TEST RUN */
+    .run-row{display:flex;gap:10px;align-items:center}
+    .run-row select{flex:1}
+    .run-log{margin-top:14px}
+    .run-item{border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:8px;font-size:12.5px}
+    .run-item .rs{font-weight:700;padding:2px 8px;border-radius:20px;font-size:11px;margin-right:8px}
+    .rs-completed{background:#dcfce7;color:#166534}
+    .rs-waiting{background:#fef3c7;color:#92400e}
+    .rs-running{background:#eff6ff;color:var(--blue)}
+    .rs-failed{background:#fee2e2;color:#991b1b}
+    .run-steps{margin-top:6px;color:var(--muted);font-size:11.5px}
+
+    #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1e293b;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.2);opacity:0;pointer-events:none;transition:all .25s;z-index:100}
+    #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  </style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sb-brand"><div class="sb-icon">⚡</div><div class="sb-name">Flow<span>CRM</span></div></div>
+  <nav class="sb-nav">
+    <div class="sb-section">Principal</div>
+    <a class="nav-item" href="crm-dashboard.html"><span class="ico">📊</span>Dashboard</a>
+    <a class="nav-item" href="crm-pipeline.html"><span class="ico">🗂️</span>Pipeline</a>
+    <a class="nav-item" href="crm-contatos.html"><span class="ico">👥</span>Contatos</a>
+    <a class="nav-item" href="crm-conversas.html"><span class="ico">💬</span>Conversas</a>
+    <a class="nav-item" href="crm-tarefas.html"><span class="ico">✅</span>Tarefas</a>
+    <div class="sb-section">Sistema</div>
+    <a class="nav-item active" href="crm-automacoes.html"><span class="ico">🤖</span>Automações</a>
+    <a class="nav-item" href="crm-relatorios.html"><span class="ico">📈</span>Relatórios</a>
+    <a class="nav-item" href="crm-integracoes.html"><span class="ico">🔌</span>Integrações</a>
+    <a class="nav-item" href="crm-configuracoes.html"><span class="ico">⚙️</span>Configurações</a>
+  </nav>
+  <div class="sb-bottom"><div class="user-row"><div class="user-avatar">W</div><div class="user-info"><div class="name">Williams</div><div class="plan">Plano Profissional</div></div></div></div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <div class="page-title" id="pageTitle">Automações</div>
+    <button class="btn-green" id="newFlowBtn" onclick="openEditor()">+ Novo fluxo</button>
+  </div>
+
+  <div class="content">
+    <div class="flow-grid-wrap" id="listView">
+      <div class="flow-grid" id="flowGrid"></div>
+    </div>
+
+    <div class="editor" id="editorView">
+      <span class="back-link" onclick="closeEditor()">← Voltar pros fluxos</span>
+
+      <div class="ed-card">
+        <div class="ed-title">Sobre o fluxo</div>
+        <div class="inp-g"><label>Nome</label><input type="text" id="f-name" placeholder="Ex: Boas-vindas novo lead"/></div>
+        <div class="inp-g"><label>Descrição (opcional)</label><input type="text" id="f-desc" placeholder="Pra que serve esse fluxo"/></div>
+        <div class="toggle-row"><input type="checkbox" id="f-active" checked/> Fluxo ativo</div>
+      </div>
+
+      <div class="ed-card">
+        <div class="ed-title">Gatilho — quando esse fluxo começa</div>
+        <div class="row2">
+          <div class="inp-g"><label>Evento</label>
+            <select id="f-trigger" onchange="renderTriggerConfig()">
+              <option value="contact_created">👤 Contato criado</option>
+              <option value="deal_created">💼 Negócio criado</option>
+              <option value="deal_stage_changed">🔀 Negócio mudou de estágio</option>
+              <option value="deal_closed">🏆 Negócio fechado</option>
+              <option value="manual">✋ Manual (só quando eu disparar)</option>
+            </select>
+          </div>
+          <div class="inp-g" id="triggerConfigWrap"></div>
+        </div>
+      </div>
+
+      <div class="ed-card">
+        <div class="ed-title">Passos <span style="font-weight:400;color:var(--muted);font-size:12px">— adicione quantos quiser, na ordem que devem rodar</span></div>
+        <div id="stepsList"></div>
+        <button class="add-step-btn" onclick="addStep()">+ Adicionar passo</button>
+      </div>
+
+      <div class="ed-card" id="testCard" style="display:none">
+        <div class="ed-title">Testar fluxo</div>
+        <div class="run-row">
+          <select id="testContact"></select>
+          <button class="btn-save" onclick="runFlowTest()">▶ Rodar agora</button>
+        </div>
+        <div class="run-log" id="runLog"></div>
+      </div>
+
+      <div class="ed-actions">
+        <button class="btn-danger" id="deleteBtn" style="display:none" onclick="deleteFlow()">Excluir fluxo</button>
+        <button class="btn-cancel" onclick="closeEditor()">Cancelar</button>
+        <button class="btn-save" onclick="saveFlow()">Salvar fluxo</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="flowcrm-api.js"></script>
+<script>
+  authGuard();
+
+  const STEP_TYPES = {
+    send_email:     { label: '✉️ Enviar e-mail', fields: [
+      { key: 'subject', label: 'Assunto', type: 'text', full: true },
+      { key: 'body', label: 'Mensagem', type: 'textarea', full: true },
+    ]},
+    send_whatsapp:  { label: '💬 Enviar WhatsApp', fields: [
+      { key: 'message', label: 'Mensagem', type: 'textarea', full: true },
+    ]},
+    create_task:    { label: '✅ Criar tarefa', fields: [
+      { key: 'title', label: 'Título', type: 'text', full: true },
+      { key: 'taskType', label: 'Tipo', type: 'select', options: [['call','Ligação'],['follow','Follow-up'],['meet','Reunião'],['email','E-mail'],['note','Anotação']] },
+      { key: 'priority', label: 'Prioridade', type: 'select', options: [['high','Alta'],['mid','Média'],['low','Baixa']] },
+      { key: 'dueInDays', label: 'Vencer em (dias)', type: 'number' },
+    ]},
+    change_stage:   { label: '🔀 Mudar estágio do negócio', fields: [
+      { key: 'stageId', label: 'Novo estágio', type: 'stage-select', full: true },
+    ]},
+    set_temperature:{ label: '🌡️ Mudar temperatura do contato', fields: [
+      { key: 'temperature', label: 'Temperatura', type: 'select', options: [['hot','🔥 Quente'],['warm','🌡️ Morno'],['cold','❄️ Frio'],['new','🆕 Novo']] },
+    ]},
+    notify_team:    { label: '🔔 Notificar equipe (nota no contato)', fields: [
+      { key: 'message', label: 'Mensagem', type: 'textarea', full: true },
+    ]},
+    webhook:        { label: '🔗 Chamar webhook', fields: [
+      { key: 'url', label: 'URL', type: 'text', full: true },
+    ]},
+    condition:      { label: '❓ Condição (ramifica o fluxo)', fields: [
+      { key: 'field', label: 'Campo', type: 'select', options: [['temperature','Temperatura'],['origin','Origem'],['dealValue','Valor do negócio'],['daysSinceCreated','Dias desde criado']] },
+      { key: 'operator', label: 'Operador', type: 'select', options: [['equals','Igual a'],['not_equals','Diferente de'],['greater_than','Maior que'],['less_than','Menor que'],['contains','Contém']] },
+      { key: 'value', label: 'Valor de comparação', type: 'text' },
+      { key: 'onFalse', label: 'Se a condição for falsa', type: 'select', options: [['stop','Parar o fluxo'],['continue','Continuar mesmo assim']] },
+    ]},
+    wait:           { label: '⏱️ Esperar antes do próximo passo', fields: [
+      { key: 'amount', label: 'Quantidade', type: 'number' },
+      { key: 'unit', label: 'Unidade', type: 'select', options: [['minutes','Minutos'],['hours','Horas'],['days','Dias']] },
+    ]},
+  };
+  const TRIGGER_NEEDS_STAGE = new Set(['deal_stage_changed']);
+
+  let flows = [];
+  let stages = [];
+  let contacts = [];
+  let steps = [];
+  let editingId = null;
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(t._timer); t._timer = setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  async function loadFlows() {
+    flows = await api('/automations/flows') || [];
+    renderFlowGrid();
+  }
+
+  function renderFlowGrid() {
+    const grid = document.getElementById('flowGrid');
+    if (!flows.length) {
+      grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="ico">🤖</div>Nenhum fluxo de automação ainda.<br>Clique em "+ Novo fluxo" pra criar o primeiro.</div>';
+      return;
+    }
+    const triggerLabel = { contact_created:'Contato criado', deal_created:'Negócio criado', deal_stage_changed:'Negócio mudou de estágio', deal_closed:'Negócio fechado', manual:'Manual' };
+    grid.innerHTML = flows.map(f => `
+      <div class="flow-card" onclick="openEditor('${f.id}')">
+        <div class="fc-top"><div class="fc-name">${f.name}</div><span class="fc-badge ${f.active ? 'fc-active' : 'fc-inactive'}">${f.active ? 'Ativo' : 'Inativo'}</span></div>
+        <div class="fc-desc">${f.description || ''}</div>
+        <div class="fc-meta"><span>⚡ ${triggerLabel[f.triggerType] || f.triggerType}</span><span>🧩 ${(f.steps || []).length} passo${(f.steps||[]).length===1?'':'s'}</span><span>▶ ${f._count?.runs ?? 0} execuções</span></div>
+      </div>
+    `).join('');
+  }
+
+  async function loadStages() {
+    stages = await api('/settings/stages') || [];
+  }
+  async function loadContacts() {
+    const data = await api('/contacts?limit=100&sort=name');
+    contacts = data?.contacts || [];
+  }
+
+  function stepId() { return 'step_' + Math.random().toString(36).slice(2, 10); }
+
+  function addStep() {
+    steps.push({ id: stepId(), type: 'send_whatsapp', config: {} });
+    renderSteps();
+  }
+  function removeStep(id) { steps = steps.filter(s => s.id !== id); renderSteps(); }
+  function moveStep(id, dir) {
+    const i = steps.findIndex(s => s.id === id);
+    const j = i + dir;
+    if (j < 0 || j >= steps.length) return;
+    [steps[i], steps[j]] = [steps[j], steps[i]];
+    renderSteps();
+  }
+  function setStepType(id, type) {
+    const s = steps.find(x => x.id === id);
+    s.type = type; s.config = {};
+    renderSteps();
+  }
+  function setStepConfig(id, key, value) {
+    const s = steps.find(x => x.id === id);
+    s.config[key] = value;
+  }
+
+  function fieldHtml(step, field) {
+    const val = step.config[field.key] ?? '';
+    const cls = field.full ? 'full' : '';
+    if (field.type === 'select') {
+      return `<div class="${cls}"><label>${field.label}</label><select onchange="setStepConfig('${step.id}','${field.key}',this.value)">
+        ${field.options.map(([v, l]) => `<option value="${v}" ${val === v ? 'selected' : ''}>${l}</option>`).join('')}
+      </select></div>`;
+    }
+    if (field.type === 'stage-select') {
+      return `<div class="${cls}"><label>${field.label}</label><select onchange="setStepConfig('${step.id}','${field.key}',this.value)">
+        <option value="">— Selecione —</option>
+        ${stages.map(s => `<option value="${s.id}" ${val === s.id ? 'selected' : ''}>${s.name}</option>`).join('')}
+      </select></div>`;
+    }
+    if (field.type === 'textarea') {
+      return `<div class="${cls}"><label>${field.label}</label><textarea onchange="setStepConfig('${step.id}','${field.key}',this.value)">${val}</textarea></div>`;
+    }
+    return `<div class="${cls}"><label>${field.label}</label><input type="${field.type}" value="${val}" onchange="setStepConfig('${step.id}','${field.key}',${field.type === 'number' ? 'Number(this.value)' : 'this.value'})"/></div>`;
+  }
+
+  function renderSteps() {
+    const box = document.getElementById('stepsList');
+    box.innerHTML = steps.map((step, i) => {
+      const def = STEP_TYPES[step.type];
+      return `<div class="step-card">
+        <div class="step-head">
+          <div class="step-num">${i + 1}</div>
+          <select class="step-type-select" onchange="setStepType('${step.id}', this.value)">
+            ${Object.entries(STEP_TYPES).map(([k, d]) => `<option value="${k}" ${k === step.type ? 'selected' : ''}>${d.label}</option>`).join('')}
+          </select>
+          <div class="step-actions">
+            <button class="step-btn" title="Subir" onclick="moveStep('${step.id}',-1)" ${i === 0 ? 'disabled' : ''}>↑</button>
+            <button class="step-btn" title="Descer" onclick="moveStep('${step.id}',1)" ${i === steps.length - 1 ? 'disabled' : ''}>↓</button>
+            <button class="step-btn danger" title="Remover" onclick="removeStep('${step.id}')">✕</button>
+          </div>
+        </div>
+        <div class="step-fields">${def.fields.map(f => fieldHtml(step, f)).join('')}</div>
+      </div>`;
+    }).join('') || '<div style="font-size:12.5px;color:#94a3b8;padding:8px 0">Nenhum passo ainda — clique em "+ Adicionar passo" abaixo.</div>';
+  }
+
+  function renderTriggerConfig() {
+    const trigger = document.getElementById('f-trigger').value;
+    const wrap = document.getElementById('triggerConfigWrap');
+    if (TRIGGER_NEEDS_STAGE.has(trigger)) {
+      wrap.innerHTML = `<label>Estágio específico (opcional)</label><select id="f-trigger-stage">
+        <option value="">— Qualquer estágio —</option>
+        ${stages.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
+      </select>`;
+    } else {
+      wrap.innerHTML = '';
+    }
+  }
+
+  async function openEditor(id) {
+    editingId = id || null;
+    document.getElementById('listView').classList.add('hidden');
+    document.getElementById('editorView').classList.add('open');
+    document.getElementById('newFlowBtn').style.display = 'none';
+    document.getElementById('deleteBtn').style.display = editingId ? 'inline-block' : 'none';
+    document.getElementById('testCard').style.display = editingId ? 'block' : 'none';
+
+    if (!stages.length) await loadStages();
+    if (!contacts.length) await loadContacts();
+
+    if (editingId) {
+      const flow = flows.find(f => f.id === editingId) || await api('/automations/flows/' + editingId);
+      document.getElementById('f-name').value = flow.name;
+      document.getElementById('f-desc').value = flow.description || '';
+      document.getElementById('f-active').checked = flow.active;
+      document.getElementById('f-trigger').value = flow.triggerType;
+      renderTriggerConfig();
+      if (flow.triggerConfig?.stageId) {
+        const sel = document.getElementById('f-trigger-stage');
+        if (sel) sel.value = flow.triggerConfig.stageId;
+      }
+      steps = (flow.steps || []).map(s => ({ ...s }));
+      document.getElementById('testContact').innerHTML = contacts.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+      loadRunLog();
+    } else {
+      document.getElementById('f-name').value = '';
+      document.getElementById('f-desc').value = '';
+      document.getElementById('f-active').checked = true;
+      document.getElementById('f-trigger').value = 'contact_created';
+      renderTriggerConfig();
+      steps = [];
+    }
+    renderSteps();
+  }
+
+  function closeEditor() {
+    document.getElementById('listView').classList.remove('hidden');
+    document.getElementById('editorView').classList.remove('open');
+    document.getElementById('newFlowBtn').style.display = 'inline-block';
+    editingId = null;
+    loadFlows();
+  }
+
+  async function saveFlow() {
+    const name = document.getElementById('f-name').value.trim();
+    if (!name) { showToast('Dê um nome pro fluxo.'); return; }
+    const triggerType = document.getElementById('f-trigger').value;
+    const stageSel = document.getElementById('f-trigger-stage');
+    const triggerConfig = stageSel && stageSel.value ? { stageId: stageSel.value } : {};
+
+    const payload = {
+      name,
+      description: document.getElementById('f-desc').value.trim(),
+      active: document.getElementById('f-active').checked,
+      triggerType,
+      triggerConfig,
+      steps,
+    };
+
+    const result = editingId
+      ? await api('/automations/flows/' + editingId, { method: 'PATCH', body: JSON.stringify(payload) })
+      : await api('/automations/flows', { method: 'POST', body: JSON.stringify(payload) });
+
+    if (result) { showToast('Fluxo salvo.'); closeEditor(); }
+  }
+
+  async function deleteFlow() {
+    if (!editingId || !confirm('Excluir esse fluxo? Isso não pode ser desfeito.')) return;
+    await api('/automations/flows/' + editingId, { method: 'DELETE' });
+    showToast('Fluxo excluído.');
+    closeEditor();
+  }
+
+  async function runFlowTest() {
+    const contactId = document.getElementById('testContact').value;
+    if (!contactId || !editingId) return;
+    await api('/automations/flows/' + editingId + '/run', { method: 'POST', body: JSON.stringify({ contactId }) });
+    showToast('Fluxo disparado — veja o log abaixo.');
+    setTimeout(loadRunLog, 800);
+  }
+
+  async function loadRunLog() {
+    if (!editingId) return;
+    const runs = await api('/automations/flows/' + editingId + '/runs') || [];
+    const box = document.getElementById('runLog');
+    box.innerHTML = runs.map(r => `
+      <div class="run-item">
+        <span class="rs rs-${r.status}">${r.status}</span><b>${r.contactName || 'sem contato'}</b> — ${new Date(r.startedAt).toLocaleString('pt-BR')}
+        <div class="run-steps">${(r.log || []).map(l => `${l.type}: ${JSON.stringify(l.result)}`).join(' · ') || 'sem passos ainda'}</div>
+      </div>
+    `).join('') || '<div style="font-size:12.5px;color:#94a3b8">Nenhuma execução ainda.</div>';
+  }
+
+  loadFlows();
+</script>
+</body>
+</html>

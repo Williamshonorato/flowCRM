@@ -3,6 +3,7 @@ import { z } from 'zod'
 import prisma from '../lib/prisma.js'
 import { requireAuth } from '../middleware/auth.js'
 import { dispatchWebhook } from '../lib/webhooks.js'
+import { triggerFlows } from '../lib/automationEngine.js'
 
 const router = Router()
 router.use(requireAuth)
@@ -139,6 +140,7 @@ router.post('/', async (req, res) => {
   }
 
   dispatchWebhook(tenantId, 'contact.created', contact)
+  triggerFlows(tenantId, 'contact_created', { contactId: contact.id })
 
   const full = await prisma.contact.findUnique({
     where: { id: contact.id },

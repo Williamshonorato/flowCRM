@@ -37,6 +37,49 @@ model Tenant {
   members         Member[]
   contributions   Contribution[]
   expenses        TreasuryExpense[]
+  automationFlows AutomationFlow[]
+  flowRuns        AutomationFlowRun[]
+}
+
+// ── AUTOMATION FLOW (fluxo de automação genérico, editável) ──────────────────
+// steps é uma lista livre de passos: [{ id, type, config }] — sem limite de
+// quantidade nem de tipo, cada tipo tem seu próprio formato de config.
+model AutomationFlow {
+  id            String   @id @default(cuid())
+  tenantId      String
+  name          String
+  description   String?
+  active        Boolean  @default(true)
+  triggerType   String   // contact_created | deal_created | deal_stage_changed | deal_closed | manual
+  triggerConfig Json     @default("{}")
+  steps         Json     @default("[]")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  runs   AutomationFlowRun[]
+
+  @@index([tenantId])
+}
+
+model AutomationFlowRun {
+  id         String    @id @default(cuid())
+  tenantId   String
+  flowId     String
+  contactId  String?
+  dealId     String?
+  status     String    @default("running") // running | waiting | completed | failed
+  stepIndex  Int       @default(0)
+  resumeAt   DateTime?
+  log        Json      @default("[]")
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  tenant Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  flow   AutomationFlow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([status, resumeAt])
 }
 
 // ── MEMBER (inscrito no sindicato) ────────────────────────────────────────────

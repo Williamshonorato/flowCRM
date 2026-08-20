@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
 import prisma from '../lib/prisma.js'
 import { requireAuth } from '../middleware/auth.js'
+import { getValidAccessToken, sendGmailMessage } from '../lib/gmailSender.js'
 
 const router = Router()
 
@@ -117,45 +118,6 @@ router.get('/callback', async (req, res) => {
   }
 })
 
-// Garante um access_token válido, renovando com o refresh_token se estiver expirado
-async function getValidAccessToken(integration) {
-  const config = integration.config || {}
-  if (config.access_token && config.expires_at > Date.now() + 60000) {
-    return config.access_token
-  }
-  if (!config.refresh_token) throw new Error('Sem refresh_token — reconecte o Gmail.')
-
-  const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      refresh_token: config.refresh_token,
-      client_id: process.env.GOOGLE_CLIENT_ID,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      grant_type: 'refresh_token',
-    }),
-  })
-  const tokens = await tokenRes.json()
-  if (!tokenRes.ok) throw new Error(tokens.error_description || 'Falha ao renovar token do Gmail.')
-
-  const newConfig = { ...config, access_token: tokens.access_token, expires_at: Date.now() + tokens.expires_in * 1000 }
-  await prisma.integration.update({ where: { id: integration.id }, data: { config: newConfig, lastSync: new Date() } })
-  return tokens.access_token
-}
-
-function buildMimeMessage({ to, subject, htmlBody }) {
-  const encodedSubject = `=?UTF-8?B?${Buffer.from(subject, 'utf-8').toString('base64')}?=`
-  const message = [
-    `To: ${to}`,
-    `Subject: ${encodedSubject}`,
-    'Content-Type: text/html; charset=utf-8',
-    'MIME-Version: 1.0',
-    '',
-    htmlBody,
-  ].join('\r\n')
-  return Buffer.from(message).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
 // POST /gmail/send — manda e-mail de verdade pelo Gmail da empresa, com pixel de rastreio de abertura
 router.post('/send', requireAuth, async (req, res) => {
   const { tenantId, userId } = req.user
@@ -167,61 +129,13 @@ router.post('/send', requireAuth, async (req, res) => {
     contact = await prisma.contact.findFirst({ where: { id: contactId, tenantId } })
     if (!contact) return res.status(404).json({ error: 'Contato não encontrado.' })
   }
-  const toEmail = contact?.email || to
-  if (!toEmail) return res.status(400).json({ error: 'E-mail do destinatário não informado.' })
 
-  const integration = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId, type: 'gmail' } } })
-  if (!integration || integration.status !== 'connected') {
-    return res.status(400).json({ error: 'Gmail não conectado. Conecte em Integrações.' })
-  }
-
-  const trackingId = crypto.randomBytes(16).toString('hex')
-  const pixelUrl = `${req.protocol}://${req.get('host')}/gmail/track/${trackingId}.png`
-  const htmlBody = `${body.replace(/\n/g, '<br>')}<img src="${pixelUrl}" width="1" height="1" style="display:none" alt="" />`
-
-  let sendData
   try {
-    const accessToken = await getValidAccessToken(integration)
-    const raw = buildMimeMessage({ to: toEmail, subject, htmlBody })
-    const sendRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ raw }),
-    })
-    sendData = await sendRes.json()
-    if (!sendRes.ok) {
-      return res.status(502).json({ error: sendData?.error?.message || 'Gmail recusou o envio.', detail: sendData })
-    }
+    const saved = await sendGmailMessage({ tenantId, userId, contact, to, subject, body, origin: `${req.protocol}://${req.get('host')}` })
+    res.status(201).json(saved)
   } catch (err) {
-    return res.status(502).json({ error: err.message })
+    res.status(502).json({ error: err.message })
   }
-
-  // Nesse ponto o e-mail JÁ foi enviado de verdade — falha ao salvar o registro não pode virar erro pro usuário
-  let saved
-  try {
-    saved = await prisma.message.create({
-      data: {
-        contactId: contact?.id || null,
-        from: integration.config?.email || 'me',
-        to: toEmail,
-        subject,
-        body,
-        channel: 'email',
-        direction: 'out',
-        trackingId,
-        raw: sendData,
-      },
-    })
-  } catch (err) {
-    console.error('gmail send: falha ao salvar registro (e-mail já foi enviado)', err.message)
-    saved = { contactId: contact?.id || null, to: toEmail, subject, body, channel: 'email', direction: 'out', warning: 'E-mail enviado, mas houve um erro ao salvar o registro.' }
-  }
-
-  if (contact) {
-    await prisma.activity.create({ data: { tenantId, userId, contactId: contact.id, type: 'email', content: `E-mail enviado: "${subject}"` } }).catch(() => {})
-  }
-
-  res.status(201).json(saved)
 })
 
 // 1x1 GIF transparente usado como pixel de rastreio

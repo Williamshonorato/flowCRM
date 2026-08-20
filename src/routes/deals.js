@@ -3,6 +3,7 @@ import { z } from 'zod'
 import prisma from '../lib/prisma.js'
 import { requireAuth } from '../middleware/auth.js'
 import { dispatchWebhook } from '../lib/webhooks.js'
+import { triggerFlows } from '../lib/automationEngine.js'
 
 const router = Router()
 router.use(requireAuth)
@@ -74,6 +75,7 @@ router.post('/', async (req, res) => {
 
   const deal = await prisma.deal.create({ data: { tenantId, ...parsed.data } })
   await prisma.activity.create({ data: { tenantId, userId, dealId: deal.id, contactId: deal.contactId, type: 'deal_created', content: `Negócio "${deal.title}" criado em "${stage.name}".` } })
+  triggerFlows(tenantId, 'deal_created', { contactId: deal.contactId, dealId: deal.id })
 
   res.status(201).json(deal)
 })
@@ -96,6 +98,10 @@ router.patch('/:id', async (req, res) => {
 
     await prisma.activity.create({ data: { tenantId, userId, dealId: existing.id, contactId: existing.contactId, type: 'stage_change', content: `Negócio movido de "${existing.stage.name}" para "${newStage?.name}".` } })
     dispatchWebhook(tenantId, 'deal.stage_changed', { dealId: existing.id, title: existing.title, from: existing.stage.name, to: newStage?.name })
+    triggerFlows(tenantId, 'deal_stage_changed', { contactId: existing.contactId, dealId: existing.id, stageId: parsed.data.stageId })
+    if (newStage?.name === 'Fechado' && !existing.closedAt) {
+      triggerFlows(tenantId, 'deal_closed', { contactId: existing.contactId, dealId: existing.id })
+    }
   }
 
   const deal = await prisma.deal.update({ where: { id: req.params.id }, data: { ...parsed.data, closedAt } })

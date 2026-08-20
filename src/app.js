@@ -21,6 +21,8 @@ import outlookRouter    from './routes/outlook.js'
 import membersRouter    from './routes/members.js'
 import treasuryRouter   from './routes/treasury.js'
 import datasourceRouter from './routes/datasource.js'
+import automationsRouter from './routes/automations.js'
+import { resumeDueRuns } from './lib/automationEngine.js'
 
 const app = express()
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -49,6 +51,7 @@ app.use('/outlook',    outlookRouter)
 app.use('/members',    membersRouter)
 app.use('/treasury',   treasuryRouter)
 app.use('/datasource', datasourceRouter)
+app.use('/automations', automationsRouter)
 
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok', version: '1.0.0', timestamp: new Date().toISOString() }))
@@ -68,5 +71,8 @@ app.listen(PORT, () => {
   console.log(`   Health: http://localhost:${PORT}/health`)
   console.log(`   Frontend: http://localhost:${PORT}/app/crm-login.html\n`)
 })
+
+// Retoma passos de automação em espera (ex: "wait") — checa a cada 30s
+setInterval(() => { resumeDueRuns().catch(err => console.error('resumeDueRuns falhou', err)) }, 30000)
 
 export default app

@@ -17,7 +17,7 @@ const flowSchema = z.object({
   name:          z.string().min(1),
   description:   z.string().optional(),
   active:        z.boolean().default(true),
-  triggerType:   z.enum(['contact_created', 'deal_created', 'deal_stage_changed', 'deal_closed', 'manual']),
+  triggerType:   z.enum(['contact_created', 'deal_created', 'deal_stage_changed', 'deal_closed', 'whatsapp_message_received', 'manual']),
   triggerConfig: z.record(z.any()).optional().default({}),
   steps:         z.array(stepSchema).default([]),
 })

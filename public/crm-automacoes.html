@@ -150,6 +150,7 @@
         <div class="row2">
           <div class="inp-g"><label>Evento</label>
             <select id="f-trigger" onchange="renderTriggerConfig()">
+              <option value="whatsapp_message_received">📩 Mensagem recebida no WhatsApp</option>
               <option value="contact_created">👤 Contato criado</option>
               <option value="deal_created">💼 Negócio criado</option>
               <option value="deal_stage_changed">🔀 Negócio mudou de estágio</option>
@@ -229,6 +230,7 @@
     ]},
   };
   const TRIGGER_NEEDS_STAGE = new Set(['deal_stage_changed']);
+  const TRIGGER_NEEDS_KEYWORD = new Set(['whatsapp_message_received']);
 
   let flows = [];
   let stages = [];
@@ -253,7 +255,7 @@
       grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="ico">🤖</div>Nenhum fluxo de automação ainda.<br>Clique em "+ Novo fluxo" pra criar o primeiro.</div>';
       return;
     }
-    const triggerLabel = { contact_created:'Contato criado', deal_created:'Negócio criado', deal_stage_changed:'Negócio mudou de estágio', deal_closed:'Negócio fechado', manual:'Manual' };
+    const triggerLabel = { contact_created:'Contato criado', deal_created:'Negócio criado', deal_stage_changed:'Negócio mudou de estágio', deal_closed:'Negócio fechado', whatsapp_message_received:'Mensagem no WhatsApp', manual:'Manual' };
     grid.innerHTML = flows.map(f => `
       <div class="flow-card" onclick="openEditor('${f.id}')">
         <div class="fc-top"><div class="fc-name">${f.name}</div><span class="fc-badge ${f.active ? 'fc-active' : 'fc-inactive'}">${f.active ? 'Ativo' : 'Inativo'}</span></div>
@@ -344,6 +346,8 @@
         <option value="">— Qualquer estágio —</option>
         ${stages.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
       </select>`;
+    } else if (TRIGGER_NEEDS_KEYWORD.has(trigger)) {
+      wrap.innerHTML = `<label>Só se a mensagem contiver (opcional)</label><input type="text" id="f-trigger-keyword" placeholder="Ex: orçamento — deixe vazio pra disparar em qualquer mensagem"/>`;
     } else {
       wrap.innerHTML = '';
     }
@@ -370,6 +374,10 @@
       if (flow.triggerConfig?.stageId) {
         const sel = document.getElementById('f-trigger-stage');
         if (sel) sel.value = flow.triggerConfig.stageId;
+      }
+      if (flow.triggerConfig?.keyword) {
+        const kw = document.getElementById('f-trigger-keyword');
+        if (kw) kw.value = flow.triggerConfig.keyword;
       }
       steps = (flow.steps || []).map(s => ({ ...s }));
       document.getElementById('testContact').innerHTML = contacts.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
@@ -398,7 +406,10 @@
     if (!name) { showToast('Dê um nome pro fluxo.'); return; }
     const triggerType = document.getElementById('f-trigger').value;
     const stageSel = document.getElementById('f-trigger-stage');
-    const triggerConfig = stageSel && stageSel.value ? { stageId: stageSel.value } : {};
+    const keywordInp = document.getElementById('f-trigger-keyword');
+    const triggerConfig = stageSel && stageSel.value ? { stageId: stageSel.value }
+      : keywordInp && keywordInp.value.trim() ? { keyword: keywordInp.value.trim() }
+      : {};
 
     const payload = {
       name,

@@ -182,10 +182,14 @@ export async function startFlowRun(flow, { contactId, dealId }) {
 }
 
 // Dispara todos os fluxos ativos de um tenant que casam com o gatilho informado.
-export async function triggerFlows(tenantId, triggerType, { contactId, dealId, stageId } = {}) {
+export async function triggerFlows(tenantId, triggerType, { contactId, dealId, stageId, messageBody } = {}) {
   const flows = await prisma.automationFlow.findMany({ where: { tenantId, active: true, triggerType } })
   for (const flow of flows) {
     if (triggerType === 'deal_stage_changed' && flow.triggerConfig?.stageId && flow.triggerConfig.stageId !== stageId) continue
+    if (triggerType === 'whatsapp_message_received' && flow.triggerConfig?.keyword) {
+      const keyword = String(flow.triggerConfig.keyword).toLowerCase()
+      if (!String(messageBody || '').toLowerCase().includes(keyword)) continue
+    }
     startFlowRun(flow, { contactId, dealId })
   }
 }

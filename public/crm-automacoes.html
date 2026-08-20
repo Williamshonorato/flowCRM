@@ -125,6 +125,11 @@
     .wizard-body textarea,.wizard-body input[type=text]{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;font-family:inherit;outline:none}
     .wizard-body textarea:focus,.wizard-body input:focus{border-color:var(--green)}
     .wizard-body textarea{min-height:90px;resize:vertical}
+    .wz-opt-legend{display:flex;gap:8px;margin-bottom:6px}
+    .wz-opt-legend span{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+    .wz-opt-legend span:nth-child(1){flex:0 0 38%}
+    .wz-opt-legend span:nth-child(2){flex:1}
+    .wz-opt-legend span:nth-child(3){flex:0 0 26px}
     .wz-opt-row{display:flex;gap:8px;align-items:center;margin-bottom:10px}
     .wz-opt-row input:first-child{flex:0 0 38%}
     .wz-add{padding:10px;border:1.5px dashed var(--border);border-radius:10px;background:#fff;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;width:100%}
@@ -664,8 +669,12 @@
       wzEnsureOptions();
       titleEl.textContent = 'Quais opções a pessoa pode escolher?';
       bodyEl.innerHTML = `
+        <p style="font-size:12.5px;color:var(--muted);margin-bottom:14px">Cada opção vira um item numerado na lista que a pessoa recebe — coloque só um nome curto (ex: "Vendas", "Suporte"), não a frase inteira. A saudação já foi definida na tela anterior.</p>
+        <div class="wz-opt-legend"><span>Nome da opção</span><span>Palavras-chave (opcional)</span><span></span></div>
         <div id="wz-opts">${wzNode.step.config.options.map(o => wzOptRowHtml(o)).join('')}</div>
-        <button class="wz-add" onclick="wzAddOption()">+ Adicionar opção</button>`;
+        <button class="wz-add" onclick="wzAddOption()">+ Adicionar opção</button>
+        <p style="font-size:12px;color:var(--muted);margin-top:12px">💡 Palavras-chave são opcionais: além de digitar o número (1, 2, 3...), a pessoa também pode escolher a opção digitando uma dessas palavras. Ex: "vendas, comprar" faz a opção "Vendas" responder também a essas palavras. Pode deixar em branco.</p>
+        <p style="font-size:12px;color:var(--muted);margin-top:6px">🙋 Todo menu já sai com a opção "0. Falar com um atendente" automaticamente — se a pessoa digitar 0, "atendente" ou "humano" a qualquer momento, ou errar o menu duas vezes seguidas, a conversa passa pra sua equipe (cria uma tarefa) em vez de insistir no bot. É assim que os grandes bots de atendimento funcionam.</p>`;
       navEl.innerHTML = `
         <button class="btn-cancel" onclick="wzBackToMessage()">← Voltar</button>
         <button class="btn-save" onclick="wzToActions()">Próximo →</button>`;
@@ -703,8 +712,8 @@
 
   function wzOptRowHtml(o) {
     return `<div class="wz-opt-row">
-      <input type="text" value="${o.label || ''}" placeholder="Nome (ex: Vendas)" oninput="wzSetOptField('${o.id}','label',this.value)"/>
-      <input type="text" value="${(o.keywords || []).join(', ')}" placeholder="Palavras-chave (ex: vendas, comprar)" oninput="wzSetOptField('${o.id}','keywords',this.value)"/>
+      <input type="text" value="${o.label || ''}" placeholder="Ex: Vendas" oninput="wzSetOptField('${o.id}','label',this.value)"/>
+      <input type="text" value="${(o.keywords || []).join(', ')}" placeholder="Opcional — ex: vendas, comprar" oninput="wzSetOptField('${o.id}','keywords',this.value)"/>
       <button class="step-btn danger" onclick="wzRemoveOption('${o.id}')">✕</button>
     </div>`;
   }
@@ -831,8 +840,9 @@
       return;
     }
     const list = opts.map((o, i) => `${i + 1}. ${o.label || '(sem nome)'}`).join('\n');
+    const humanLine = opts.length ? '\n0. Falar com um atendente' : '';
     const safeMsg = (msg || '(sem mensagem)').replace(/</g, '&lt;');
-    const safeList = list.replace(/</g, '&lt;');
+    const safeList = (list + humanLine).replace(/</g, '&lt;');
     box.innerHTML = `<div class="wp-bubble">${safeMsg}${safeList ? '\n\n' + safeList : ''}</div>`;
   }
 

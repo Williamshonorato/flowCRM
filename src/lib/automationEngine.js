@@ -74,7 +74,8 @@ async function executeStep(step, ctx) {
       if (!contact?.phone) return { skipped: 'contato sem telefone' }
       const options = Array.isArray(step.config?.options) ? step.config.options : []
       if (!options.length) return { skipped: 'menu sem opções configuradas' }
-      const text = formatMenuMessage(step.config?.message || '', options)
+      const allowHuman = step.config?.allowHuman !== false
+      const text = formatMenuMessage(step.config?.message || '', options, { allowHuman })
       const sent = await sendWhatsappText(tenantId, contact, text)
       if (!sent.ok) return { skipped: sent.error }
       return { menu: true }
@@ -130,20 +131,48 @@ async function sendWhatsappText(tenantId, contact, message) {
   }
 }
 
-function formatMenuMessage(message, options) {
+// "0. Falar com um atendente" — igual ao padrão das grandes plataformas de automação
+// (Take Blip, Zenvia, ManyChat etc.), todo menu já sai com uma saída pra atendimento humano,
+// a não ser que o passo desative isso explicitamente (config.allowHuman === false).
+function formatMenuMessage(message, options, { allowHuman = true } = {}) {
   const list = options.map((o, i) => `${i + 1}. ${o.label}`).join('\n')
-  return `${message}\n\n${list}`
+  const humanLine = allowHuman ? '\n0. Falar com um atendente' : ''
+  return `${message}\n\n${list}${humanLine}`
 }
 
+const HUMAN_HANDOFF_KEYWORDS = ['atendente', 'humano', 'pessoa real', 'falar com alguem', 'falar com alguém', 'suporte humano']
+
 // Casa a resposta da pessoa com uma das opções do menu: por palavra-chave configurada,
-// ou pela posição numérica ("2" bate com a segunda opção), sempre sem diferenciar maiúsculas.
-function matchMenuOption(options, reply) {
+// pela posição numérica ("2" bate com a segunda opção — sempre sem diferenciar maiúsculas),
+// ou com o pedido de atendimento humano (digitar "0" ou palavras como "atendente"/"humano").
+function matchMenuOption(options, reply, { allowHuman = true } = {}) {
   const normalized = String(reply || '').trim().toLowerCase()
+  if (allowHuman && (normalized === '0' || HUMAN_HANDOFF_KEYWORDS.some(k => normalized.includes(k)))) {
+    return { __human: true }
+  }
   const byKeyword = options.find(o => (o.keywords || []).some(k => normalized === String(k).toLowerCase() || normalized.includes(String(k).toLowerCase())))
   if (byKeyword) return byKeyword
   const asNumber = parseInt(normalized, 10)
   if (!isNaN(asNumber) && options[asNumber - 1]) return options[asNumber - 1]
   return null
+}
+
+// Tira o contato do fluxo automático e passa pra um humano — usado tanto quando a pessoa
+// pede explicitamente ("0"/"atendente") quanto quando erra o menu demais vezes seguidas,
+// pra nunca deixar a pessoa presa num loop de "não entendi".
+async function handoffToHuman(tenantId, contact, runId, log, logType, logResult) {
+  log.push({ stepId: null, type: logType, at: new Date().toISOString(), result: logResult })
+  if (contact) {
+    await sendWhatsappText(tenantId, contact, 'Entendido! Um atendente da nossa equipe vai continuar por aqui. 🙋')
+    await prisma.task.create({
+      data: {
+        tenantId, userId: null, contactId: contact.id,
+        title: `Atendimento humano solicitado — ${contact.name || contact.phone}`,
+        type: 'follow', priority: 'high', dueDate: new Date(),
+      },
+    }).catch(() => {})
+  }
+  await prisma.automationFlowRun.update({ where: { id: runId }, data: { status: 'completed', log, finishedAt: new Date() } })
 }
 
 function resolveField(field, ctx) {
@@ -240,13 +269,31 @@ export async function resolveMenuReply(tenantId, contactId, messageBody) {
   if (!menuStep || menuStep.type !== 'menu') return false
 
   const options = Array.isArray(menuStep.config?.options) ? menuStep.config.options : []
-  const match = matchMenuOption(options, messageBody)
+  const allowHuman = menuStep.config?.allowHuman !== false
+  const match = matchMenuOption(options, messageBody, { allowHuman })
   const contact = await prisma.contact.findUnique({ where: { id: contactId } })
   const log = Array.isArray(run.log) ? [...run.log] : []
 
+  if (match?.__human) {
+    await handoffToHuman(tenantId, contact, run.id, log, 'human_handoff', { reply: messageBody })
+    return true
+  }
+
   if (!match) {
+    // depois de errar 2x seguidas o mesmo menu, passa pra um atendente em vez de repetir
+    // "não entendi" pra sempre — evita a pessoa ficar presa num loop do bot.
+    let missStreak = 0
+    for (let i = log.length - 1; i >= 0; i--) {
+      if (log[i].stepId === menuStep.id && log[i].type === 'menu_invalid_reply') missStreak++
+      else break
+    }
+    if (missStreak >= 1) {
+      await handoffToHuman(tenantId, contact, run.id, log, 'menu_escalated', { reply: messageBody, reason: 'duas respostas seguidas não reconhecidas' })
+      return true
+    }
+
     log.push({ stepId: menuStep.id, type: 'menu_invalid_reply', at: new Date().toISOString(), result: { reply: messageBody } })
-    const retryText = `Não entendi. ${formatMenuMessage(menuStep.config?.message || '', options)}`
+    const retryText = `Não entendi. ${formatMenuMessage(menuStep.config?.message || '', options, { allowHuman })}`
     if (contact) await sendWhatsappText(tenantId, contact, retryText)
     await prisma.automationFlowRun.update({ where: { id: run.id }, data: { log } })
     return true

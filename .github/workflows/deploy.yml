@@ -1,0 +1,38 @@
+name: Deploy pra produção
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configurar chave SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Atualizar código, dependências e banco no servidor
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" '
+            set -e
+            cd "${{ secrets.DEPLOY_PATH }}"
+            git fetch origin main
+            git reset --hard origin/main
+            export PATH=/opt/node22/bin:$PATH
+            npm install --omit=dev
+            npx prisma generate
+            # Sem --accept-data-loss de propósito: se uma mudança de schema arriscar
+            # perder dados, o comando falha e o deploy para aqui, em vez de aplicar
+            # sozinho. Nesse caso a migração precisa ser revisada manualmente.
+            npx prisma db push
+            pm2 restart flowcrm
+          '
+
+      - name: Checar se subiu certo
+        run: |
+          sleep 3
+          curl -sf https://flowcrm.seculo1.com/health || (echo "health check falhou depois do deploy" && exit 1)

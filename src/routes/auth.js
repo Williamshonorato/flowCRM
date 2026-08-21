@@ -72,6 +72,7 @@ router.post('/login', async (req, res) => {
   const user = await prisma.user.findFirst({ where: { email }, include: { tenant: true } })
 
   if (!user || !user.active) return res.status(401).json({ error: 'Credenciais inválidas.' })
+  if (!user.tenant.active) return res.status(403).json({ error: 'Essa empresa está com o acesso suspenso. Fale com o suporte.' })
   const valid = await bcrypt.compare(password, user.password)
   if (!valid) return res.status(401).json({ error: 'Credenciais inválidas.' })
 
@@ -82,6 +83,86 @@ router.post('/login', async (req, res) => {
   )
 
   res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role }, tenant: { id: user.tenant.id, name: user.tenant.name, plan: user.tenant.plan } })
+})
+
+// ── "Entrar com Google" — login pra quem já tem conta, não cria conta nova.  ──
+// Separado do fluxo de /gmail/connect: aquele pede acesso à caixa de entrada de um
+// tenant já logado; este só confirma "quem é você" pra logar, sem nenhum escopo do Gmail.
+const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
+const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
+const LOGIN_SCOPE = 'openid email profile'
+
+function googleLoginRedirectUri(req) {
+  return process.env.GOOGLE_LOGIN_REDIRECT_URI || `${req.protocol}://${req.get('host')}/auth/google/callback`
+}
+
+// GET /auth/google — inicia o login (não precisa estar autenticado, é o próprio login)
+router.get('/google', (req, res) => {
+  const { GOOGLE_CLIENT_ID } = process.env
+  if (!GOOGLE_CLIENT_ID) return res.status(500).json({ error: 'GOOGLE_CLIENT_ID não configurado no .env.' })
+
+  const state = jwt.sign({ purpose: 'login' }, process.env.JWT_SECRET, { expiresIn: '10m' })
+
+  const url = new URL(GOOGLE_AUTH_URL)
+  url.searchParams.set('client_id', GOOGLE_CLIENT_ID)
+  url.searchParams.set('redirect_uri', googleLoginRedirectUri(req))
+  url.searchParams.set('response_type', 'code')
+  url.searchParams.set('scope', LOGIN_SCOPE)
+  url.searchParams.set('state', state)
+  res.redirect(url.toString())
+})
+
+// GET /auth/google/callback — o Google volta pra cá com ?code=...&state=...
+router.get('/google/callback', async (req, res) => {
+  const { code, state, error } = req.query
+  if (error) return res.redirect('/app/crm-login.html?google=error')
+
+  try {
+    jwt.verify(state, process.env.JWT_SECRET)
+  } catch {
+    return res.redirect('/app/crm-login.html?google=error')
+  }
+
+  try {
+    const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        redirect_uri: googleLoginRedirectUri(req),
+        grant_type: 'authorization_code',
+      }),
+    })
+    const tokens = await tokenRes.json()
+    if (!tokenRes.ok) {
+      console.error('google login token exchange error', tokens)
+      return res.redirect('/app/crm-login.html?google=error')
+    }
+
+    const profileRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+    })
+    const profile = await profileRes.json()
+    if (!profile.email) return res.redirect('/app/crm-login.html?google=error')
+
+    // Só loga quem já tem conta — "Entrar com Google" não cria empresa nova
+    // (isso pede nome da empresa/segmento, que o Google não manda).
+    const user = await prisma.user.findFirst({ where: { email: profile.email }, include: { tenant: true } })
+    if (!user || !user.active) return res.redirect('/app/crm-login.html?google=no_account')
+    if (!user.tenant.active) return res.redirect('/app/crm-login.html?google=suspended')
+
+    const loginToken = jwt.sign(
+      { userId: user.id, tenantId: user.tenantId, role: user.role, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN }
+    )
+    res.redirect(`/app/crm-google-callback.html?token=${loginToken}`)
+  } catch (err) {
+    console.error('google login callback error', err)
+    res.redirect('/app/crm-login.html?google=error')
+  }
 })
 
 // GET /auth/me

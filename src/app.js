@@ -22,6 +22,7 @@ import membersRouter    from './routes/members.js'
 import treasuryRouter   from './routes/treasury.js'
 import datasourceRouter from './routes/datasource.js'
 import automationsRouter from './routes/automations.js'
+import platformAdminRouter from './routes/platformAdmin.js'
 import { resumeDueRuns } from './lib/automationEngine.js'
 
 const app = express()
@@ -52,6 +53,7 @@ app.use('/members',    membersRouter)
 app.use('/treasury',   treasuryRouter)
 app.use('/datasource', datasourceRouter)
 app.use('/automations', automationsRouter)
+app.use('/platform',   platformAdminRouter)
 
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok', version: '1.0.0', timestamp: new Date().toISOString() }))

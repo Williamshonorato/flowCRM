@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<title>FlowCRM — Entrando...</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f172a;min-height:100vh;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:14px}
+</style>
+</head>
+<body>
+  Entrando...
+<script>
+  const params = new URLSearchParams(location.search);
+  const token = params.get('token');
+  if (token) {
+    localStorage.setItem('flowcrm_token', token);
+    window.location.href = 'crm-dashboard.html';
+  } else {
+    window.location.href = 'crm-login.html?google=error';
+  }
+</script>
+</body>
+</html>

@@ -72,6 +72,7 @@ router.post('/login', async (req, res) => {
   const user = await prisma.user.findFirst({ where: { email }, include: { tenant: true } })
 
   if (!user || !user.active) return res.status(401).json({ error: 'Credenciais inválidas.' })
+  if (!user.tenant.active) return res.status(403).json({ error: 'Essa empresa está com o acesso suspenso. Fale com o suporte.' })
   const valid = await bcrypt.compare(password, user.password)
   if (!valid) return res.status(401).json({ error: 'Credenciais inválidas.' })
 

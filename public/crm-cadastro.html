@@ -821,7 +821,7 @@
     const btn = document.getElementById('btn-criar');
     btn.textContent = 'Criando...'; btn.disabled = true;
 
-    const data = await fetch('http://localhost:3333/auth/register', {
+    const data = await fetch(API_BASE + '/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: nome, email, password: senha, businessName: empresa, segment: selectedSeg, plan: selectedPlan }),

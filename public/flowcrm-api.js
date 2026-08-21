@@ -1,5 +1,8 @@
 // FlowCRM — API helper compartilhado
-const API_BASE = 'http://localhost:3333';
+// A API e o front ficam sempre na mesma origem (Express serve os dois), então
+// usar window.location.origin funciona tanto local (localhost:3333) quanto em
+// produção (https://flowcrm.seculo1.com) sem precisar trocar nada manualmente.
+const API_BASE = window.location.origin;
 
 function getToken()  { return localStorage.getItem('flowcrm_token'); }
 function setToken(t) { localStorage.setItem('flowcrm_token', t); }

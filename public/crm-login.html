@@ -575,7 +575,7 @@
     const btn   = document.getElementById('loginBtn');
     if (!email || !pass) { errEl.textContent = 'Preencha e-mail e senha.'; errEl.style.display = 'block'; return; }
     btn.textContent = 'Entrando...'; btn.disabled = true;
-    const data = await fetch('http://localhost:3333/auth/login', {
+    const data = await fetch(API_BASE + '/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password: pass }),

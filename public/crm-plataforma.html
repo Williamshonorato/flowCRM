@@ -11,6 +11,8 @@
   .topbar{background:#0f172a;color:#fff;padding:16px 28px;display:flex;align-items:center;gap:12px}
   .topbar .badge{background:linear-gradient(135deg,var(--purple),#c084fc);font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px}
   .topbar .title{font-size:16px;font-weight:800;flex:1}
+  .topbar a.back{color:#94a3b8;font-size:12.5px;text-decoration:none}
+  .topbar a.back:hover{color:#fff}
   .topbar .who{font-size:12.5px;color:#94a3b8}
   .topbar button{background:transparent;border:1px solid #334155;color:#cbd5e1;padding:7px 14px;border-radius:8px;font-size:12.5px;cursor:pointer;margin-left:12px}
   .topbar button:hover{border-color:#64748b;color:#fff}
@@ -32,6 +34,8 @@
   .row-actions{display:flex;gap:6px}
   .btn-sm{padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:#fff;font-size:12px;font-weight:700;cursor:pointer}
   .btn-sm:hover{border-color:#94a3b8}
+  .btn-sm.primary{border-color:var(--purple);color:var(--purple)}
+  .btn-sm.primary:hover{background:#f5f0fa}
   .btn-sm.danger{color:var(--red)}
   .btn-sm.danger:hover{border-color:var(--red);background:#fef2f2}
   .btn-purple{padding:9px 16px;border:none;border-radius:9px;background:linear-gradient(135deg,var(--purple),#c084fc);color:#fff;font-size:13px;font-weight:700;cursor:pointer}
@@ -48,6 +52,7 @@
 <div class="topbar">
   <div class="badge">🛡️ PLATAFORMA</div>
   <div class="title">FlowCRM — Painel administrativo</div>
+  <a class="back" href="crm-dashboard.html">← Voltar pro CRM</a>
   <div class="who" id="whoAmI"></div>
   <button onclick="logout()">Sair</button>
 </div>
@@ -81,40 +86,18 @@
 
 <div id="toast"></div>
 
+<script src="flowcrm-api.js"></script>
 <script>
-  const API_BASE = window.location.origin;
-  const token = localStorage.getItem('flowcrm_platform_token');
-  if (!token) window.location.href = 'superadmin-login.html';
-  const me = JSON.parse(localStorage.getItem('flowcrm_platform_admin') || '{}');
-
-  function logout() {
-    localStorage.removeItem('flowcrm_platform_token');
-    localStorage.removeItem('flowcrm_platform_admin');
-    window.location.href = 'superadmin-login.html';
+  if (!authGuard()) { /* já redireciona */ }
+  if (!getPlatformRole()) {
+    apiToast('Essa área é restrita ao painel da plataforma.');
+    window.location.href = 'crm-dashboard.html';
   }
 
   function showToast(msg) {
     const t = document.getElementById('toast');
     t.textContent = msg; t.classList.add('show');
     clearTimeout(t._timer); t._timer = setTimeout(() => t.classList.remove('show'), 3000);
-  }
-
-  async function api(path, opts = {}) {
-    let res;
-    try {
-      res = await fetch(API_BASE + path, {
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token, ...(opts.headers || {}) },
-        ...opts,
-      });
-    } catch {
-      showToast('Não foi possível conectar ao servidor.');
-      return null;
-    }
-    if (res.status === 401) { logout(); return null; }
-    if (res.status === 204) return true;
-    const body = await res.json().catch(() => null);
-    if (!res.ok) { showToast((body && body.error) || 'Erro ao processar.'); return null; }
-    return body;
   }
 
   let tenants = [];
@@ -150,12 +133,18 @@
         <td><span class="badge-status ${t.active ? 'badge-active' : 'badge-inactive'}">${t.active ? 'Ativa' : 'Suspensa'}</span></td>
         <td>
           <div class="row-actions">
+            <button class="btn-sm primary" onclick="enterAsTenant('${t.id}')">Entrar como admin</button>
             <button class="btn-sm" onclick="toggleActive('${t.id}', ${!t.active})">${t.active ? 'Suspender' : 'Reativar'}</button>
             <button class="btn-sm danger" onclick="deleteTenant('${t.id}','${t.name.replace(/'/g, "\\'")}')">Excluir</button>
           </div>
         </td>
       </tr>
     `).join('');
+  }
+
+  async function enterAsTenant(id) {
+    const result = await api('/platform/tenants/' + id + '/impersonate', { method: 'POST' });
+    if (result) startImpersonation(result.token, result.tenant.name);
   }
 
   async function toggleActive(id, active) {
@@ -165,20 +154,22 @@
 
   async function deleteTenant(id, name) {
     if (prompt(`Isso apaga "${name}" e TODOS os dados dela pra sempre. Digite o nome da empresa pra confirmar:`) !== name) { showToast('Cancelado.'); return; }
-    const result = await api('/platform/tenants/' + id, { method: 'DELETE' });
-    if (result) { showToast('Empresa excluída.'); loadTenants(); }
+    await api('/platform/tenants/' + id, { method: 'DELETE' });
+    showToast('Empresa excluída.');
+    loadTenants();
   }
 
   async function loadAdmins() {
-    if (me.role !== 'owner') return;
+    if (getPlatformRole() !== 'owner') return;
     document.getElementById('ownerOnly').style.display = 'block';
     const admins = await api('/platform/admins') || [];
+    const me = await api('/auth/me');
     document.getElementById('adminsBody').innerHTML = admins.map(a => `
       <tr>
         <td>${a.name}</td>
         <td>${a.email}</td>
-        <td>${a.role}</td>
-        <td>${a.id === me.id ? '' : `<button class="btn-sm danger" onclick="deleteAdmin('${a.id}')">Remover</button>`}</td>
+        <td>${a.platformRole}</td>
+        <td>${a.id === me?.user?.id ? '' : `<button class="btn-sm danger" onclick="deleteAdmin('${a.id}')">Remover</button>`}</td>
       </tr>
     `).join('');
   }
@@ -187,9 +178,9 @@
     const name = document.getElementById('na-name').value.trim();
     const email = document.getElementById('na-email').value.trim();
     const password = document.getElementById('na-pass').value;
-    const role = document.getElementById('na-role').value;
+    const platformRole = document.getElementById('na-role').value;
     if (!name || !email || password.length < 6) { showToast('Preencha nome, e-mail e senha (mín. 6 caracteres).'); return; }
-    const result = await api('/platform/admins', { method: 'POST', body: JSON.stringify({ name, email, password, role }) });
+    const result = await api('/platform/admins', { method: 'POST', body: JSON.stringify({ name, email, password, platformRole }) });
     if (result) {
       showToast('Admin criado.');
       document.getElementById('na-name').value = '';
@@ -200,12 +191,16 @@
   }
 
   async function deleteAdmin(id) {
-    if (!confirm('Remover esse admin da plataforma?')) return;
-    const result = await api('/platform/admins/' + id, { method: 'DELETE' });
-    if (result) { showToast('Admin removido.'); loadAdmins(); }
+    if (!confirm('Remover o acesso desse admin à plataforma?')) return;
+    await api('/platform/admins/' + id, { method: 'DELETE' });
+    showToast('Acesso removido.');
+    loadAdmins();
   }
 
-  document.getElementById('whoAmI').textContent = `${me.name || ''} · ${me.role || ''}`;
+  (async function init() {
+    const me = await api('/auth/me');
+    document.getElementById('whoAmI').textContent = me ? `${me.user.name} · ${me.user.platformRole}` : '';
+  })();
   loadTenants();
   loadAdmins();
 </script>

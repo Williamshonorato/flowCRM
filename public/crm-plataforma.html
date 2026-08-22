@@ -89,10 +89,14 @@
 <script src="flowcrm-api.js"></script>
 <script>
   if (!authGuard()) { /* já redireciona */ }
-  if (!getPlatformRole()) {
-    apiToast('Essa área é restrita ao painel da plataforma.');
-    window.location.href = 'crm-dashboard.html';
-  }
+  let mePromise = getMe();
+  (async () => {
+    const me = await mePromise;
+    if (!me?.user?.platformRole) {
+      apiToast('Essa área é restrita ao painel da plataforma.');
+      window.location.href = 'crm-dashboard.html';
+    }
+  })();
 
   function showToast(msg) {
     const t = document.getElementById('toast');
@@ -160,10 +164,10 @@
   }
 
   async function loadAdmins() {
-    if (getPlatformRole() !== 'owner') return;
+    const me = await mePromise;
+    if (me?.user?.platformRole !== 'owner') return;
     document.getElementById('ownerOnly').style.display = 'block';
     const admins = await api('/platform/admins') || [];
-    const me = await api('/auth/me');
     document.getElementById('adminsBody').innerHTML = admins.map(a => `
       <tr>
         <td>${a.name}</td>
@@ -198,7 +202,7 @@
   }
 
   (async function init() {
-    const me = await api('/auth/me');
+    const me = await mePromise;
     document.getElementById('whoAmI').textContent = me ? `${me.user.name} · ${me.user.platformRole}` : '';
   })();
   loadTenants();

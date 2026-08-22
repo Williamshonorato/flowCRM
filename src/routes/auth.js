@@ -77,12 +77,12 @@ router.post('/login', async (req, res) => {
   if (!valid) return res.status(401).json({ error: 'Credenciais inválidas.' })
 
   const token = jwt.sign(
-    { userId: user.id, tenantId: user.tenantId, role: user.role, email: user.email },
+    { userId: user.id, tenantId: user.tenantId, role: user.role, email: user.email, platformRole: user.platformRole || undefined },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN }
   )
 
-  res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role }, tenant: { id: user.tenant.id, name: user.tenant.name, plan: user.tenant.plan } })
+  res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, platformRole: user.platformRole }, tenant: { id: user.tenant.id, name: user.tenant.name, plan: user.tenant.plan } })
 })
 
 // ── "Entrar com Google" — login pra quem já tem conta, não cria conta nova.  ──
@@ -154,7 +154,7 @@ router.get('/google/callback', async (req, res) => {
     if (!user.tenant.active) return res.redirect('/app/crm-login.html?google=suspended')
 
     const loginToken = jwt.sign(
-      { userId: user.id, tenantId: user.tenantId, role: user.role, email: user.email },
+      { userId: user.id, tenantId: user.tenantId, role: user.role, email: user.email, platformRole: user.platformRole || undefined },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN }
     )
@@ -173,7 +173,7 @@ router.get('/me', async (req, res) => {
     const payload = jwt.verify(header.slice(7), process.env.JWT_SECRET)
     const user = await prisma.user.findUnique({ where: { id: payload.userId }, include: { tenant: true } })
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' })
-    res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role }, tenant: { id: user.tenant.id, name: user.tenant.name, plan: user.tenant.plan, segment: user.tenant.segment } })
+    res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, platformRole: user.platformRole }, tenant: { id: user.tenant.id, name: user.tenant.name, plan: user.tenant.plan, segment: user.tenant.segment } })
   } catch {
     res.status(401).json({ error: 'Token inválido.' })
   }

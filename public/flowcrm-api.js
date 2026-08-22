@@ -15,8 +15,84 @@ function authGuard() {
 
 function logout() {
   clearToken();
+  localStorage.removeItem('flowcrm_impersonating');
   window.location.href = 'crm-login.html';
 }
+
+// ── Painel da plataforma (superadmin/owner) ──────────────────────────────────
+// Não precisa de login nem token separado: é o mesmo usuário de sempre, só que com
+// platformRole no payload do JWT. Decodifica local (sem verificar assinatura — é só
+// pra decidir o que MOSTRAR na tela; o servidor sempre confere de verdade em cada rota).
+function decodeJwtPayload(token) {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(atob(base64).split('').map(c => '%' + c.charCodeAt(0).toString(16).padStart(2, '0')).join(''));
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+function getPlatformRole() {
+  const token = getToken();
+  if (!token) return null;
+  return decodeJwtPayload(token)?.platformRole || null;
+}
+
+// Injeta o link "Plataforma" no menu lateral de qualquer tela, se a conta logada
+// tiver platformRole — assim não precisa editar o sidebar de cada página uma por uma.
+function injectPlatformNav() {
+  if (!getPlatformRole()) return;
+  const nav = document.querySelector('.sb-nav');
+  if (!nav || document.getElementById('navPlatformLink')) return;
+  const a = document.createElement('a');
+  a.id = 'navPlatformLink';
+  a.className = 'nav-item';
+  a.href = 'crm-plataforma.html';
+  a.innerHTML = '<span class="ico">🛡️</span>Plataforma';
+  nav.appendChild(a);
+}
+
+// Troca a sessão atual pela do admin de outra empresa, guardando o token de volta
+// pra dar pra "sair da visualização" depois. Chamado a partir de crm-plataforma.html.
+function startImpersonation(impersonateToken, tenantName) {
+  localStorage.setItem('flowcrm_impersonating', JSON.stringify({ backupToken: getToken(), tenantName }));
+  setToken(impersonateToken);
+  window.location.href = 'crm-dashboard.html';
+}
+
+function stopImpersonation() {
+  const raw = localStorage.getItem('flowcrm_impersonating');
+  if (raw) {
+    const data = JSON.parse(raw);
+    if (data.backupToken) setToken(data.backupToken);
+  }
+  localStorage.removeItem('flowcrm_impersonating');
+  window.location.href = 'crm-plataforma.html';
+}
+
+// Aviso fixo no topo enquanto está vendo o sistema como admin de outra empresa —
+// aparece em qualquer tela automaticamente, sem precisar editar cada uma.
+function injectImpersonationBanner() {
+  const raw = localStorage.getItem('flowcrm_impersonating');
+  if (!raw) return;
+  let data;
+  try { data = JSON.parse(raw) } catch { return }
+  if (document.getElementById('fcrm-impersonation-banner')) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'fcrm-impersonation-banner';
+  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#8e44ad;color:#fff;text-align:center;padding:9px 16px;font-size:13px;font-weight:700;z-index:9998;display:flex;align-items:center;justify-content:center;gap:14px;box-shadow:0 2px 8px rgba(0,0,0,.2)';
+  const safeName = (data.tenantName || '').replace(/</g, '&lt;');
+  banner.innerHTML = `🛡️ Vendo o sistema como admin de <b>${safeName}</b>
+    <button style="background:#fff;color:#8e44ad;border:none;padding:5px 14px;border-radius:6px;font-weight:700;font-size:12px;cursor:pointer" onclick="stopImpersonation()">Sair da visualização</button>`;
+  document.body.prepend(banner);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  injectPlatformNav();
+  injectImpersonationBanner();
+});
 
 async function api(path, opts = {}) {
   const token = getToken();

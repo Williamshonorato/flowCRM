@@ -39,3 +39,19 @@ export function requireAdmin(req, res, next) {
   }
   next()
 }
+
+// Acesso ao painel da plataforma (ver/gerenciar todas as empresas) — mesmo login e
+// mesmo token de sempre, só que com platformRole setado no usuário.
+export function requirePlatformRole(req, res, next) {
+  if (!['owner', 'superadmin'].includes(req.user?.platformRole)) {
+    return res.status(403).json({ error: 'Acesso restrito ao painel da plataforma.' })
+  }
+  next()
+}
+
+export function requirePlatformOwner(req, res, next) {
+  if (req.user?.platformRole !== 'owner') {
+    return res.status(403).json({ error: 'Acesso restrito ao owner da plataforma.' })
+  }
+  next()
+}

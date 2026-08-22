@@ -3,45 +3,28 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { z } from 'zod'
 import prisma from '../lib/prisma.js'
-import { requirePlatformAdmin, requireOwner } from '../middleware/platformAuth.js'
+import { requireAuth, requirePlatformRole, requirePlatformOwner } from '../middleware/auth.js'
 
 const router = Router()
 
-const loginSchema = z.object({
-  email:    z.string().email(),
-  password: z.string().min(1),
-})
+// Tenant "de casa" que hospeda as contas de quem administra a plataforma — não é uma
+// empresa cliente de verdade, só o jeito de reaproveitar o mesmo login/User de sempre
+// sem inventar um sistema de conta separado.
+const INTERNAL_TENANT_SLUG = 'flowcrm-interno'
+async function getInternalTenant() {
+  return prisma.tenant.upsert({
+    where: { slug: INTERNAL_TENANT_SLUG },
+    update: {},
+    create: { name: 'FlowCRM (interno)', slug: INTERNAL_TENANT_SLUG, segment: 'internal', plan: 'internal' },
+  })
+}
 
-// POST /platform/login — login do superadmin/owner, separado do login de tenant
-router.post('/login', async (req, res) => {
-  const parsed = loginSchema.safeParse(req.body)
-  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
-  const { email, password } = parsed.data
+router.use(requireAuth, requirePlatformRole)
 
-  const admin = await prisma.platformAdmin.findUnique({ where: { email } })
-  if (!admin) return res.status(401).json({ error: 'E-mail ou senha inválidos.' })
-
-  const ok = await bcrypt.compare(password, admin.password)
-  if (!ok) return res.status(401).json({ error: 'E-mail ou senha inválidos.' })
-
-  const token = jwt.sign(
-    { adminId: admin.id, role: admin.role, email: admin.email },
-    process.env.PLATFORM_JWT_SECRET,
-    { expiresIn: '7d' }
-  )
-  res.json({ token, admin: { id: admin.id, name: admin.name, email: admin.email, role: admin.role } })
-})
-
-router.use(requirePlatformAdmin)
-
-// GET /platform/me
-router.get('/me', (req, res) => {
-  res.json(req.admin)
-})
-
-// GET /platform/tenants — lista todas as empresas cadastradas no sistema, com contagens básicas
+// GET /platform/tenants — lista todas as empresas cadastradas, com contagens básicas
 router.get('/tenants', async (req, res) => {
   const tenants = await prisma.tenant.findMany({
+    where: { slug: { not: INTERNAL_TENANT_SLUG } },
     orderBy: { createdAt: 'desc' },
     include: { _count: { select: { users: true, contacts: true, deals: true } } },
   })
@@ -79,16 +62,41 @@ router.patch('/tenants/:id', async (req, res) => {
 router.delete('/tenants/:id', async (req, res) => {
   const existing = await prisma.tenant.findUnique({ where: { id: req.params.id } })
   if (!existing) return res.status(404).json({ error: 'Empresa não encontrada.' })
+  if (existing.slug === INTERNAL_TENANT_SLUG) return res.status(400).json({ error: 'Essa é a empresa interna da plataforma, não pode ser excluída.' })
   await prisma.tenant.delete({ where: { id: req.params.id } })
   res.status(204).send()
 })
 
-// ── Gerenciar outros admins da plataforma — só o owner pode ──────────────────
-router.use('/admins', requireOwner)
+// POST /platform/tenants/:id/impersonate — entra na empresa vendo exatamente como o
+// admin dela vê. Pega a identidade real do admin mais antigo da empresa (não inventa
+// um usuário novo), então tudo que o sistema já faz com userId continua funcionando
+// igual. Pra voltar, o front guarda o token original e troca de volta — não tem nada
+// de especial no token de impersonação em si, ele é um login de tenant normal.
+router.post('/tenants/:id/impersonate', async (req, res) => {
+  const tenant = await prisma.tenant.findUnique({ where: { id: req.params.id } })
+  if (!tenant) return res.status(404).json({ error: 'Empresa não encontrada.' })
 
-router.get('/admins', async (req, res) => {
-  const admins = await prisma.platformAdmin.findMany({
-    select: { id: true, name: true, email: true, role: true, createdAt: true },
+  const admin = await prisma.user.findFirst({
+    where: { tenantId: tenant.id, role: 'admin', active: true },
+    orderBy: { createdAt: 'asc' },
+  })
+  if (!admin) return res.status(404).json({ error: 'Essa empresa não tem nenhum admin ativo pra representar.' })
+
+  console.log(`[platform] ${req.user.email} entrou como admin de "${tenant.name}" (${admin.email})`)
+
+  const token = jwt.sign(
+    { userId: admin.id, tenantId: tenant.id, role: admin.role, email: admin.email },
+    process.env.JWT_SECRET,
+    { expiresIn: '2h' } // sessão de impersonação é curta de propósito
+  )
+  res.json({ token, tenant: { id: tenant.id, name: tenant.name } })
+})
+
+// ── Gerenciar quem mais tem acesso ao painel da plataforma — só o owner ──────
+router.get('/admins', requirePlatformOwner, async (req, res) => {
+  const admins = await prisma.user.findMany({
+    where: { platformRole: { not: null } },
+    select: { id: true, name: true, email: true, platformRole: true, createdAt: true },
     orderBy: { createdAt: 'asc' },
   })
   res.json(admins)
@@ -98,26 +106,29 @@ const createAdminSchema = z.object({
   name:     z.string().min(2),
   email:    z.string().email(),
   password: z.string().min(6),
-  role:     z.enum(['owner', 'superadmin']).default('superadmin'),
+  platformRole: z.enum(['owner', 'superadmin']).default('superadmin'),
 })
-router.post('/admins', async (req, res) => {
+router.post('/admins', requirePlatformOwner, async (req, res) => {
   const parsed = createAdminSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
-  const { name, email, password, role } = parsed.data
+  const { name, email, password, platformRole } = parsed.data
 
-  const existing = await prisma.platformAdmin.findUnique({ where: { email } })
+  const existing = await prisma.user.findFirst({ where: { email } })
   if (existing) return res.status(409).json({ error: 'E-mail já cadastrado.' })
 
+  const internalTenant = await getInternalTenant()
   const hash = await bcrypt.hash(password, 10)
-  const admin = await prisma.platformAdmin.create({ data: { name, email, password: hash, role } })
-  res.status(201).json({ id: admin.id, name: admin.name, email: admin.email, role: admin.role })
+  const admin = await prisma.user.create({
+    data: { tenantId: internalTenant.id, name, email, password: hash, role: 'admin', platformRole },
+  })
+  res.status(201).json({ id: admin.id, name: admin.name, email: admin.email, platformRole: admin.platformRole })
 })
 
-router.delete('/admins/:id', async (req, res) => {
-  if (req.params.id === req.admin.adminId) return res.status(400).json({ error: 'Você não pode remover sua própria conta.' })
-  const existing = await prisma.platformAdmin.findUnique({ where: { id: req.params.id } })
-  if (!existing) return res.status(404).json({ error: 'Admin não encontrado.' })
-  await prisma.platformAdmin.delete({ where: { id: req.params.id } })
+router.delete('/admins/:id', requirePlatformOwner, async (req, res) => {
+  if (req.params.id === req.user.userId) return res.status(400).json({ error: 'Você não pode remover seu próprio acesso.' })
+  const existing = await prisma.user.findUnique({ where: { id: req.params.id } })
+  if (!existing || !existing.platformRole) return res.status(404).json({ error: 'Admin não encontrado.' })
+  await prisma.user.update({ where: { id: req.params.id }, data: { platformRole: null } })
   res.status(204).send()
 })
 

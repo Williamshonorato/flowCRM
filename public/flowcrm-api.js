@@ -33,24 +33,14 @@ function decodeJwtPayload(token) {
   }
 }
 
+// Só serve pra decisões rápidas e não-críticas (ex: mostrar algo antes da rede
+// responder). Um token antigo pode não ter platformRole mesmo pra quem já tem o
+// papel hoje — pra qualquer coisa que precise estar certa de verdade, usa /auth/me
+// (é o que injectAccountUI faz), nunca confia só nisso aqui.
 function getPlatformRole() {
   const token = getToken();
   if (!token) return null;
   return decodeJwtPayload(token)?.platformRole || null;
-}
-
-// Injeta o link "Plataforma" no menu lateral de qualquer tela, se a conta logada
-// tiver platformRole — assim não precisa editar o sidebar de cada página uma por uma.
-function injectPlatformNav() {
-  if (!getPlatformRole()) return;
-  const nav = document.querySelector('.sb-nav');
-  if (!nav || document.getElementById('navPlatformLink')) return;
-  const a = document.createElement('a');
-  a.id = 'navPlatformLink';
-  a.className = 'nav-item';
-  a.href = 'crm-plataforma.html';
-  a.innerHTML = '<span class="ico">🛡️</span>Plataforma';
-  nav.appendChild(a);
 }
 
 // Troca a sessão atual pela do admin de outra empresa, guardando o token de volta
@@ -118,29 +108,49 @@ function injectUserMenu() {
   });
 }
 
-// O rodapé do menu (nome + plano) vinha com texto fixo de exemplo ("Williams" /
-// "Plano Profissional") igual em toda tela, sem nenhuma ligação com quem estava
-// logado de verdade — troca pelos dados reais assim que a página carrega.
+// Uma chamada só de /auth/me pra tudo que depende de saber quem está logado de
+// verdade: o link "Plataforma" no menu (nunca confia no token pra isso — um token
+// emitido antes dessa função existir não teria platformRole nele) e o nome/plano
+// reais no rodapé (que antes era texto fixo de exemplo, igual em toda tela).
 const PLAN_LABELS = { starter: 'Plano Starter', professional: 'Plano Profissional', connected: 'Plano Connected', enterprise: 'Plano Enterprise', internal: 'Plataforma' };
-async function injectRealUserInfo() {
-  const row = document.querySelector('.user-row');
-  if (!row || !getToken()) return;
-  const me = await api('/auth/me');
+let _fcrmMeCache = null;
+async function getMe(force) {
+  if (_fcrmMeCache && !force) return _fcrmMeCache;
+  if (!getToken()) return null;
+  _fcrmMeCache = await api('/auth/me');
+  return _fcrmMeCache;
+}
+
+async function injectAccountUI() {
+  const me = await getMe();
   if (!me) return;
-  const nameEl = row.querySelector('.name');
-  const planEl = row.querySelector('.plan');
-  const avatarEl = row.querySelector('.user-avatar');
-  if (nameEl) nameEl.textContent = me.user.name;
-  const platformLabels = { owner: 'Owner da plataforma', superadmin: 'Superadmin da plataforma' };
-  if (planEl) planEl.textContent = platformLabels[me.user.platformRole] || PLAN_LABELS[me.tenant.plan] || me.tenant.plan;
-  if (avatarEl) avatarEl.textContent = initials(me.user.name);
+
+  const nav = document.querySelector('.sb-nav');
+  if (me.user.platformRole && nav && !document.getElementById('navPlatformLink')) {
+    const a = document.createElement('a');
+    a.id = 'navPlatformLink';
+    a.className = 'nav-item';
+    a.href = 'crm-plataforma.html';
+    a.innerHTML = '<span class="ico">🛡️</span>Plataforma';
+    nav.appendChild(a);
+  }
+
+  const row = document.querySelector('.user-row');
+  if (row) {
+    const nameEl = row.querySelector('.name');
+    const planEl = row.querySelector('.plan');
+    const avatarEl = row.querySelector('.user-avatar');
+    if (nameEl) nameEl.textContent = me.user.name;
+    const platformLabels = { owner: 'Owner da plataforma', superadmin: 'Superadmin da plataforma' };
+    if (planEl) planEl.textContent = platformLabels[me.user.platformRole] || PLAN_LABELS[me.tenant.plan] || me.tenant.plan;
+    if (avatarEl) avatarEl.textContent = initials(me.user.name);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  injectPlatformNav();
   injectUserMenu();
   injectImpersonationBanner();
-  injectRealUserInfo();
+  injectAccountUI();
 });
 
 async function api(path, opts = {}) {

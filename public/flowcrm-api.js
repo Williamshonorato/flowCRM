@@ -89,9 +89,58 @@ function injectImpersonationBanner() {
   document.body.prepend(banner);
 }
 
+// O bloco "Williams · Plano Profissional" no rodapé do menu lateral existe em toda
+// tela mas nunca teve nenhuma ação ligada a ele — não tinha nenhum jeito de sair da
+// conta em lugar nenhum do sistema. Liga um menuzinho (Configurações / Sair) no clique.
+function injectUserMenu() {
+  const row = document.querySelector('.user-row');
+  if (!row || row.dataset.fcrmBound) return;
+  row.dataset.fcrmBound = '1';
+  row.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const existing = document.getElementById('fcrm-user-menu');
+    if (existing) { existing.remove(); return; }
+
+    const rect = row.getBoundingClientRect();
+    const menu = document.createElement('div');
+    menu.id = 'fcrm-user-menu';
+    menu.style.cssText = `position:fixed;left:${rect.left}px;bottom:${window.innerHeight - rect.top + 8}px;background:#1e293b;border:1px solid #334155;border-radius:10px;padding:6px;min-width:180px;box-shadow:0 8px 24px rgba(0,0,0,.35);z-index:9999;font-family:inherit`;
+    menu.innerHTML = `
+      <a href="crm-configuracoes.html" style="display:block;padding:8px 12px;color:#cbd5e1;text-decoration:none;font-size:13px;border-radius:7px">⚙️ Configurações</a>
+      <div style="height:1px;background:#334155;margin:4px 0"></div>
+      <a href="#" onclick="logout();return false;" style="display:block;padding:8px 12px;color:#f87171;text-decoration:none;font-size:13px;border-radius:7px">🚪 Sair</a>
+    `;
+    document.body.appendChild(menu);
+    document.addEventListener('click', function closeMenu() {
+      menu.remove();
+      document.removeEventListener('click', closeMenu);
+    }, { once: true });
+  });
+}
+
+// O rodapé do menu (nome + plano) vinha com texto fixo de exemplo ("Williams" /
+// "Plano Profissional") igual em toda tela, sem nenhuma ligação com quem estava
+// logado de verdade — troca pelos dados reais assim que a página carrega.
+const PLAN_LABELS = { starter: 'Plano Starter', professional: 'Plano Profissional', connected: 'Plano Connected', enterprise: 'Plano Enterprise', internal: 'Plataforma' };
+async function injectRealUserInfo() {
+  const row = document.querySelector('.user-row');
+  if (!row || !getToken()) return;
+  const me = await api('/auth/me');
+  if (!me) return;
+  const nameEl = row.querySelector('.name');
+  const planEl = row.querySelector('.plan');
+  const avatarEl = row.querySelector('.user-avatar');
+  if (nameEl) nameEl.textContent = me.user.name;
+  const platformLabels = { owner: 'Owner da plataforma', superadmin: 'Superadmin da plataforma' };
+  if (planEl) planEl.textContent = platformLabels[me.user.platformRole] || PLAN_LABELS[me.tenant.plan] || me.tenant.plan;
+  if (avatarEl) avatarEl.textContent = initials(me.user.name);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   injectPlatformNav();
+  injectUserMenu();
   injectImpersonationBanner();
+  injectRealUserInfo();
 });
 
 async function api(path, opts = {}) {

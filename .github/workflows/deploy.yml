@@ -19,17 +19,23 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" '
             set -e
-            cd "${{ secrets.DEPLOY_PATH }}"
-            git fetch origin main
-            git reset --hard origin/main
-            export PATH=/opt/node22/bin:$PATH
-            npm install --omit=dev
-            npx prisma generate
-            # Sem --accept-data-loss de propósito: se uma mudança de schema arriscar
-            # perder dados, o comando falha e o deploy para aqui, em vez de aplicar
-            # sozinho. Nesse caso a migração precisa ser revisada manualmente.
-            npx prisma db push
-            pm2 restart flowcrm
+            # O projeto é gerenciado pelo aaPanel como projeto Node/PM2, rodando sob o
+            # usuário "www" (dono dos arquivos) com seu próprio daemon PM2 (PM2_HOME
+            # separado do root) — por isso todo o deploy roda como www, não como root.
+            sudo -u www bash -c "
+              set -e
+              cd \"${{ secrets.DEPLOY_PATH }}\"
+              git fetch origin main
+              git reset --hard origin/main
+              export PATH=/www/server/nodejs/v24.19.0/bin:\$PATH
+              npm install --omit=dev
+              npx prisma generate
+              # Sem --accept-data-loss de propósito: se uma mudança de schema arriscar
+              # perder dados, o comando falha e o deploy para aqui, em vez de aplicar
+              # sozinho. Nesse caso a migração precisa ser revisada manualmente.
+              npx prisma db push
+              PM2_HOME=/home/www/.pm2 pm2 restart flowcrm
+            "
           '
 
       - name: Checar se subiu certo

@@ -35,6 +35,9 @@ app.use(express.json({ limit: '10mb' }))
 // Serve os arquivos HTML do frontend em desenvolvimento
 app.use('/app', express.static(join(__dirname, '../public')))
 
+// Raiz do site redireciona direto pro login
+app.get('/', (_, res) => res.redirect('/app/crm-login.html'))
+
 // ── ROUTES ────────────────────────────────────────────────────────────────────
 app.use('/auth',       authRouter)
 app.use('/dashboard',  dashboardRouter)

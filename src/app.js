@@ -35,8 +35,10 @@ app.use(express.json({ limit: '10mb' }))
 // Serve os arquivos HTML do frontend em desenvolvimento
 app.use('/app', express.static(join(__dirname, '../public')))
 
-// Raiz do site redireciona direto pro login
-app.get('/', (_, res) => res.redirect('/app/crm-login.html'))
+// Serve o mesmo frontend também na raiz do site, com a tela de login como
+// página padrão — assim https://flowcrm.seculo1.com abre o login sem
+// redirecionar/trocar a URL na barra de endereço.
+app.use(express.static(join(__dirname, '../public'), { index: 'crm-login.html' }))
 
 // ── ROUTES ────────────────────────────────────────────────────────────────────
 app.use('/auth',       authRouter)

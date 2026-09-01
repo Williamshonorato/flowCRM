@@ -24,6 +24,7 @@ import datasourceRouter from './routes/datasource.js'
 import automationsRouter from './routes/automations.js'
 import platformAdminRouter from './routes/platformAdmin.js'
 import { resumeDueRuns } from './lib/automationEngine.js'
+import { sendError, isBrowserNavigation, errorPageHtml } from './lib/errorPage.js'
 
 const app = express()
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -64,11 +65,14 @@ app.use('/platform',   platformAdminRouter)
 app.get('/health', (_, res) => res.json({ status: 'ok', version: '1.0.0', timestamp: new Date().toISOString() }))
 
 // 404
-app.use((_, res) => res.status(404).json({ error: 'Rota não encontrada.' }))
+app.use((req, res) => sendError(req, res, 404, 'A página que você tentou acessar não existe ou foi movida.'))
 
 // Error handler
 app.use((err, req, res, next) => {
   console.error(err)
+  if (isBrowserNavigation(req)) {
+    return res.status(500).type('html').send(errorPageHtml('Ocorreu um erro inesperado. Já estamos cientes — tente novamente em alguns instantes.'))
+  }
   res.status(500).json({ error: 'Erro interno do servidor.', detail: err.message })
 })
 

@@ -2,6 +2,7 @@ import { Router } from 'express'
 import jwt from 'jsonwebtoken'
 import prisma from '../lib/prisma.js'
 import { requireAuth } from '../middleware/auth.js'
+import { sendError } from '../lib/errorPage.js'
 
 const router = Router()
 
@@ -17,7 +18,7 @@ function redirectUri(req) {
 // Requer a Calendar API habilitada no mesmo projeto além da Gmail API.
 router.get('/connect', (req, res) => {
   const { GOOGLE_CLIENT_ID } = process.env
-  if (!GOOGLE_CLIENT_ID) return res.status(500).json({ error: 'GOOGLE_CLIENT_ID não configurado no .env.' })
+  if (!GOOGLE_CLIENT_ID) return sendError(req, res, 500, 'A integração com Google Calendar ainda não está disponível por aqui.')
 
   let payload
   try {

@@ -4,6 +4,7 @@ import crypto from 'crypto'
 import prisma from '../lib/prisma.js'
 import { requireAuth } from '../middleware/auth.js'
 import { getValidAccessToken, sendGmailMessage } from '../lib/gmailSender.js'
+import { sendError } from '../lib/errorPage.js'
 
 const router = Router()
 
@@ -19,7 +20,7 @@ function redirectUri(req) {
 // porque o navegador vai ser redirecionado pro Google (não dá pra mandar header Authorization num redirect).
 router.get('/connect', (req, res) => {
   const { GOOGLE_CLIENT_ID } = process.env
-  if (!GOOGLE_CLIENT_ID) return res.status(500).json({ error: 'GOOGLE_CLIENT_ID não configurado no .env.' })
+  if (!GOOGLE_CLIENT_ID) return sendError(req, res, 500, 'A integração com Gmail ainda não está disponível por aqui.')
 
   let payload
   try {

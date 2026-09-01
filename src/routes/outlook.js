@@ -2,6 +2,7 @@ import { Router } from 'express'
 import jwt from 'jsonwebtoken'
 import prisma from '../lib/prisma.js'
 import { requireAuth } from '../middleware/auth.js'
+import { sendError } from '../lib/errorPage.js'
 
 const router = Router()
 
@@ -18,7 +19,7 @@ function redirectUri(req) {
 // (App registrations → New registration → Web → redirect URI abaixo → Certificates & secrets → New client secret)
 router.get('/connect', (req, res) => {
   const { MICROSOFT_CLIENT_ID } = process.env
-  if (!MICROSOFT_CLIENT_ID) return res.status(500).json({ error: 'MICROSOFT_CLIENT_ID não configurado no .env.' })
+  if (!MICROSOFT_CLIENT_ID) return sendError(req, res, 500, 'A integração com Outlook ainda não está disponível por aqui.')
 
   let payload
   try {

@@ -160,6 +160,7 @@ async function api(path, opts = {}) {
     res = await fetch(API_BASE + path, {
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         ...(token ? { Authorization: 'Bearer ' + token } : {}),
         ...(opts.headers || {}),
       },

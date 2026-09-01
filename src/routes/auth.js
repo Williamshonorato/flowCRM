@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { z } from 'zod'
 import prisma from '../lib/prisma.js'
+import { sendError } from '../lib/errorPage.js'
 
 const router = Router()
 
@@ -99,7 +100,7 @@ function googleLoginRedirectUri(req) {
 // GET /auth/google — inicia o login (não precisa estar autenticado, é o próprio login)
 router.get('/google', (req, res) => {
   const { GOOGLE_CLIENT_ID } = process.env
-  if (!GOOGLE_CLIENT_ID) return res.status(500).json({ error: 'GOOGLE_CLIENT_ID não configurado no .env.' })
+  if (!GOOGLE_CLIENT_ID) return sendError(req, res, 500, 'O login com Google ainda não está disponível por aqui.')
 
   const state = jwt.sign({ purpose: 'login' }, process.env.JWT_SECRET, { expiresIn: '10m' })
 

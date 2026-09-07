@@ -332,10 +332,15 @@
     document.getElementById('wppStatus').className = 'int-status ' + (wppConnected ? 'status-connected' : 'status-available');
     document.getElementById('wppMsgCount').textContent = `${stats?.messageCount ?? 0} msgs capturadas`;
     document.getElementById('wppBtn').textContent = wppConnected ? 'Desconectar' : 'Conectar';
-    // Enquanto conectado, mantém os campos visíveis (não só na hora de conectar) — senão
-    // não dá pra conferir/editar o número e o resto da config depois de salvos.
-    document.getElementById('wppConfig').style.display = wppConnected ? 'block' : 'none';
-    if (wppConnected && byType.whatsapp?.config) {
+    // Mantém os campos visíveis quando já conectado OU quando já existe alguma config
+    // salva (ex: número cadastrado antes de terminar o resto da conexão) — senão o
+    // usuário só vê os valores existentes depois de clicar em "Conectar" de novo.
+    const hasWppConfig = byType.whatsapp?.config && Object.keys(byType.whatsapp.config).length > 0
+    document.getElementById('wppConfig').style.display = (wppConnected || hasWppConfig) ? 'block' : 'none';
+    // Popula os campos com o que já foi salvo, mesmo desconectado — senão o usuário
+    // não vê os valores existentes ao reabrir a config (ex: número já cadastrado
+    // antes de finalizar o resto da conexão).
+    if (byType.whatsapp?.config) {
       document.getElementById('wppApiUrl').value = byType.whatsapp.config.apiUrl || '';
       document.getElementById('wppApiKey').value = byType.whatsapp.config.apiKey || '';
       document.getElementById('wppInstance').value = byType.whatsapp.config.instance || '';

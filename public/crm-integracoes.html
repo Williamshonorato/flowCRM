@@ -153,6 +153,7 @@
           <input type="text" class="webhook-inp" id="wppApiUrl" placeholder="URL da Evolution API (ex: http://localhost:8080)" />
           <input type="text" class="webhook-inp" id="wppApiKey" placeholder="API Key da Evolution" />
           <input type="text" class="webhook-inp" id="wppInstance" placeholder="Nome da instância (ex: flowcrm)" />
+          <input type="text" class="webhook-inp" id="wppPhone" placeholder="Número do WhatsApp conectado (ex: 5511999999999)" />
         </div>
         <div class="int-footer"><span class="int-tag" id="wppMsgCount">— msgs capturadas</span><button class="int-btn btn-manage" id="wppBtn" onclick="toggleWhatsapp()">Conectar</button></div>
       </div>
@@ -331,11 +332,14 @@
     document.getElementById('wppStatus').className = 'int-status ' + (wppConnected ? 'status-connected' : 'status-available');
     document.getElementById('wppMsgCount').textContent = `${stats?.messageCount ?? 0} msgs capturadas`;
     document.getElementById('wppBtn').textContent = wppConnected ? 'Desconectar' : 'Conectar';
-    document.getElementById('wppConfig').style.display = wppConnected ? 'none' : 'none';
+    // Enquanto conectado, mantém os campos visíveis (não só na hora de conectar) — senão
+    // não dá pra conferir/editar o número e o resto da config depois de salvos.
+    document.getElementById('wppConfig').style.display = wppConnected ? 'block' : 'none';
     if (wppConnected && byType.whatsapp?.config) {
       document.getElementById('wppApiUrl').value = byType.whatsapp.config.apiUrl || '';
       document.getElementById('wppApiKey').value = byType.whatsapp.config.apiKey || '';
       document.getElementById('wppInstance').value = byType.whatsapp.config.instance || '';
+      document.getElementById('wppPhone').value = byType.whatsapp.config.phone || '';
     }
 
     const gmailConnected = byType.gmail?.status === 'connected';
@@ -398,10 +402,11 @@
     const apiUrl = document.getElementById('wppApiUrl').value.trim();
     const apiKey = document.getElementById('wppApiKey').value.trim();
     const instance = document.getElementById('wppInstance').value.trim();
+    const phone = document.getElementById('wppPhone').value.trim().replace(/[^0-9]/g, '');
     if (!apiUrl || !instance) { showToast('Preencha ao menos a URL da Evolution e o nome da instância.'); return; }
 
     btn.disabled = true;
-    await api('/settings/integrations/whatsapp', { method: 'POST', body: JSON.stringify({ config: { apiUrl, apiKey, instance } }) });
+    await api('/settings/integrations/whatsapp', { method: 'POST', body: JSON.stringify({ config: { apiUrl, apiKey, instance, phone } }) });
     btn.disabled = false;
     showToast('WhatsApp conectado. Configure o webhook da Evolution apontando pra URL abaixo pra receber mensagens.');
     loadIntegrations();

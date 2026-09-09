@@ -116,11 +116,16 @@ async function executeStep(step, ctx) {
 }
 
 // Envia texto puro pelo WhatsApp da empresa — usado pelo passo send_whatsapp e pelo menu.
+// apiUrl/apiKey vêm da Evolution compartilhada (env vars) por padrão — só usa os do
+// config salvo se o tenant tiver uma Evolution própria configurada manualmente (legado).
 async function getWhatsappConfig(tenantId) {
   const integration = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId, type: 'whatsapp' } } })
   const config = integration?.config || {}
-  if (!integration || integration.status !== 'connected' || !config.apiUrl || !config.instance) return null
-  return config
+  const apiUrl = config.apiUrl || process.env.EVOLUTION_API_URL
+  const apiKey = config.apiKey || process.env.EVOLUTION_API_KEY
+  const instance = config.instance || `t_${tenantId}`
+  if (!integration || integration.status !== 'connected' || !apiUrl || !instance) return null
+  return { ...config, apiUrl, apiKey, instance }
 }
 
 async function sendWhatsappText(tenantId, contact, message) {

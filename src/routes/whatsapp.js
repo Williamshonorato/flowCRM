@@ -6,6 +6,21 @@ import { triggerFlows, resolveMenuReply } from '../lib/automationEngine.js'
 
 const router = Router()
 
+// ── Evolution API compartilhado ──────────────────────────────────────────────
+// Um único Evolution API roda na nossa infra, hospedando uma "instância" (sessão
+// de WhatsApp) por empresa. O cliente nunca vê URL/API key da Evolution — só
+// escaneia o QR code do próprio número dele.
+const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL
+const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY
+
+function instanceNameFor(tenantId) {
+  return `t_${tenantId}`
+}
+
+function evoHeaders() {
+  return { 'Content-Type': 'application/json', apikey: EVOLUTION_API_KEY }
+}
+
 // GET /whatsapp/stats — status real da integração + total de mensagens capturadas do tenant
 router.get('/stats', requireAuth, async (req, res) => {
   const { tenantId } = req.user
@@ -67,6 +82,77 @@ router.get('/conversations/:contactId/messages', requireAuth, async (req, res) =
   res.json({ contact: { id: contact.id, name: contact.name, phone: contact.phone }, messages })
 })
 
+// POST /whatsapp/connect — cria (se ainda não existir) a instância dessa empresa no
+// Evolution API compartilhado e devolve o QR code pra ela escanear. Pode ser chamado
+// de novo a qualquer momento pra pegar um QR mais recente (o anterior expira sozinho).
+router.post('/connect', requireAuth, async (req, res) => {
+  const { tenantId } = req.user
+  const { phone } = req.body || {}
+
+  if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
+    return res.status(500).json({ error: 'Integração de WhatsApp não configurada no servidor. Fale com o suporte.' })
+  }
+
+  const instance = instanceNameFor(tenantId)
+  const webhookUrl = `${req.protocol}://${req.get('host')}/whatsapp/webhook/${tenantId}`
+
+  // Tenta criar a instância — se já existir, a Evolution retorna erro, que a gente
+  // ignora de propósito: o /instance/connect logo abaixo funciona igual pra uma
+  // instância nova ou já existente, então só a criação falhando não deve travar o fluxo.
+  try {
+    await fetch(`${EVOLUTION_API_URL}/instance/create`, {
+      method: 'POST',
+      headers: evoHeaders(),
+      body: JSON.stringify({
+        instanceName: instance,
+        qrcode: true,
+        integration: 'WHATSAPP-BAILEYS',
+        webhook: { url: webhookUrl, byEvents: false, base64: true, events: ['MESSAGES_UPSERT'] },
+      }),
+    })
+  } catch (err) {
+    console.error('whatsapp connect: falha ao criar instância (pode já existir)', err.message)
+  }
+
+  let qrData
+  try {
+    const qrRes = await fetch(`${EVOLUTION_API_URL}/instance/connect/${instance}`, { headers: evoHeaders() })
+    qrData = await qrRes.json()
+    if (!qrRes.ok) throw new Error(qrData?.message || 'Evolution API recusou a conexão.')
+  } catch (err) {
+    return res.status(502).json({ error: 'Não foi possível gerar o QR code agora. Tente de novo em alguns segundos.', detail: err.message })
+  }
+
+  await prisma.integration.upsert({
+    where: { tenantId_type: { tenantId, type: 'whatsapp' } },
+    create: { tenantId, type: 'whatsapp', status: 'connecting', config: { instance, phone: phone || null, provider: 'evolution' } },
+    update: { status: 'connecting', config: { instance, phone: phone || null, provider: 'evolution' } },
+  })
+
+  res.json({ qrcode: qrData?.base64 || null, pairingCode: qrData?.pairingCode || null })
+})
+
+// GET /whatsapp/status — o frontend consulta em loop enquanto espera o escaneamento;
+// assim que o WhatsApp conectar de verdade, marca a integração como "connected".
+router.get('/status', requireAuth, async (req, res) => {
+  const { tenantId } = req.user
+  if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) return res.json({ status: 'unknown' })
+
+  const instance = instanceNameFor(tenantId)
+  try {
+    const r = await fetch(`${EVOLUTION_API_URL}/instance/connectionState/${instance}`, { headers: evoHeaders() })
+    const data = await r.json()
+    const state = data?.instance?.state || 'close' // 'open' | 'connecting' | 'close'
+
+    if (state === 'open') {
+      await prisma.integration.updateMany({ where: { tenantId, type: 'whatsapp' }, data: { status: 'connected' } })
+    }
+    res.json({ status: state })
+  } catch (err) {
+    res.json({ status: 'unknown' })
+  }
+})
+
 // POST /whatsapp/send — manda mensagem de saída pela Evolution API da empresa
 router.post('/send', requireAuth, async (req, res) => {
   const { tenantId, userId } = req.user
@@ -84,15 +170,20 @@ router.post('/send', requireAuth, async (req, res) => {
 
   const integration = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId, type: 'whatsapp' } } })
   const config = integration?.config || {}
-  if (!integration || integration.status !== 'connected' || !config.apiUrl || !config.instance) {
-    return res.status(400).json({ error: 'WhatsApp não conectado. Configure a Evolution API em Integrações.' })
+  // Config antiga (Evolution própria do cliente, apiUrl/apiKey manuais) continua funcionando
+  // pra quem configurou assim antes; senão usa a Evolution compartilhada + a instância do tenant.
+  const apiUrl = config.apiUrl || EVOLUTION_API_URL
+  const apiKey = config.apiKey || EVOLUTION_API_KEY
+  const instance = config.instance || instanceNameFor(tenantId)
+  if (!integration || integration.status !== 'connected' || !apiUrl || !instance) {
+    return res.status(400).json({ error: 'WhatsApp não conectado. Conecte o número em Integrações.' })
   }
 
   let evoData
   try {
-    const evoRes = await fetch(`${config.apiUrl.replace(/\/$/, '')}/message/sendText/${config.instance}`, {
+    const evoRes = await fetch(`${apiUrl.replace(/\/$/, '')}/message/sendText/${instance}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(config.apiKey ? { apikey: config.apiKey } : {}) },
+      headers: { 'Content-Type': 'application/json', ...(apiKey ? { apikey: apiKey } : {}) },
       body: JSON.stringify({ number: toPhone, text: message }),
     })
     evoData = await evoRes.json().catch(() => ({}))

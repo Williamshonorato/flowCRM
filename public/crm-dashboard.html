@@ -476,10 +476,28 @@
     await api('/tasks/' + id, { method: 'PATCH', body: JSON.stringify({ done: isDone }) });
   }
 
+  // Troca todo "Carregando..." (KPIs e listas) por uma mensagem de erro clara — sem isso,
+  // uma falha na chamada deixava a tela presa em "Carregando..." pra sempre, sem avisar
+  // que algo deu errado.
+  function showDashboardError() {
+    ['kpi-revenue', 'kpi-deals', 'kpi-conv', 'kpi-tasks'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = '—';
+    });
+    ['kpi-revenue-delta', 'kpi-tasks-delta'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = 'Não foi possível carregar';
+    });
+    ['dealsList', 'tasksList', 'followupList', 'nextActionsList'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '<div style="padding:20px;color:#94a3b8;text-align:center">Não foi possível carregar — tente recarregar a página</div>';
+    });
+  }
+
   async function init() {
     loadUserInfo();
     const data = await api('/dashboard');
-    if (!data) return;
+    if (!data) { showDashboardError(); return; }
 
     const { kpis, monthlyRevenue, funnel, recentDeals, upcomingTasks, overdueTasksList, followUpAlerts, nextActions } = data;
 

@@ -330,7 +330,7 @@ export async function resolveMenuReply(tenantId, contactId, messageBody) {
     }
 
     log.push({ stepId: menuStep.id, type: 'menu_invalid_reply', at: new Date().toISOString(), result: { reply: messageBody } })
-    const retryText = `Não entendi. ${formatMenuMessage(menuStep.config?.message || '', options)}`
+    const retryText = `Não reconheci essa resposta. Por favor, escolha uma opção válida (pelo número ou nome):\n\n${formatMenuMessage('', options).trim()}`
     if (contact) await sendWhatsappText(tenantId, contact, retryText)
     await prisma.automationFlowRun.update({ where: { id: run.id }, data: { log } })
     return true

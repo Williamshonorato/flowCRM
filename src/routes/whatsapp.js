@@ -94,7 +94,11 @@ router.post('/connect', requireAuth, async (req, res) => {
   }
 
   const instance = instanceNameFor(tenantId)
-  const webhookUrl = `${req.protocol}://${req.get('host')}/whatsapp/webhook/${tenantId}`
+  // NUNCA usar req.protocol/req.get('host') aqui — o Evolution API roda num container
+  // Docker separado; "127.0.0.1" do ponto de vista dele não chega no nosso app (já
+  // vimos esse exato bug antes com o redirect do Google OAuth). Precisa ser a URL
+  // pública de verdade, que o container alcança pela internet.
+  const webhookUrl = `${(process.env.APP_PUBLIC_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '')}/whatsapp/webhook/${tenantId}`
 
   // Tenta criar a instância — se já existir, a Evolution retorna erro, que a gente
   // ignora de propósito: o /instance/connect logo abaixo funciona igual pra uma

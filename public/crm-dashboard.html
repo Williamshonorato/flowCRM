@@ -454,14 +454,17 @@
     else { el.style.display = 'none'; }
   }
 
-  const PLAN_LABELS = { starter: 'Plano Starter', professional: 'Plano Profissional', connected: 'Plano Connected', enterprise: 'Plano Enterprise' };
+  // PLAN_LABELS já é global (flowcrm-api.js) — redeclarar aqui com `const` quebrava
+  // este <script> inteiro com "Identifier 'PLAN_LABELS' has already been declared".
+  const PLAN_LABEL_MAP = (typeof PLAN_LABELS !== 'undefined') ? PLAN_LABELS
+    : { starter: 'Plano Starter', professional: 'Plano Profissional', connected: 'Plano Connected', enterprise: 'Plano Enterprise', internal: 'Plataforma' };
 
   async function loadUserInfo() {
     const me = await api('/auth/me');
     if (!me) return;
     document.getElementById('userAvatar').textContent = initials(me.user.name);
     document.getElementById('userName').textContent = me.user.name;
-    document.getElementById('userPlan').textContent = PLAN_LABELS[me.tenant.plan] || me.tenant.plan;
+    document.getElementById('userPlan').textContent = PLAN_LABEL_MAP[me.tenant.plan] || me.tenant.plan;
     document.getElementById('tenantName').textContent = me.tenant.name;
   }
 

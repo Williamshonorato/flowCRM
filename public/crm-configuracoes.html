@@ -366,7 +366,10 @@
   const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
 
   // ── MEU NEGÓCIO (dados da empresa) ──────────────────────────────────────────
-  const PLAN_LABELS = { starter: 'Plano Starter', professional: 'Plano Profissional', connected: 'Plano Connected', enterprise: 'Plano Enterprise', internal: 'Plataforma' };
+  // OBS: não declarar PLAN_LABELS aqui — flowcrm-api.js já declara no escopo global
+  // (dois `const` com o mesmo nome quebram o script inteiro com SyntaxError).
+  const PLAN_LABEL = (typeof PLAN_LABELS !== 'undefined') ? PLAN_LABELS
+    : { starter: 'Plano Starter', professional: 'Plano Profissional', connected: 'Plano Connected', enterprise: 'Plano Enterprise', internal: 'Plataforma' };
   const PLAN_DETAILS = {
     starter: 'Até 2 usuários · CRM completo',
     professional: 'Até 15 usuários · Banco hospedado · WhatsApp + IA',
@@ -398,7 +401,7 @@
 
       // Plano (só leitura)
       const plan = me?.tenant?.plan;
-      document.getElementById('plan-name').textContent = PLAN_LABELS[plan] || plan || 'Plano';
+      document.getElementById('plan-name').textContent = PLAN_LABEL[plan] || plan || 'Plano';
       document.getElementById('plan-details').textContent = PLAN_DETAILS[plan] || '—';
     }
 

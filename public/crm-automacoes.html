@@ -165,14 +165,22 @@
     <a class="nav-item" href="crm-pipeline.html"><span class="ico">🗂️</span>Pipeline</a>
     <a class="nav-item" href="crm-contatos.html"><span class="ico">👥</span>Contatos</a>
     <a class="nav-item" href="crm-conversas.html"><span class="ico">💬</span>Conversas</a>
-    <a class="nav-item" href="crm-tarefas.html"><span class="ico">✅</span>Tarefas</a>
+    <a class="nav-item" href="crm-tarefas.html"><span class="ico">✅</span>Tarefas<span class="badge" data-fc="tasks-badge" style="display:none"></span></a>
     <div class="sb-section">Sistema</div>
     <a class="nav-item active" href="crm-automacoes.html"><span class="ico">🤖</span>Automações</a>
     <a class="nav-item" href="crm-relatorios.html"><span class="ico">📈</span>Relatórios</a>
     <a class="nav-item" href="crm-integracoes.html"><span class="ico">🔌</span>Integrações</a>
     <a class="nav-item" href="crm-configuracoes.html"><span class="ico">⚙️</span>Configurações</a>
   </nav>
-  <div class="sb-bottom"><div class="user-row"><div class="user-avatar">W</div><div class="user-info"><div class="name">Williams</div><div class="plan">Plano Profissional</div></div></div></div>
+  <div class="sb-bottom">
+    <div class="user-row">
+      <div class="user-avatar" data-fc="user-avatar" id="userAvatar">–</div>
+      <div class="user-info">
+        <div class="name" data-fc="user-name" id="userName">–</div>
+        <div class="plan" data-fc="user-plan" id="userPlan"></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="main">
@@ -261,6 +269,7 @@
 </div>
 
 <script src="flowcrm-api.js"></script>
+<script src="crm-sidebar.js"></script>
 <script>
   authGuard();
 

@@ -157,6 +157,29 @@ router.get('/status', requireAuth, async (req, res) => {
   }
 })
 
+// POST /whatsapp/disconnect — encerra a sessão do WhatsApp DE VERDADE (desvincula o
+// celular em "Aparelhos conectados") e marca a integração como desconectada. Sem isso,
+// "Desconectar" só mudava o status no nosso banco e o celular seguia linkado à Evolution.
+router.post('/disconnect', requireAuth, async (req, res) => {
+  const { tenantId } = req.user
+  const instance = instanceNameFor(tenantId)
+
+  if (EVOLUTION_API_URL && EVOLUTION_API_KEY) {
+    try {
+      await fetch(`${EVOLUTION_API_URL}/instance/logout/${instance}`, { method: 'DELETE', headers: evoHeaders() })
+    } catch (err) {
+      console.error('whatsapp disconnect: falha no logout da Evolution', err.message)
+    }
+  }
+
+  await prisma.integration.updateMany({
+    where: { tenantId, type: 'whatsapp' },
+    data: { status: 'disconnected', config: {} },
+  })
+
+  res.json({ ok: true })
+})
+
 // POST /whatsapp/send — manda mensagem de saída pela Evolution API da empresa
 router.post('/send', requireAuth, async (req, res) => {
   const { tenantId, userId } = req.user

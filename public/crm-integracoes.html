@@ -407,7 +407,7 @@
     if (connected) {
       btn.disabled = true;
       stopWppPolling();
-      await api('/settings/integrations/whatsapp', { method: 'DELETE' });
+      await api('/whatsapp/disconnect', { method: 'POST' });
       btn.disabled = false;
       loadIntegrations();
       return;

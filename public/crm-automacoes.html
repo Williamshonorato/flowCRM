@@ -334,11 +334,21 @@
     const triggerLabel = { contact_created:'Contato criado', deal_created:'Negócio criado', deal_stage_changed:'Negócio mudou de estágio', deal_closed:'Negócio fechado', whatsapp_message_received:'Mensagem no WhatsApp', manual:'Manual' };
     grid.innerHTML = flows.map(f => `
       <div class="flow-card" onclick="openEditor('${f.id}')">
-        <div class="fc-top"><div class="fc-name">${f.name}</div><span class="fc-badge ${f.active ? 'fc-active' : 'fc-inactive'}">${f.active ? 'Ativo' : 'Inativo'}</span></div>
+        <div class="fc-top"><div class="fc-name">${f.name}</div><span class="fc-badge ${f.active ? 'fc-active' : 'fc-inactive'}" style="cursor:pointer" title="Clique para ${f.active ? 'desativar' : 'ativar'}" onclick="event.stopPropagation(); toggleFlowActive('${f.id}', ${f.active})">${f.active ? 'Ativo' : 'Inativo'}</span></div>
         <div class="fc-desc">${f.description || ''}</div>
         <div class="fc-meta"><span>⚡ ${triggerLabel[f.triggerType] || f.triggerType}</span><span>🧩 ${(f.steps || []).length} passo${(f.steps||[]).length===1?'':'s'}</span><span>▶ ${f._count?.runs ?? 0} execuções</span></div>
       </div>
     `).join('');
+  }
+
+  // Liga/desliga o fluxo direto pelo card, sem abrir o editor. Um fluxo inativo não
+  // dispara mais nada (o backend filtra por active:true ao avaliar gatilhos).
+  async function toggleFlowActive(id, currentlyActive) {
+    const updated = await api('/automations/flows/' + id, {
+      method: 'PATCH',
+      body: JSON.stringify({ active: !currentlyActive }),
+    });
+    if (updated) loadFlows();
   }
 
   async function loadStages() {

@@ -200,23 +200,26 @@
             </div>
           </div>
           <div class="row2">
-            <div class="inp-g"><label>Nome do negócio</label><input type="text" value="Clínica Vida Plena" id="biz-name" oninput="updateLogo()"/></div>
+            <div class="inp-g"><label>Nome do negócio</label><input type="text" id="biz-name" oninput="updateLogo()"/></div>
             <div class="inp-g"><label>Segmento</label>
-              <select>
-                <option selected>🏥 Clínica / Saúde</option><option>🏠 Imobiliária</option>
-                <option>🎯 Agência</option><option>🛍️ Loja / Varejo</option>
-                <option>💡 Consultoria</option><option>⚙️ Outro</option>
+              <select id="biz-segment">
+                <option value="Clínica / Saúde">🏥 Clínica / Saúde</option>
+                <option value="Imobiliária">🏠 Imobiliária</option>
+                <option value="Agência / Marketing">🎯 Agência</option>
+                <option value="Loja / Varejo">🛍️ Loja / Varejo</option>
+                <option value="Consultoria">💡 Consultoria</option>
+                <option value="other">⚙️ Outro</option>
               </select>
             </div>
           </div>
           <div class="row2">
-            <div class="inp-g"><label>CNPJ</label><input type="text" placeholder="00.000.000/0001-00"/></div>
-            <div class="inp-g"><label>Telefone comercial</label><input type="text" placeholder="(11) 3000-0000"/></div>
+            <div class="inp-g"><label>CNPJ</label><input type="text" id="biz-cnpj" placeholder="00.000.000/0001-00"/></div>
+            <div class="inp-g"><label>Telefone comercial</label><input type="text" id="biz-phone" placeholder="(11) 3000-0000"/></div>
           </div>
-          <div class="inp-g"><label>Endereço</label><input type="text" placeholder="Rua das Flores, 123 — São Paulo, SP"/></div>
-          <div class="inp-g"><label>Site</label><input type="text" placeholder="https://seusite.com.br"/></div>
+          <div class="inp-g"><label>Endereço</label><input type="text" id="biz-address" placeholder="Rua das Flores, 123 — São Paulo, SP"/></div>
+          <div class="inp-g"><label>Site</label><input type="text" id="biz-website" placeholder="https://seusite.com.br"/></div>
           <div style="display:flex;justify-content:flex-end;margin-top:4px">
-            <button class="btn-save" onclick="saved(this)">Salvar alterações</button>
+            <button class="btn-save" id="biz-save" onclick="saveBusiness(this)">Salvar alterações</button>
           </div>
         </div>
       </div>
@@ -275,8 +278,7 @@
         <div class="card">
           <div class="plan-current">
             <div class="plan-ico">💼</div>
-            <div><div class="plan-name-big">Plano Profissional</div><div class="plan-details">Até 15 usuários · Banco hospedado · WhatsApp + IA</div></div>
-            <div class="plan-price-big"><div class="plan-amount">R$ 297</div><div class="plan-period">/mês · renova em 21/07/2026</div></div>
+            <div><div class="plan-name-big" id="plan-name">Plano</div><div class="plan-details" id="plan-details">—</div></div>
           </div>
           <div class="card-title">Uso do plano</div>
           <div class="usage-row"><span class="usage-label">Usuários</span><div class="usage-track"><div class="usage-fill" style="width:13%"></div></div><span class="usage-val">2 / 15</span></div>
@@ -315,22 +317,18 @@
             <div class="logo-preview" style="font-size:20px">W</div>
             <div class="logo-actions"><button class="logo-btn">📸 Trocar foto</button><div class="logo-hint">PNG ou JPG · máx. 1MB</div></div>
           </div>
-          <div class="row2">
-            <div class="inp-g"><label>Nome</label><input type="text" value="Williams"/></div>
-            <div class="inp-g"><label>Sobrenome</label><input type="text" value="Ferreira"/></div>
-          </div>
-          <div class="inp-g"><label>E-mail</label><input type="email" value="will.ferreiraa1995@gmail.com"/></div>
-          <div class="inp-g"><label>Telefone / WhatsApp</label><input type="tel" placeholder="(11) 99999-9999"/></div>
-          <div style="display:flex;justify-content:flex-end"><button class="btn-save" onclick="saved(this)">Salvar</button></div>
+          <div class="inp-g"><label>Nome</label><input type="text" id="acc-name" placeholder="Seu nome"/></div>
+          <div class="inp-g"><label>E-mail</label><input type="email" id="acc-email" placeholder="voce@exemplo.com"/></div>
+          <div style="display:flex;justify-content:flex-end"><button class="btn-save" id="acc-save" onclick="saveAccount(this)">Salvar</button></div>
         </div>
         <div class="card">
           <div class="card-title">Segurança</div>
-          <div class="inp-g"><label>Senha atual</label><input type="password" placeholder="••••••••"/></div>
+          <div class="inp-g"><label>Senha atual</label><input type="password" id="pw-current" placeholder="••••••••"/></div>
           <div class="row2">
-            <div class="inp-g"><label>Nova senha</label><input type="password" placeholder="••••••••"/></div>
-            <div class="inp-g"><label>Confirmar nova senha</label><input type="password" placeholder="••••••••"/></div>
+            <div class="inp-g"><label>Nova senha</label><input type="password" id="pw-new" placeholder="••••••••"/></div>
+            <div class="inp-g"><label>Confirmar nova senha</label><input type="password" id="pw-confirm" placeholder="••••••••"/></div>
           </div>
-          <div style="display:flex;justify-content:flex-end"><button class="btn-save" onclick="saved(this)">Alterar senha</button></div>
+          <div style="display:flex;justify-content:flex-end"><button class="btn-save" id="pw-save" onclick="changePassword(this)">Alterar senha</button></div>
         </div>
         <div class="danger-card">
           <div class="danger-title">⚠️ Zona de perigo</div>
@@ -364,6 +362,101 @@
     const orig = btn.textContent; btn.textContent = '✓ Salvo!'; btn.style.background = '#166534';
     setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 2000);
   }
+  const val = id => (document.getElementById(id)?.value || '').trim();
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
+
+  // ── MEU NEGÓCIO (dados da empresa) ──────────────────────────────────────────
+  const PLAN_LABELS = { starter: 'Plano Starter', professional: 'Plano Profissional', connected: 'Plano Connected', enterprise: 'Plano Enterprise', internal: 'Plataforma' };
+  const PLAN_DETAILS = {
+    starter: 'Até 2 usuários · CRM completo',
+    professional: 'Até 15 usuários · Banco hospedado · WhatsApp + IA',
+    connected: 'Usuários ilimitados · Integrações · WhatsApp + IA',
+    enterprise: 'Sob medida · Suporte dedicado',
+  };
+  let isAdmin = false;
+
+  async function loadBusiness() {
+    const [biz, me] = await Promise.all([api('/settings/business'), api('/auth/me')]);
+    isAdmin = (me?.user?.role === 'admin');
+
+    if (biz) {
+      setVal('biz-name', biz.name);
+      setVal('biz-cnpj', biz.cnpj);
+      setVal('biz-phone', biz.phone);
+      setVal('biz-address', biz.address);
+      setVal('biz-website', biz.website);
+      const seg = document.getElementById('biz-segment');
+      const SEG_ALIASES = { health: 'Clínica / Saúde', realestate: 'Imobiliária', imobiliaria: 'Imobiliária', agency: 'Agência / Marketing', retail: 'Loja / Varejo', consulting: 'Consultoria' };
+      let segVal = SEG_ALIASES[biz.segment] || biz.segment;
+      if (segVal && segVal !== 'other') {
+        if (![...seg.options].some(o => o.value === segVal)) seg.add(new Option(segVal, segVal));
+        seg.value = segVal;
+      } else {
+        seg.value = 'other';
+      }
+      updateLogo();
+
+      // Plano (só leitura)
+      const plan = me?.tenant?.plan;
+      document.getElementById('plan-name').textContent = PLAN_LABELS[plan] || plan || 'Plano';
+      document.getElementById('plan-details').textContent = PLAN_DETAILS[plan] || '—';
+    }
+
+    // Sem permissão de admin: pode ver, não pode editar
+    if (!isAdmin) {
+      ['biz-name','biz-segment','biz-cnpj','biz-phone','biz-address','biz-website'].forEach(id => { const el = document.getElementById(id); if (el) el.disabled = true; });
+      const b = document.getElementById('biz-save');
+      if (b) { b.disabled = true; b.title = 'Só administradores podem alterar os dados da empresa'; b.style.opacity = .5; }
+    }
+  }
+
+  async function saveBusiness(btn) {
+    btn.disabled = true;
+    const r = await api('/settings/business', { method: 'PATCH', body: JSON.stringify({
+      name: val('biz-name'),
+      segment: document.getElementById('biz-segment').value,
+      cnpj: val('biz-cnpj'),
+      phone: val('biz-phone'),
+      address: val('biz-address'),
+      website: val('biz-website'),
+    })});
+    btn.disabled = false;
+    if (r) {
+      saved(btn);
+      if (typeof hydrateSidebar === 'function') hydrateSidebar();
+    }
+  }
+
+  // ── MINHA CONTA (dados pessoais) ────────────────────────────────────────────
+  async function loadAccount() {
+    const acc = await api('/settings/account');
+    if (!acc) return;
+    setVal('acc-name', acc.name);
+    setVal('acc-email', acc.email);
+    document.querySelectorAll('#tab-conta .logo-preview').forEach(el => { el.textContent = (acc.name || '?')[0].toUpperCase(); });
+  }
+
+  async function saveAccount(btn) {
+    const name = val('acc-name'), email = val('acc-email');
+    if (!name) { showToastMsg('Informe seu nome.'); return; }
+    btn.disabled = true;
+    const r = await api('/settings/account', { method: 'PATCH', body: JSON.stringify({ name, email }) });
+    btn.disabled = false;
+    if (r) { saved(btn); if (typeof hydrateSidebar === 'function') hydrateSidebar(); }
+  }
+
+  async function changePassword(btn) {
+    const currentPassword = val('pw-current'), newPassword = val('pw-new'), confirm = val('pw-confirm');
+    if (!currentPassword || !newPassword) { showToastMsg('Preencha a senha atual e a nova senha.'); return; }
+    if (newPassword !== confirm) { showToastMsg('A confirmação não bate com a nova senha.'); return; }
+    if (newPassword.length < 6) { showToastMsg('A nova senha precisa ter ao menos 6 caracteres.'); return; }
+    btn.disabled = true;
+    const r = await api('/settings/account', { method: 'PATCH', body: JSON.stringify({ currentPassword, newPassword }) });
+    btn.disabled = false;
+    if (r) { saved(btn); setVal('pw-current',''); setVal('pw-new',''); setVal('pw-confirm',''); }
+  }
+
+  function showToastMsg(m) { alert(m); }
 
   // ── STAGES ──────────────────────────────────────────────────────────────
   let stages = [];
@@ -425,7 +518,7 @@
   async function loadTeam() {
     const [team, me] = await Promise.all([api('/settings/team'), api('/auth/me')]);
     if (team) { users = team; }
-    if (me) myId = me.id;
+    if (me?.user) myId = me.user.id;
     renderUsers();
   }
   function renderUsers() {
@@ -469,7 +562,7 @@
       </div>`).join('');
   }
 
-  loadStages(); loadFields(); loadTeam();
+  loadBusiness(); loadAccount(); loadStages(); loadFields(); loadTeam();
   renderToggles(emailToggles, 'togglesEmail');
   renderToggles(pushToggles, 'togglesPush');
 </script>

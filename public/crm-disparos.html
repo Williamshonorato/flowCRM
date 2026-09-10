@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>FlowCRM — Disparos</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{
+      --green:#27ae60;--blue:#2980b9;--purple:#8e44ad;--amber:#f39c12;--red:#e74c3c;
+      --sidebar:#0f172a;--text:#1e293b;--muted:#64748b;--border:#e2e8f0;--bg:#f1f5f9;
+    }
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);display:flex;min-height:100vh}
+
+    .sidebar{width:230px;min-height:100vh;background:var(--sidebar);display:flex;flex-direction:column;flex-shrink:0}
+    .sb-brand{padding:20px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.07)}
+    .sb-icon{width:34px;height:34px;background:linear-gradient(135deg,var(--green),#1abc9c);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px}
+    .sb-name{font-size:17px;font-weight:800;color:#fff}.sb-name span{color:var(--green)}
+    .sb-nav{flex:1;padding:14px 10px}
+    .sb-section{font-size:10px;font-weight:700;color:#334155;letter-spacing:.8px;text-transform:uppercase;padding:10px 10px 6px}
+    .nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;font-size:13.5px;font-weight:500;color:#94a3b8;cursor:pointer;text-decoration:none;transition:all .18s;margin-bottom:2px}
+    .nav-item:hover{background:rgba(255,255,255,.06);color:#e2e8f0}
+    .nav-item.active{background:linear-gradient(135deg,rgba(39,174,96,.18),rgba(26,188,156,.1));color:#4ade80;font-weight:700}
+    .nav-item .ico{width:18px;text-align:center;font-size:15px}
+    .nav-item .badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:10px}
+    .sb-bottom{padding:14px 10px;border-top:1px solid rgba(255,255,255,.07)}
+    .user-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;cursor:pointer}
+    .user-row:hover{background:rgba(255,255,255,.06)}
+    .user-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--green),#1abc9c);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;flex-shrink:0}
+    .user-info .name{font-size:13px;font-weight:600;color:#e2e8f0}
+    .user-info .plan{font-size:11px;color:#64748b}
+
+    .main{flex:1;display:flex;flex-direction:column;min-width:0}
+    .topbar{background:#fff;border-bottom:1px solid var(--border);padding:0 28px;height:58px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+    .page-title{font-size:17px;font-weight:800;color:var(--text)}
+    .page-sub{font-size:13px;color:var(--muted);font-weight:400;margin-left:8px}
+    .wpp-status{font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px}
+    .wpp-on{background:#dcfce7;color:#166534}.wpp-off{background:#fee2e2;color:#991b1b}
+
+    .content{flex:1;padding:24px 28px;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:20px;align-content:start}
+    .panel{background:#fff;border:1px solid var(--border);border-radius:16px;padding:22px}
+    .panel h2{font-size:14px;font-weight:800;color:var(--text);margin-bottom:4px}
+    .panel p.sub{font-size:12.5px;color:var(--muted);margin-bottom:16px;line-height:1.5}
+    .full{grid-column:1/-1}
+
+    label.fld{display:block;font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px}
+    textarea,select,input[type=text]{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-size:13.5px;font-family:inherit;outline:none;color:var(--text);background:#fff}
+    textarea:focus,select:focus,input:focus{border-color:var(--green)}
+    textarea{resize:vertical;min-height:120px}
+    .hint{font-size:11.5px;color:var(--muted);margin-top:6px}
+    .chip{display:inline-block;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:2px 7px;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;margin:2px 4px 0 0}
+    .chip:hover{border-color:var(--green);color:var(--green)}
+
+    .radio-row{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+    .radio-opt{flex:1;min-width:120px;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted);text-align:center}
+    .radio-opt.sel{border-color:var(--green);background:#f0fdf4;color:var(--green)}
+
+    .filters{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px}
+    .contact-picker{border:1.5px solid var(--border);border-radius:10px;max-height:230px;overflow-y:auto}
+    .cp-search{padding:8px;border-bottom:1px solid var(--border);position:sticky;top:0;background:#fff}
+    .cp-item{display:flex;align-items:center;gap:9px;padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer}
+    .cp-item:hover{background:#f8fafc}
+    .cp-item input{width:15px;height:15px}
+    .cp-item .ph{color:var(--muted);font-size:11.5px;margin-left:auto}
+
+    .img-drop{border:2px dashed var(--border);border-radius:10px;padding:16px;text-align:center;font-size:12.5px;color:var(--muted);cursor:pointer}
+    .img-drop:hover{border-color:var(--green)}
+    .img-prev{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12px}
+    .img-prev img{width:54px;height:54px;object-fit:cover;border-radius:8px}
+    .img-prev button{border:none;background:#fee2e2;color:#991b1b;font-weight:700;border-radius:7px;padding:4px 9px;cursor:pointer;font-size:11px}
+
+    .review{background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:13px;margin-bottom:12px}
+    .review b{color:var(--text)}
+    .btn{border:none;border-radius:10px;padding:11px 18px;font-size:13.5px;font-weight:800;cursor:pointer}
+    .btn-primary{background:linear-gradient(135deg,var(--green),#1abc9c);color:#fff}
+    .btn-primary:disabled{opacity:.55;cursor:default}
+    .btn-ghost{background:#fff;border:1.5px solid var(--border);color:var(--text)}
+
+    .bc-item{border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px}
+    .bc-top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
+    .bc-msg{font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%}
+    .bc-badge{font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:20px}
+    .st-queued{background:#e0e7ff;color:#3730a3}.st-sending{background:#fef9c3;color:#854d0e}.st-done{background:#dcfce7;color:#166534}.st-canceled{background:#f1f5f9;color:#64748b}
+    .bar{height:8px;border-radius:6px;background:var(--bg);overflow:hidden}
+    .bar > span{display:block;height:100%;background:var(--green)}
+    .bc-meta{font-size:11.5px;color:var(--muted);margin-top:6px;display:flex;justify-content:space-between}
+    .bc-cancel{border:none;background:none;color:var(--red);font-size:11.5px;font-weight:700;cursor:pointer}
+
+    #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1e293b;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.2);opacity:0;pointer-events:none;transition:all .25s;z-index:100}
+    #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    @media(max-width:1000px){.content{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sb-brand"><div class="sb-icon">⚡</div><div class="sb-name">Flow<span>CRM</span></div></div>
+  <nav class="sb-nav"></nav>
+  <div class="sb-bottom">
+    <div class="user-row">
+      <div class="user-avatar" data-fc="user-avatar">–</div>
+      <div class="user-info">
+        <div class="name" data-fc="user-name">–</div>
+        <div class="plan" data-fc="user-plan"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <div><span class="page-title">Disparos</span><span class="page-sub">Envie uma mensagem de WhatsApp pra vários contatos de uma vez</span></div>
+    <span class="wpp-status wpp-off" id="wppBadge">verificando…</span>
+  </div>
+
+  <div class="content">
+    <!-- COMPOR -->
+    <div class="panel">
+      <h2>1. Mensagem</h2>
+      <p class="sub">Use <span class="chip" onclick="insertVar('{{nome}}')">{{nome}}</span> pra personalizar com o primeiro nome de cada contato.</p>
+      <label class="fld">Texto</label>
+      <textarea id="msg" placeholder="Ex: Oi {{nome}}, tudo bem? Passando pra avisar que..."></textarea>
+      <div class="hint" id="msgCount">0 caracteres</div>
+
+      <label class="fld" style="margin-top:16px">Imagem (opcional)</label>
+      <div class="img-drop" id="imgDrop">📎 Clique pra anexar uma imagem (JPG/PNG/WEBP, até 8 MB)
+        <input type="file" id="imgInput" accept="image/*" style="display:none"/>
+      </div>
+      <div class="img-prev" id="imgPrev" style="display:none">
+        <img id="imgThumb"/><span id="imgName"></span><button onclick="clearImage()">remover</button>
+      </div>
+    </div>
+
+    <!-- AUDIÊNCIA -->
+    <div class="panel">
+      <h2>2. Para quem</h2>
+      <p class="sub">Todos os contatos, um recorte por filtro, ou uma seleção manual.</p>
+      <div class="radio-row">
+        <div class="radio-opt sel" data-mode="all" onclick="setMode('all')">Todos os contatos</div>
+        <div class="radio-opt" data-mode="filter" onclick="setMode('filter')">Por filtro</div>
+        <div class="radio-opt" data-mode="manual" onclick="setMode('manual')">Escolher manualmente</div>
+      </div>
+
+      <div id="filterBox" style="display:none">
+        <div class="filters">
+          <div><label class="fld">Origem</label><select id="fOrigin"><option value="">Qualquer</option></select></div>
+          <div><label class="fld">Temperatura</label><select id="fTemp">
+            <option value="">Qualquer</option><option value="new">Novo</option><option value="hot">Quente</option><option value="warm">Morno</option><option value="cold">Frio</option>
+          </select></div>
+        </div>
+      </div>
+
+      <div id="manualBox" style="display:none">
+        <div class="contact-picker" id="picker">
+          <div class="cp-search"><input type="text" id="pickerSearch" placeholder="Buscar contato..." oninput="renderPicker()"/></div>
+          <div id="pickerList"></div>
+        </div>
+        <div class="hint"><span id="selCount">0</span> selecionados · <span class="chip" onclick="pickAll(true)">marcar todos</span> <span class="chip" onclick="pickAll(false)">limpar</span></div>
+      </div>
+    </div>
+
+    <!-- REVISAR + DISPARAR -->
+    <div class="panel full">
+      <h2>3. Revisar e disparar</h2>
+      <div class="review" id="review">Selecione a audiência pra ver quantos contatos vão receber.</div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-ghost" onclick="doPreview()">Revisar seleção</button>
+        <button class="btn btn-primary" id="fireBtn" onclick="fire()" disabled>Disparar agora →</button>
+      </div>
+      <div class="hint" style="margin-top:10px">O envio é feito aos poucos (algumas mensagens por minuto) pra reduzir o risco de bloqueio do WhatsApp. Você acompanha o progresso abaixo.</div>
+    </div>
+
+    <!-- HISTÓRICO -->
+    <div class="panel full">
+      <h2>Disparos recentes</h2>
+      <div id="history" style="margin-top:12px"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="flowcrm-api.js"></script>
+<script src="crm-sidebar.js"></script>
+<script>
+  authGuard();
+
+  let mode = 'all';
+  let contactsCache = [];
+  let selected = new Set();
+  let imageUrl = null;
+  let lastPreviewCount = 0;
+
+  function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),3200);}
+
+  const msgEl = document.getElementById('msg');
+  msgEl.addEventListener('input', () => { document.getElementById('msgCount').textContent = msgEl.value.length + ' caracteres'; });
+  function insertVar(v){ const s=msgEl.selectionStart||msgEl.value.length; msgEl.value = msgEl.value.slice(0,s)+v+msgEl.value.slice(s); msgEl.focus(); msgEl.dispatchEvent(new Event('input')); }
+
+  async function checkWpp(){
+    const s = await api('/whatsapp/stats');
+    const b = document.getElementById('wppBadge');
+    if (s?.connected){ b.textContent='✓ WhatsApp conectado'; b.className='wpp-status wpp-on'; }
+    else { b.textContent='WhatsApp desconectado'; b.className='wpp-status wpp-off'; }
+  }
+
+  async function loadFilters(){
+    const f = await api('/contacts/filters');
+    if (f?.origins){
+      const sel = document.getElementById('fOrigin');
+      f.origins.filter(o=>o.value).forEach(o=>{ const opt=document.createElement('option'); opt.value=o.value; opt.textContent=o.value+' ('+o.count+')'; sel.appendChild(opt); });
+    }
+  }
+
+  async function loadContacts(){
+    const d = await api('/contacts?limit=1000&sort=name');
+    contactsCache = (d?.contacts || []).filter(c => c.phone);
+    renderPicker();
+  }
+
+  function setMode(m){
+    mode = m;
+    document.querySelectorAll('.radio-opt').forEach(x => x.classList.toggle('sel', x.dataset.mode === m));
+    document.getElementById('filterBox').style.display = m === 'filter' ? 'block' : 'none';
+    document.getElementById('manualBox').style.display = m === 'manual' ? 'block' : 'none';
+    if (m === 'manual' && !contactsCache.length) loadContacts();
+    document.getElementById('fireBtn').disabled = true;
+    document.getElementById('review').textContent = 'Clique em "Revisar seleção" pra ver quantos contatos vão receber.';
+  }
+
+  function renderPicker(){
+    const q = (document.getElementById('pickerSearch').value || '').toLowerCase();
+    const list = contactsCache.filter(c => !q || (c.name||'').toLowerCase().includes(q) || (c.phone||'').includes(q));
+    document.getElementById('pickerList').innerHTML = list.slice(0, 300).map(c => `
+      <label class="cp-item">
+        <input type="checkbox" ${selected.has(c.id)?'checked':''} onchange="togglePick('${c.id}', this.checked)"/>
+        <span>${(c.name||'(sem nome)').replace(/</g,'&lt;')}</span>
+        <span class="ph">${c.phone||''}</span>
+      </label>`).join('') || '<div class="cp-item">Nenhum contato com telefone.</div>';
+    document.getElementById('selCount').textContent = selected.size;
+  }
+  function togglePick(id, on){ on ? selected.add(id) : selected.delete(id); document.getElementById('selCount').textContent = selected.size; }
+  function pickAll(on){
+    const q = (document.getElementById('pickerSearch').value || '').toLowerCase();
+    contactsCache.filter(c => !q || (c.name||'').toLowerCase().includes(q) || (c.phone||'').includes(q))
+      .forEach(c => on ? selected.add(c.id) : selected.delete(c.id));
+    renderPicker();
+  }
+
+  document.getElementById('imgDrop').addEventListener('click', () => document.getElementById('imgInput').click());
+  document.getElementById('imgInput').addEventListener('change', async e => {
+    const file = e.target.files[0]; e.target.value = '';
+    if (!file) return;
+    if (file.size > 8*1024*1024){ showToast('Imagem acima de 8 MB.'); return; }
+    showToast('Enviando imagem…');
+    const fd = new FormData(); fd.append('image', file);
+    const token = (typeof getToken==='function') ? getToken() : localStorage.getItem('flowcrm_token');
+    const res = await fetch((typeof API_BASE!=='undefined'?API_BASE:'') + '/broadcasts/upload-image', { method:'POST', headers: token?{Authorization:'Bearer '+token}:{}, body: fd });
+    const b = await res.json().catch(()=>({}));
+    if (!res.ok){ showToast(b.error || 'Falha ao enviar imagem.'); return; }
+    imageUrl = b.url;
+    document.getElementById('imgThumb').src = b.url;
+    document.getElementById('imgName').textContent = file.name;
+    document.getElementById('imgPrev').style.display = 'flex';
+    document.getElementById('imgDrop').style.display = 'none';
+  });
+  function clearImage(){
+    imageUrl = null;
+    document.getElementById('imgPrev').style.display = 'none';
+    document.getElementById('imgDrop').style.display = 'block';
+  }
+
+  function audiencePayload(){
+    return {
+      mode,
+      filters: mode === 'filter' ? { origin: document.getElementById('fOrigin').value || null, temperature: document.getElementById('fTemp').value || null } : {},
+      contactIds: mode === 'manual' ? [...selected] : [],
+    };
+  }
+
+  async function doPreview(){
+    const r = await api('/broadcasts/preview', { method:'POST', body: JSON.stringify(audiencePayload()) });
+    if (!r) return;
+    lastPreviewCount = r.count;
+    const sample = r.sample.map(s => s.name || s.phone).join(', ');
+    document.getElementById('review').innerHTML = r.count
+      ? `Vai enviar para <b>${r.count}</b> contato(s).${sample ? ' Ex: ' + sample.replace(/</g,'&lt;') : ''}`
+      : 'Nenhum contato com telefone válido nessa seleção.';
+    document.getElementById('fireBtn').disabled = r.count === 0;
+  }
+
+  async function fire(){
+    const msg = msgEl.value.trim();
+    if (!msg && !imageUrl){ showToast('Escreva uma mensagem ou anexe uma imagem.'); return; }
+    if (!confirm(`Disparar para ${lastPreviewCount} contato(s)?`)) return;
+    const btn = document.getElementById('fireBtn'); btn.disabled = true;
+    const r = await api('/broadcasts', { method:'POST', body: JSON.stringify({ ...audiencePayload(), message: msg, imageUrl }) });
+    btn.disabled = false;
+    if (!r) return;
+    showToast('Disparo iniciado! Acompanhe abaixo.');
+    msgEl.value = ''; msgEl.dispatchEvent(new Event('input')); clearImage(); selected.clear();
+    document.getElementById('review').textContent = 'Selecione a audiência pra ver quantos contatos vão receber.';
+    document.getElementById('fireBtn').disabled = true;
+    loadHistory();
+  }
+
+  const ST_LABEL = { queued:'Na fila', sending:'Enviando', done:'Concluído', canceled:'Cancelado' };
+  async function loadHistory(){
+    const list = await api('/broadcasts');
+    if (!list) return;
+    const box = document.getElementById('history');
+    if (!list.length){ box.innerHTML = '<div class="hint">Nenhum disparo ainda.</div>'; return; }
+    box.innerHTML = list.map(b => {
+      const done = b.sentCount + b.failedCount;
+      const pct = b.total ? Math.round(done / b.total * 100) : 0;
+      return `<div class="bc-item">
+        <div class="bc-top">
+          <div class="bc-msg">${(b.message || '[imagem]').replace(/</g,'&lt;')}</div>
+          <span class="bc-badge st-${b.status}">${ST_LABEL[b.status] || b.status}</span>
+        </div>
+        <div class="bar"><span style="width:${pct}%"></span></div>
+        <div class="bc-meta">
+          <span>${b.sentCount} enviadas · ${b.failedCount} falharam · ${b.total} no total</span>
+          ${(b.status === 'queued' || b.status === 'sending') ? `<button class="bc-cancel" onclick="cancelBc('${b.id}')">cancelar</button>` : `<span>${new Date(b.createdAt).toLocaleString('pt-BR')}</span>`}
+        </div>
+      </div>`;
+    }).join('');
+    if (list.some(b => b.status === 'queued' || b.status === 'sending')) {
+      clearTimeout(window._hpoll); window._hpoll = setTimeout(loadHistory, 5000);
+    }
+  }
+  async function cancelBc(id){
+    if (!confirm('Cancelar o que ainda não foi enviado?')) return;
+    await api('/broadcasts/' + id + '/cancel', { method:'POST' });
+    loadHistory();
+  }
+
+  checkWpp();
+  loadFilters();
+  loadHistory();
+</script>
+</body>
+</html>

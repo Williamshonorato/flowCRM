@@ -28,6 +28,7 @@
     { href: 'crm-pipeline.html',       ico: '🗂️', label: 'Pipeline' },
     { href: 'crm-contatos.html',       ico: '👥', label: 'Contatos' },
     { href: 'crm-conversas.html',      ico: '💬', label: 'Conversas' },
+    { href: 'crm-disparos.html',       ico: '📣', label: 'Disparos' },
     { href: 'crm-tarefas.html',        ico: '✅', label: 'Tarefas', badge: true },
     { section: 'Sistema' },
     { href: 'crm-relatorios.html',     ico: '📈', label: 'Relatórios' },

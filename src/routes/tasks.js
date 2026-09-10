@@ -42,9 +42,11 @@ router.get('/', async (req, res) => {
     include: { contact: { select: { id: true, name: true } } },
   })
 
+  // Contagem por tipo respeitando a view atual — senão o painel de tipos mostra
+  // um total (ex.: 10) que não bate com o da view (ex.: "Todas" = 9 + "Concluídas" = 1).
   const counts = await prisma.task.groupBy({
     by: ['type'],
-    where: { tenantId },
+    where: { tenantId, ...dueDateFilter },
     _count: true,
   })
 

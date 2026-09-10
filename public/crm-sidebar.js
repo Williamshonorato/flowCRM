@@ -48,6 +48,12 @@
     setText('[data-fc="user-plan"]', plan);
     setText('[data-fc="user-avatar"]', localInitials(name));
     setText('[data-fc="tenant-name"]', (me.tenant && me.tenant.name) || '');
+
+    // Badge de tarefas pendentes — em TODAS as telas, sem esperar abrir "Tarefas".
+    try {
+      const c = await api('/tasks/count');
+      if (c && typeof c.pending === 'number') window.setTasksBadge(c.pending);
+    } catch (_) { /* silencioso */ }
   }
 
   // Atualiza o badge de tarefas ("3" vermelho no menu). Chamado pelas páginas que

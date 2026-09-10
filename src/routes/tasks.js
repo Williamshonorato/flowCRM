@@ -53,6 +53,17 @@ router.get('/', async (req, res) => {
   res.json({ tasks, counts })
 })
 
+// GET /tasks/count — contagem leve pro badge da sidebar (todas as telas).
+// "pendentes" = vencidas ou vencendo hoje e ainda não concluídas (mesma regra da view "hoje").
+router.get('/count', async (req, res) => {
+  const { tenantId } = req.user
+  const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999)
+  const pending = await prisma.task.count({
+    where: { tenantId, doneAt: null, dueDate: { lte: todayEnd } },
+  })
+  res.json({ pending })
+})
+
 // POST /tasks
 router.post('/', async (req, res) => {
   const { tenantId, userId } = req.user

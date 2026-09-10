@@ -231,6 +231,7 @@ model Contact {
 model Message {
   id                String   @id @default(cuid())
   contactId         String?
+  tenantId          String?  // preenchido nas mensagens de WhatsApp; necessário pra escopar as de grupo (sem contato)
   from              String
   to                String?
   subject           String?
@@ -244,9 +245,21 @@ model Message {
   raw               Json?
   createdAt         DateTime @default(now())
 
+  // WhatsApp — identificação do chat e de grupo
+  chatJid     String?  // remoteJid: "<numero>@s.whatsapp.net" (direto) ou "<id>@g.us" (grupo)
+  isGroup     Boolean  @default(false)
+  chatName    String?  // assunto do grupo (snapshot)
+  senderPhone String?  // em grupo: telefone de quem enviou aquela mensagem
+  senderName  String?  // em grupo: nome de exibição de quem enviou
+
+  // WhatsApp — mídia
+  mediaType String? // image | audio | video | document | sticker
+  mediaUrl  String? // caminho servível: /app/uploads/whatsapp/<tenant>/<arquivo>
+
   contact Contact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
   @@index([contactId, createdAt])
+  @@index([tenantId, chatJid, createdAt])
 }
 
 // ── DEAL (negócio no pipeline) ────────────────────────────────────────────────

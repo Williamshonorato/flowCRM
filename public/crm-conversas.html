@@ -77,13 +77,26 @@
     .msg-row.in .msg-bubble{background:#fff;border:1px solid var(--border);color:var(--text);border-bottom-left-radius:4px}
     .msg-row.out .msg-bubble{background:var(--green);color:#fff;border-bottom-right-radius:4px}
     .msg-time{font-size:10px;margin-top:4px;opacity:.7}
+    .msg-sender{font-size:11px;font-weight:800;color:var(--purple);margin-bottom:3px}
+    .msg-media img{max-width:240px;border-radius:10px;display:block;cursor:pointer}
+    .msg-media audio{max-width:240px;display:block}
+    .msg-media a{color:inherit;font-weight:700;text-decoration:underline}
+    .msg-media{margin-bottom:4px}
 
-    .thread-reply{background:#fff;border-top:1px solid var(--border);padding:14px 20px;flex-shrink:0;display:flex;gap:10px}
+    /* Selo de grupo no inbox e no cabeçalho da thread */
+    .conv-tag{display:inline-block;font-size:9.5px;font-weight:800;padding:1px 5px;border-radius:5px;background:#ede9fe;color:#6d28d9;margin-left:6px;vertical-align:middle}
+
+    .thread-reply{background:#fff;border-top:1px solid var(--border);padding:14px 20px;flex-shrink:0;display:flex;gap:8px;align-items:flex-end}
     .thread-reply textarea{flex:1;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-size:13.5px;font-family:inherit;resize:none;outline:none;max-height:100px}
     .thread-reply textarea:focus{border-color:var(--green)}
-    .reply-send{padding:0 20px;border:none;border-radius:10px;background:var(--green);color:#fff;font-weight:700;font-size:13.5px;cursor:pointer}
+    .reply-tool{width:40px;height:40px;flex-shrink:0;border:1.5px solid var(--border);border-radius:10px;background:#fff;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+    .reply-tool:hover{border-color:var(--green)}
+    .reply-tool.recording{background:#fee2e2;border-color:var(--red);animation:pulse 1s infinite}
+    @keyframes pulse{50%{opacity:.55}}
+    .reply-send{padding:0 20px;height:40px;border:none;border-radius:10px;background:var(--green);color:#fff;font-weight:700;font-size:13.5px;cursor:pointer;flex-shrink:0}
     .reply-send:hover{background:#219a52}
     .reply-send:disabled{opacity:.6;cursor:default}
+    .rec-hint{font-size:12px;color:var(--red);font-weight:700;padding:0 8px;align-self:center}
 
     #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1e293b;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.2);opacity:0;pointer-events:none;transition:all .25s;z-index:100}
     #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -196,8 +209,11 @@
   authGuard();
 
   let conversations = [];
-  let currentConv = null;
+  let currentConv = null;   // contactId (conversa direta) ou chatJid (grupo)
+  let currentChat = null;   // objeto da conversa aberta { type, contactId, chatJid, name }
   let searchText = '';
+
+  const convKey = c => c.type === 'group' ? c.chatJid : c.contactId;
 
   function showToast(msg) {
     const t = document.getElementById('toast');
@@ -230,78 +246,194 @@
     else badge.style.display = 'none';
   }
 
+  function escapeHtml(s) { return String(s || '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c])); }
+
   function renderConvList() {
     const box = document.getElementById('convItems');
-    const filtered = conversations.filter(c => !searchText || c.name.toLowerCase().includes(searchText));
+    const filtered = conversations.filter(c => !searchText || (c.name || '').toLowerCase().includes(searchText));
     if (!filtered.length) {
       box.innerHTML = `<div class="conv-empty">${conversations.length ? 'Nenhuma conversa encontrada.' : 'Nenhuma conversa ainda. Quando alguém mandar mensagem no WhatsApp conectado, aparece aqui.'}</div>`;
       return;
     }
-    box.innerHTML = filtered.map((c, i) => `
-      <div class="conv-item ${currentConv === c.contactId ? 'active' : ''}" onclick="openConversation('${c.contactId}')">
-        <div class="conv-avatar" style="background:${palColor(i)}">${initials(c.name)}</div>
+    box.innerHTML = filtered.map((c, i) => {
+      const key = convKey(c);
+      const snippet = c.lastMessage ? (c.lastMessage.direction === 'out' ? 'Você: ' : '') + c.lastMessage.body : '';
+      return `
+      <div class="conv-item ${currentConv === key ? 'active' : ''}" onclick='openConversation(${JSON.stringify(key)})'>
+        <div class="conv-avatar" style="background:${c.isGroup ? '#8b5cf6' : palColor(i)}">${c.isGroup ? '👥' : initials(c.name)}</div>
         <div class="conv-body">
-          <div class="conv-top"><div class="conv-name">${c.name}</div><div class="conv-time">${c.lastMessage ? fmtTime(c.lastMessage.createdAt) : ''}</div></div>
+          <div class="conv-top"><div class="conv-name">${escapeHtml(c.name)}${c.isGroup ? '<span class="conv-tag">GRUPO</span>' : ''}</div><div class="conv-time">${c.lastMessage ? fmtTime(c.lastMessage.createdAt) : ''}</div></div>
           <div class="conv-preview">
-            <div class="conv-snippet">${c.lastMessage ? (c.lastMessage.direction === 'out' ? 'Você: ' : '') + c.lastMessage.body : ''}</div>
+            <div class="conv-snippet">${escapeHtml(snippet)}</div>
             ${c.unreadCount ? `<div class="conv-unread">${c.unreadCount}</div>` : ''}
           </div>
         </div>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
   }
 
   function filterConvs(v) { searchText = v.toLowerCase(); renderConvList(); }
 
-  async function openConversation(contactId) {
-    currentConv = contactId;
+  async function openConversation(key) {
+    const conv = conversations.find(c => convKey(c) === key);
+    const isGroup = conv ? conv.isGroup : String(key).endsWith('@g.us');
+    currentConv = key;
     renderConvList();
 
-    const data = await api('/whatsapp/conversations/' + contactId + '/messages');
+    const data = isGroup
+      ? await api('/whatsapp/groups/' + encodeURIComponent(key) + '/messages')
+      : await api('/whatsapp/conversations/' + key + '/messages');
     if (!data) return;
 
     const area = document.getElementById('threadArea');
-    const conv = conversations.find(c => c.contactId === contactId);
-    area.innerHTML = `
-      <div class="thread-header">
-        <div class="conv-avatar" style="background:${palColor(0)}">${initials(data.contact.name)}</div>
-        <div><div class="thread-header-name">${data.contact.name}</div><div class="thread-header-sub">${data.contact.phone || ''}</div></div>
-        <button class="th-btn" onclick="openProfileModal('${contactId}')">Ver ficha do contato</button>
-      </div>
-      <div class="thread-messages" id="threadMessages"></div>
-      <div class="thread-reply">
-        <textarea id="replyText" placeholder="Digite sua mensagem..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendReply()}"></textarea>
-        <button class="reply-send" id="replySendBtn" onclick="sendReply()">Enviar →</button>
-      </div>
-    `;
-    renderMessages(data.messages);
+    if (data.type === 'group') {
+      currentChat = { type: 'group', chatJid: data.group.jid, name: data.group.name };
+      const parts = data.group.participants || [];
+      const partLabel = parts.length ? parts.map(p => p.name).slice(0, 4).join(', ') + (parts.length > 4 ? ` +${parts.length - 4}` : '') : 'Nenhuma mensagem de participante ainda';
+      area.innerHTML = `
+        <div class="thread-header">
+          <div class="conv-avatar" style="background:#8b5cf6">👥</div>
+          <div><div class="thread-header-name">${escapeHtml(data.group.name)} <span class="conv-tag">GRUPO</span></div><div class="thread-header-sub">${parts.length} participante(s): ${escapeHtml(partLabel)}</div></div>
+        </div>
+        <div class="thread-messages" id="threadMessages"></div>
+        ${replyBarHtml()}
+      `;
+    } else {
+      currentChat = { type: 'direct', contactId: data.contact.id, name: data.contact.name };
+      area.innerHTML = `
+        <div class="thread-header">
+          <div class="conv-avatar" style="background:${palColor(0)}">${initials(data.contact.name)}</div>
+          <div><div class="thread-header-name">${escapeHtml(data.contact.name)}</div><div class="thread-header-sub">${escapeHtml(data.contact.phone || '')}</div></div>
+          <button class="th-btn" onclick="openProfileModal('${data.contact.id}')">Ver ficha do contato</button>
+        </div>
+        <div class="thread-messages" id="threadMessages"></div>
+        ${replyBarHtml()}
+      `;
+    }
+    wireReplyBar();
+    renderMessages(data.messages, data.type === 'group');
     loadConversations();
   }
 
-  function renderMessages(messages) {
+  function replyBarHtml() {
+    return `
+      <div class="thread-reply">
+        <input type="file" id="mediaInput" accept="image/*,audio/*,video/*,.pdf" style="display:none"/>
+        <button class="reply-tool" id="attachBtn" title="Anexar imagem, áudio ou arquivo">📎</button>
+        <button class="reply-tool" id="recBtn" title="Gravar áudio">🎤</button>
+        <span class="rec-hint" id="recHint" style="display:none">gravando…</span>
+        <textarea id="replyText" placeholder="Digite sua mensagem..." rows="1"></textarea>
+        <button class="reply-send" id="replySendBtn">Enviar →</button>
+      </div>`;
+  }
+
+  function wireReplyBar() {
+    const ta = document.getElementById('replyText');
+    ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply(); } });
+    document.getElementById('replySendBtn').addEventListener('click', sendReply);
+    document.getElementById('attachBtn').addEventListener('click', () => document.getElementById('mediaInput').click());
+    document.getElementById('mediaInput').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (file) sendMediaFile(file);
+      e.target.value = '';
+    });
+    document.getElementById('recBtn').addEventListener('click', toggleRecording);
+  }
+
+  function targetPayload() {
+    return currentChat.type === 'group'
+      ? { chatJid: currentChat.chatJid }
+      : { contactId: currentChat.contactId };
+  }
+
+  function renderMessages(messages, isGroup) {
     const box = document.getElementById('threadMessages');
     if (!box) return;
-    box.innerHTML = messages.map(m => `
-      <div class="msg-row ${m.direction}">
-        <div class="msg-bubble">${m.body.replace(/</g, '&lt;')}<div class="msg-time">${fmtTime(m.createdAt)}</div></div>
-      </div>
-    `).join('');
+    box.innerHTML = messages.map(m => {
+      let inner = '';
+      if (m.mediaUrl && m.mediaType === 'image') inner += `<div class="msg-media"><img src="${m.mediaUrl}" onclick="window.open('${m.mediaUrl}')"/></div>`;
+      else if (m.mediaUrl && m.mediaType === 'audio') inner += `<div class="msg-media"><audio controls src="${m.mediaUrl}"></audio></div>`;
+      else if (m.mediaUrl && m.mediaType === 'video') inner += `<div class="msg-media"><video controls src="${m.mediaUrl}" style="max-width:240px;border-radius:10px"></video></div>`;
+      else if (m.mediaUrl) inner += `<div class="msg-media"><a href="${m.mediaUrl}" target="_blank">📄 Abrir arquivo</a></div>`;
+      const showCaption = m.body && !(m.mediaType && /^\[.+\]$/.test(m.body));
+      if (showCaption || !m.mediaUrl) inner += escapeHtml(m.body);
+      const sender = (isGroup && m.direction === 'in') ? `<div class="msg-sender">${escapeHtml(m.senderName || m.senderPhone || '')}</div>` : '';
+      return `<div class="msg-row ${m.direction}"><div class="msg-bubble">${sender}${inner}<div class="msg-time">${fmtTime(m.createdAt)}</div></div></div>`;
+    }).join('');
     box.scrollTop = box.scrollHeight;
   }
 
   async function sendReply() {
     const textarea = document.getElementById('replyText');
     const message = textarea.value.trim();
-    if (!message || !currentConv) return;
+    if (!message || !currentChat) return;
     const btn = document.getElementById('replySendBtn');
     btn.disabled = true;
-    const result = await api('/whatsapp/send', { method: 'POST', body: JSON.stringify({ contactId: currentConv, message }) });
+    const result = await api('/whatsapp/send', { method: 'POST', body: JSON.stringify({ ...targetPayload(), message }) });
     btn.disabled = false;
     if (result) {
       textarea.value = '';
       showToast('Mensagem enviada.');
       openConversation(currentConv);
     }
+  }
+
+  async function sendMediaFile(file, label) {
+    if (!currentChat) return;
+    if (file.size > 16 * 1024 * 1024) { showToast('Arquivo muito grande (máx. 16 MB).'); return; }
+    showToast((label || 'Enviando') + '…');
+    const fd = new FormData();
+    fd.append('file', file, file.name || 'audio.webm');
+    const t = targetPayload();
+    Object.entries(t).forEach(([k, v]) => fd.append(k, v));
+    const token = (typeof getToken === 'function') ? getToken() : localStorage.getItem('flowcrm_token');
+    let res;
+    try {
+      res = await fetch((typeof API_BASE !== 'undefined' ? API_BASE : '') + '/whatsapp/send-media', {
+        method: 'POST',
+        headers: token ? { Authorization: 'Bearer ' + token } : {},
+        body: fd,
+      });
+    } catch { showToast('Falha de conexão ao enviar a mídia.'); return; }
+    if (!res.ok) {
+      const b = await res.json().catch(() => ({}));
+      showToast(b.error || 'Não foi possível enviar a mídia.');
+      return;
+    }
+    showToast('Enviado.');
+    openConversation(currentConv);
+  }
+
+  // ── Gravação de áudio (nota de voz) ──────────────────────────────────────────
+  let mediaRecorder = null, recChunks = [];
+  async function toggleRecording() {
+    const btn = document.getElementById('recBtn');
+    const hint = document.getElementById('recHint');
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+      return;
+    }
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      showToast('Não foi possível acessar o microfone.');
+      return;
+    }
+    recChunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e => { if (e.data.size) recChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      btn.classList.remove('recording'); hint.style.display = 'none';
+      const blob = new Blob(recChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+      if (blob.size > 800) {
+        const ext = (blob.type.includes('ogg')) ? 'ogg' : 'webm';
+        sendMediaFile(new File([blob], 'nota-de-voz.' + ext, { type: blob.type }), 'Enviando áudio');
+      }
+    };
+    mediaRecorder.start();
+    btn.classList.add('recording'); hint.style.display = 'inline';
   }
 
   let pmContactId = null;

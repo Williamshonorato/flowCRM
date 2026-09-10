@@ -1,4 +1,9 @@
 import { Router } from 'express'
+import multer from 'multer'
+import fs from 'fs/promises'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import { randomUUID } from 'crypto'
 import prisma from '../lib/prisma.js'
 import { extractName, extractEmail, extractPhone, detectIntent } from '../lib/whatsappParser.js'
 import { requireAuth } from '../middleware/auth.js'
@@ -13,6 +18,11 @@ const router = Router()
 const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL
 const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const WA_UPLOAD_ROOT = path.join(__dirname, '../../public/uploads/whatsapp')
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } })
+
 function instanceNameFor(tenantId) {
   return `t_${tenantId}`
 }
@@ -21,56 +31,137 @@ function evoHeaders() {
   return { 'Content-Type': 'application/json', apikey: EVOLUTION_API_KEY }
 }
 
+// Só os dígitos de um telefone/jid ("55 (11) 9..." ou "5511...@s.whatsapp.net")
+function digits(v) {
+  return String(v || '').replace(/[^0-9]/g, '')
+}
+
+// É jid de grupo? (Baileys usa "<id>@g.us" pra grupo e "<numero>@s.whatsapp.net" pra pessoa)
+function isGroupJid(jid) {
+  return String(jid || '').endsWith('@g.us')
+}
+
+// Extensão a partir do mimetype, pra salvar a mídia com um nome plausível
+const EXT_BY_MIME = {
+  'image/jpeg': '.jpg', 'image/jpg': '.jpg', 'image/png': '.png', 'image/gif': '.gif', 'image/webp': '.webp',
+  'audio/ogg': '.ogg', 'audio/oga': '.ogg', 'audio/mpeg': '.mp3', 'audio/mp3': '.mp3', 'audio/mp4': '.m4a',
+  'audio/aac': '.aac', 'audio/wav': '.wav', 'audio/webm': '.webm', 'audio/x-m4a': '.m4a',
+  'video/mp4': '.mp4', 'video/webm': '.webm', 'video/3gpp': '.3gp', 'video/quicktime': '.mov',
+  'application/pdf': '.pdf',
+}
+function extForMime(mime) {
+  if (EXT_BY_MIME[mime]) return EXT_BY_MIME[mime]
+  const sub = String(mime || '').split('/')[1]
+  return sub ? '.' + sub.split(';')[0].replace(/[^a-z0-9]/gi, '') : '.bin'
+}
+function mediaKindForMime(mime) {
+  const m = String(mime || '')
+  if (m.startsWith('image/')) return 'image'
+  if (m.startsWith('audio/')) return 'audio'
+  if (m.startsWith('video/')) return 'video'
+  return 'document'
+}
+
+// Grava um Buffer de mídia em disco (por tenant) e devolve a URL servível
+async function saveMedia(tenantId, buffer, mime) {
+  const dir = path.join(WA_UPLOAD_ROOT, tenantId)
+  await fs.mkdir(dir, { recursive: true })
+  const filename = randomUUID() + extForMime(mime)
+  await fs.writeFile(path.join(dir, filename), buffer)
+  return `/app/uploads/whatsapp/${tenantId}/${filename}`
+}
+
+// Config da Evolution pro tenant: instância compartilhada por padrão, ou a
+// Evolution própria do cliente se ele configurou apiUrl/apiKey manualmente antes.
+function evoConfigFrom(integration, tenantId) {
+  const config = integration?.config || {}
+  return {
+    apiUrl: (config.apiUrl || EVOLUTION_API_URL || '').replace(/\/$/, ''),
+    apiKey: config.apiKey || EVOLUTION_API_KEY,
+    instance: config.instance || instanceNameFor(tenantId),
+  }
+}
+
 // GET /whatsapp/stats — status real da integração + total de mensagens capturadas do tenant
 router.get('/stats', requireAuth, async (req, res) => {
   const { tenantId } = req.user
   const [integration, messageCount] = await Promise.all([
     prisma.integration.findUnique({ where: { tenantId_type: { tenantId, type: 'whatsapp' } } }),
-    prisma.message.count({ where: { contact: { tenantId } } }),
+    prisma.message.count({ where: { OR: [{ contact: { tenantId } }, { tenantId }] } }),
   ])
   res.json({ connected: integration?.status === 'connected', messageCount })
 })
 
-// GET /whatsapp/conversations — inbox: um item por contato, com a última mensagem e não-lidas
+// GET /whatsapp/conversations — inbox: um item por chat (pessoa OU grupo), com a
+// última mensagem e a contagem de não-lidas.
 router.get('/conversations', requireAuth, async (req, res) => {
   const { tenantId } = req.user
 
+  // ── Conversas diretas (1 contato) ──────────────────────────────────────────
   const contacts = await prisma.contact.findMany({
-    where: { tenantId, messages: { some: { channel: 'whatsapp' } } },
+    where: { tenantId, messages: { some: { channel: 'whatsapp', isGroup: false } } },
     select: {
       id: true, name: true, phone: true,
-      messages: { where: { channel: 'whatsapp' }, orderBy: { createdAt: 'desc' }, take: 1 },
+      messages: { where: { channel: 'whatsapp', isGroup: false }, orderBy: { createdAt: 'desc' }, take: 1 },
     },
   })
 
-  const unreadCounts = await prisma.message.groupBy({
+  const directUnread = await prisma.message.groupBy({
     by: ['contactId'],
-    where: { contact: { tenantId }, channel: 'whatsapp', direction: 'in', readAt: null },
+    where: { contact: { tenantId }, channel: 'whatsapp', isGroup: false, direction: 'in', readAt: null },
     _count: true,
   })
-  const unreadMap = Object.fromEntries(unreadCounts.map(u => [u.contactId, u._count]))
+  const directUnreadMap = Object.fromEntries(directUnread.map(u => [u.contactId, u._count]))
 
-  const conversations = contacts
-    .map(c => ({
-      contactId: c.id,
-      name: c.name,
-      phone: c.phone,
-      lastMessage: c.messages[0] || null,
-      unreadCount: unreadMap[c.id] || 0,
-    }))
+  const direct = contacts.map(c => ({
+    type: 'direct',
+    contactId: c.id,
+    chatJid: c.messages[0]?.chatJid || (c.phone ? `${digits(c.phone)}@s.whatsapp.net` : null),
+    name: c.name,
+    phone: c.phone,
+    isGroup: false,
+    lastMessage: c.messages[0] || null,
+    unreadCount: directUnreadMap[c.id] || 0,
+  }))
+
+  // ── Conversas de grupo (chatJid @g.us, sem contato) ────────────────────────
+  const groupJids = await prisma.message.groupBy({
+    by: ['chatJid'],
+    where: { tenantId, channel: 'whatsapp', isGroup: true },
+    _max: { createdAt: true },
+  })
+
+  const groups = await Promise.all(groupJids.filter(g => g.chatJid).map(async (g) => {
+    const [last, unreadCount] = await Promise.all([
+      prisma.message.findFirst({ where: { tenantId, chatJid: g.chatJid }, orderBy: { createdAt: 'desc' } }),
+      prisma.message.count({ where: { tenantId, chatJid: g.chatJid, direction: 'in', readAt: null } }),
+    ])
+    return {
+      type: 'group',
+      contactId: null,
+      chatJid: g.chatJid,
+      name: last?.chatName || 'Grupo',
+      phone: null,
+      isGroup: true,
+      lastMessage: last,
+      unreadCount,
+    }
+  }))
+
+  const conversations = [...direct, ...groups]
     .sort((a, b) => new Date(b.lastMessage?.createdAt || 0) - new Date(a.lastMessage?.createdAt || 0))
 
   res.json(conversations)
 })
 
-// GET /whatsapp/conversations/:contactId/messages — thread completa; marca as recebidas como lidas
+// GET /whatsapp/conversations/:contactId/messages — thread de uma conversa DIRETA
 router.get('/conversations/:contactId/messages', requireAuth, async (req, res) => {
   const { tenantId } = req.user
   const contact = await prisma.contact.findFirst({ where: { id: req.params.contactId, tenantId } })
   if (!contact) return res.status(404).json({ error: 'Contato não encontrado.' })
 
   const messages = await prisma.message.findMany({
-    where: { contactId: contact.id, channel: 'whatsapp' },
+    where: { contactId: contact.id, channel: 'whatsapp', isGroup: false },
     orderBy: { createdAt: 'asc' },
   })
 
@@ -79,7 +170,41 @@ router.get('/conversations/:contactId/messages', requireAuth, async (req, res) =
     data: { readAt: new Date() },
   })
 
-  res.json({ contact: { id: contact.id, name: contact.name, phone: contact.phone }, messages })
+  res.json({
+    type: 'direct',
+    contact: { id: contact.id, name: contact.name, phone: contact.phone },
+    messages,
+  })
+})
+
+// GET /whatsapp/groups/:jid/messages — thread de um GRUPO (jid vem url-encoded)
+router.get('/groups/:jid/messages', requireAuth, async (req, res) => {
+  const { tenantId } = req.user
+  const jid = decodeURIComponent(req.params.jid)
+  if (!isGroupJid(jid)) return res.status(400).json({ error: 'Jid de grupo inválido.' })
+
+  const messages = await prisma.message.findMany({
+    where: { tenantId, chatJid: jid, channel: 'whatsapp' },
+    orderBy: { createdAt: 'asc' },
+  })
+  if (!messages.length) return res.status(404).json({ error: 'Grupo não encontrado.' })
+
+  await prisma.message.updateMany({
+    where: { tenantId, chatJid: jid, direction: 'in', readAt: null },
+    data: { readAt: new Date() },
+  })
+
+  // Participantes = quem já apareceu enviando mensagem no grupo
+  const seen = new Map()
+  for (const m of messages) {
+    if (m.direction === 'in' && m.senderPhone && !seen.has(m.senderPhone)) {
+      seen.set(m.senderPhone, m.senderName || m.senderPhone)
+    }
+  }
+  const participants = [...seen].map(([phone, name]) => ({ phone, name }))
+  const name = [...messages].reverse().find(m => m.chatName)?.chatName || 'Grupo'
+
+  res.json({ type: 'group', group: { jid, name, participants }, messages })
 })
 
 // POST /whatsapp/connect — cria (se ainda não existir) a instância dessa empresa no
@@ -180,38 +305,44 @@ router.post('/disconnect', requireAuth, async (req, res) => {
   res.json({ ok: true })
 })
 
-// POST /whatsapp/send — manda mensagem de saída pela Evolution API da empresa
-router.post('/send', requireAuth, async (req, res) => {
-  const { tenantId, userId } = req.user
-  const { contactId, phone, message } = req.body
-  if (!message || !message.trim()) return res.status(400).json({ error: 'Mensagem obrigatória.' })
-
+// Resolve o alvo do envio a partir de { contactId } ou { chatJid }.
+// Devolve { number, contact, isGroup, chatJid } — `number` é o que vai no campo
+// "number" da Evolution (aceita tanto telefone quanto jid completo).
+async function resolveSendTarget({ tenantId, contactId, chatJid, phone }) {
+  if (chatJid && isGroupJid(chatJid)) {
+    return { number: chatJid, contact: null, isGroup: true, chatJid }
+  }
   let contact = null
   if (contactId) {
     contact = await prisma.contact.findFirst({ where: { id: contactId, tenantId } })
-    if (!contact) return res.status(404).json({ error: 'Contato não encontrado.' })
+    if (!contact) return { error: 'Contato não encontrado.' }
   }
+  const toPhone = digits(contact?.phone || phone || (chatJid ? chatJid.split('@')[0] : ''))
+  if (!toPhone) return { error: 'Telefone do destinatário não informado.' }
+  return { number: toPhone, contact, isGroup: false, chatJid: chatJid || `${toPhone}@s.whatsapp.net` }
+}
 
-  const toPhone = ((contact?.phone || phone || '')).replace(/[^0-9]/g, '')
-  if (!toPhone) return res.status(400).json({ error: 'Telefone do destinatário não informado.' })
+// POST /whatsapp/send — mensagem de TEXTO de saída (pessoa ou grupo)
+router.post('/send', requireAuth, async (req, res) => {
+  const { tenantId, userId } = req.user
+  const { contactId, phone, chatJid, message } = req.body
+  if (!message || !message.trim()) return res.status(400).json({ error: 'Mensagem obrigatória.' })
+
+  const target = await resolveSendTarget({ tenantId, contactId, chatJid, phone })
+  if (target.error) return res.status(target.error === 'Contato não encontrado.' ? 404 : 400).json({ error: target.error })
 
   const integration = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId, type: 'whatsapp' } } })
-  const config = integration?.config || {}
-  // Config antiga (Evolution própria do cliente, apiUrl/apiKey manuais) continua funcionando
-  // pra quem configurou assim antes; senão usa a Evolution compartilhada + a instância do tenant.
-  const apiUrl = config.apiUrl || EVOLUTION_API_URL
-  const apiKey = config.apiKey || EVOLUTION_API_KEY
-  const instance = config.instance || instanceNameFor(tenantId)
+  const { apiUrl, apiKey, instance } = evoConfigFrom(integration, tenantId)
   if (!integration || integration.status !== 'connected' || !apiUrl || !instance) {
     return res.status(400).json({ error: 'WhatsApp não conectado. Conecte o número em Integrações.' })
   }
 
   let evoData
   try {
-    const evoRes = await fetch(`${apiUrl.replace(/\/$/, '')}/message/sendText/${instance}`, {
+    const evoRes = await fetch(`${apiUrl}/message/sendText/${instance}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(apiKey ? { apikey: apiKey } : {}) },
-      body: JSON.stringify({ number: toPhone, text: message }),
+      body: JSON.stringify({ number: target.number, text: message }),
     })
     evoData = await evoRes.json().catch(() => ({}))
     if (!evoRes.ok) {
@@ -221,36 +352,205 @@ router.post('/send', requireAuth, async (req, res) => {
     return res.status(502).json({ error: 'Não foi possível conectar na Evolution API. Confira a URL configurada.', detail: err.message })
   }
 
-  // Nesse ponto a mensagem JÁ foi enviada de verdade pelo WhatsApp — se salvar o registro
-  // falhar por qualquer motivo (ex: whatsappMessageId duplicado), não podemos reportar erro
-  // pro usuário, senão ele reenvia a mesma mensagem achando que falhou.
+  // Nesse ponto a mensagem JÁ foi enviada — se salvar o registro falhar, não podemos
+  // reportar erro pro usuário, senão ele reenvia achando que falhou.
   let saved
   try {
     saved = await prisma.message.create({
       data: {
-        contactId: contact?.id || null,
+        contactId: target.contact?.id || null,
+        tenantId,
         from: 'me',
-        to: toPhone,
+        to: target.number,
         body: message,
         direction: 'out',
+        chatJid: target.chatJid,
+        isGroup: target.isGroup,
         whatsappMessageId: evoData?.key?.id || null,
         raw: evoData,
       },
     })
   } catch (err) {
     console.error('whatsapp send: falha ao salvar registro (mensagem já foi enviada)', err.message)
-    saved = { contactId: contact?.id || null, to: toPhone, body: message, direction: 'out', warning: 'Mensagem enviada, mas houve um erro ao salvar o registro no histórico.' }
+    saved = { contactId: target.contact?.id || null, to: target.number, body: message, direction: 'out', warning: 'Mensagem enviada, mas houve um erro ao salvar o registro no histórico.' }
   }
 
-  if (contact) {
-    await prisma.activity.create({ data: { tenantId, userId, contactId: contact.id, type: 'whatsapp', content: `WhatsApp enviado: "${message.slice(0, 80)}"` } }).catch(() => {})
+  if (target.contact) {
+    await prisma.activity.create({ data: { tenantId, userId, contactId: target.contact.id, type: 'whatsapp', content: `WhatsApp enviado: "${message.slice(0, 80)}"` } }).catch(() => {})
   }
 
   res.status(201).json(saved)
 })
 
-// Webhook para receber mensagens do WhatsApp (ou adaptadores) — uma URL por empresa,
-// já que cada uma conecta seu próprio número/instância da Evolution API.
+// POST /whatsapp/send-media — envia imagem / áudio / vídeo / documento (multipart, campo "file").
+// Body: contactId OU chatJid, opcional caption. Áudio vira nota de voz (PTT).
+router.post('/send-media', requireAuth, upload.single('file'), async (req, res) => {
+  const { tenantId, userId } = req.user
+  const { contactId, phone, chatJid, caption } = req.body
+  if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' })
+
+  const target = await resolveSendTarget({ tenantId, contactId, chatJid, phone })
+  if (target.error) return res.status(target.error === 'Contato não encontrado.' ? 404 : 400).json({ error: target.error })
+
+  const integration = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId, type: 'whatsapp' } } })
+  const { apiUrl, apiKey, instance } = evoConfigFrom(integration, tenantId)
+  if (!integration || integration.status !== 'connected' || !apiUrl || !instance) {
+    return res.status(400).json({ error: 'WhatsApp não conectado. Conecte o número em Integrações.' })
+  }
+
+  const mime = req.file.mimetype || 'application/octet-stream'
+  const kind = mediaKindForMime(mime)
+  const base64 = req.file.buffer.toString('base64')
+  const evoAuth = { 'Content-Type': 'application/json', ...(apiKey ? { apikey: apiKey } : {}) }
+
+  let evoData
+  try {
+    let evoRes
+    if (kind === 'audio') {
+      evoRes = await fetch(`${apiUrl}/message/sendWhatsAppAudio/${instance}`, {
+        method: 'POST', headers: evoAuth,
+        body: JSON.stringify({ number: target.number, audio: base64 }),
+      })
+    } else {
+      evoRes = await fetch(`${apiUrl}/message/sendMedia/${instance}`, {
+        method: 'POST', headers: evoAuth,
+        body: JSON.stringify({
+          number: target.number,
+          mediatype: kind, // image | video | document
+          mimetype: mime,
+          media: base64,
+          fileName: req.file.originalname || `arquivo${extForMime(mime)}`,
+          caption: caption || undefined,
+        }),
+      })
+    }
+    evoData = await evoRes.json().catch(() => ({}))
+    if (!evoRes.ok) {
+      return res.status(502).json({ error: evoData?.response?.message || evoData?.error || 'A Evolution API recusou o envio da mídia.', detail: evoData })
+    }
+  } catch (err) {
+    return res.status(502).json({ error: 'Não foi possível enviar a mídia pela Evolution API.', detail: err.message })
+  }
+
+  let mediaUrl = null
+  try { mediaUrl = await saveMedia(tenantId, req.file.buffer, mime) } catch (err) {
+    console.error('whatsapp send-media: falha ao salvar cópia local (já foi enviado)', err.message)
+  }
+
+  const labels = { image: '[imagem]', audio: '[áudio]', video: '[vídeo]', document: '[documento]' }
+  let saved
+  try {
+    saved = await prisma.message.create({
+      data: {
+        contactId: target.contact?.id || null,
+        tenantId,
+        from: 'me',
+        to: target.number,
+        body: caption || labels[kind] || '[mídia]',
+        direction: 'out',
+        chatJid: target.chatJid,
+        isGroup: target.isGroup,
+        mediaType: kind,
+        mediaUrl,
+        whatsappMessageId: evoData?.key?.id || null,
+        raw: evoData,
+      },
+    })
+  } catch (err) {
+    console.error('whatsapp send-media: falha ao salvar registro (mídia já foi enviada)', err.message)
+    saved = { contactId: target.contact?.id || null, to: target.number, body: labels[kind], direction: 'out', mediaType: kind, mediaUrl, warning: 'Mídia enviada, mas houve um erro ao salvar o registro.' }
+  }
+
+  if (target.contact) {
+    await prisma.activity.create({ data: { tenantId, userId, contactId: target.contact.id, type: 'whatsapp', content: `WhatsApp enviado: ${labels[kind] || '[mídia]'}` } }).catch(() => {})
+  }
+
+  res.status(201).json(saved)
+})
+
+// ── Webhook (Evolution → nós) ────────────────────────────────────────────────
+
+// Puxa o texto de uma mensagem, seja qual for o formato que a Evolution mandar
+function getMessageText(message) {
+  if (!message) return ''
+  if (typeof message === 'string') return message
+  if (message.body) return message.body
+  if (message.text) return typeof message.text === 'string' ? message.text : message.text?.body || ''
+  if (message.message) {
+    const msg = message.message
+    if (typeof msg === 'string') return msg
+    if (msg.conversation) return msg.conversation
+    if (msg.extendedTextMessage?.text) return msg.extendedTextMessage.text
+    if (msg.imageMessage?.caption) return msg.imageMessage.caption
+    if (msg.videoMessage?.caption) return msg.videoMessage.caption
+    if (msg.documentMessage?.caption) return msg.documentMessage.caption
+    if (msg.buttonsResponseMessage?.selectedDisplayText) return msg.buttonsResponseMessage.selectedDisplayText
+    if (msg.listResponseMessage?.title) return msg.listResponseMessage.title
+  }
+  if (message.content?.text) return message.content.text
+  if (message.text?.body) return message.text.body
+  if (message?.text?.caption) return message.text.caption
+  return ''
+}
+
+// Detecta mídia na mensagem recebida e devolve { kind, mimetype, node } ou null
+function detectIncomingMedia(m) {
+  const msg = m?.message || {}
+  const map = [
+    ['imageMessage', 'image'],
+    ['audioMessage', 'audio'],
+    ['videoMessage', 'video'],
+    ['documentMessage', 'document'],
+    ['documentWithCaptionMessage', 'document'],
+    ['stickerMessage', 'sticker'],
+  ]
+  for (const [key, kind] of map) {
+    const node = key === 'documentWithCaptionMessage' ? msg[key]?.message?.documentMessage : msg[key]
+    if (node) return { kind, mimetype: node.mimetype || '', node }
+  }
+  return null
+}
+
+// Baixa a mídia recebida: usa o base64 que a Evolution já manda (webhook base64:true)
+// e, se não vier, pede pra Evolution converter com getBase64FromMediaMessage.
+async function fetchIncomingMediaBuffer(m, evo) {
+  const inline = m?.message?.base64 || m?.base64 || m?.mediaBase64
+  if (inline) { try { return Buffer.from(inline, 'base64') } catch {} }
+  if (!evo?.apiUrl) return null
+  try {
+    const r = await fetch(`${evo.apiUrl}/chat/getBase64FromMediaMessage/${evo.instance}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(evo.apiKey ? { apikey: evo.apiKey } : {}) },
+      body: JSON.stringify({ message: { key: m.key }, convertToMp4: false }),
+    })
+    const data = await r.json().catch(() => ({}))
+    if (data?.base64) return Buffer.from(data.base64, 'base64')
+  } catch (err) {
+    console.error('whatsapp webhook: falha ao baixar mídia', err.message)
+  }
+  return null
+}
+
+// Assunto do grupo — cacheado em memória pra não bater na Evolution a cada mensagem
+const groupNameCache = new Map() // jid -> { name, at }
+async function resolveGroupName(jid, evo) {
+  const hit = groupNameCache.get(jid)
+  if (hit && Date.now() - hit.at < 3600_000) return hit.name
+  let name = null
+  if (evo?.apiUrl) {
+    try {
+      const r = await fetch(`${evo.apiUrl}/group/findGroupInfos/${evo.instance}?groupJid=${encodeURIComponent(jid)}`, {
+        headers: { ...(evo.apiKey ? { apikey: evo.apiKey } : {}) },
+      })
+      const data = await r.json().catch(() => ({}))
+      name = data?.subject || data?.groupMetadata?.subject || null
+    } catch { /* silencioso */ }
+  }
+  groupNameCache.set(jid, { name, at: Date.now() })
+  return name
+}
+
+// Webhook para receber mensagens do WhatsApp — uma URL por empresa.
 router.post('/webhook/:tenantId', async (req, res) => {
   const token = process.env.WHATSAPP_TOKEN
   if (token && req.headers['x-whatsapp-token'] !== token) {
@@ -260,16 +560,16 @@ router.post('/webhook/:tenantId', async (req, res) => {
   const tenant = await prisma.tenant.findUnique({ where: { id: req.params.tenantId } })
   if (!tenant) return res.status(404).json({ error: 'Empresa não encontrada.' })
 
-  // A Evolution manda webhook pra vários tipos de evento, não só mensagem
-  // (qrcode.updated, connection.update, etc). Ignora tudo que não for mensagem de chat.
   const eventType = req.body?.event
   if (eventType && eventType !== 'messages.upsert') {
     return res.json({ ok: true, ignored: eventType })
   }
 
+  const integration = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId: tenant.id, type: 'whatsapp' } } }).catch(() => null)
+  const evo = evoConfigFrom(integration, tenant.id)
+
   try {
     const payload = req.body || {}
-    // Evolution API (Baileys) manda um evento por webhook, com a mensagem aninhada em `data`
     const messages = Array.isArray(payload.messages)
       ? payload.messages
       : payload.data && (payload.data.key || payload.data.message)
@@ -280,56 +580,71 @@ router.post('/webhook/:tenantId', async (req, res) => {
 
     let processed = 0
 
-    function getMessageText(message) {
-      if (!message) return ''
-      if (typeof message === 'string') return message
-      if (message.body) return message.body
-      if (message.text) return typeof message.text === 'string' ? message.text : message.text?.body || ''
-      if (message.message) {
-        const msg = message.message
-        if (typeof msg === 'string') return msg
-        if (msg.conversation) return msg.conversation
-        if (msg.extendedTextMessage?.text) return msg.extendedTextMessage.text
-        if (msg.imageMessage?.caption) return msg.imageMessage.caption
-        if (msg.videoMessage?.caption) return msg.videoMessage.caption
-        if (msg.buttonsResponseMessage?.selectedDisplayText) return msg.buttonsResponseMessage.selectedDisplayText
-        if (msg.listResponseMessage?.title) return msg.listResponseMessage.title
-      }
-      if (message.content?.text) return message.content.text
-      if (message.text?.body) return message.text.body
-      if (message?.text?.caption) return message.text.caption
-      return ''
-    }
-
     for (const m of messages) {
-      // Ignora mensagens enviadas pela própria instância (eco do que a empresa mandou)
+      // Ignora o eco das mensagens enviadas pela própria empresa
       if (m.key?.fromMe) continue
 
-      const from = m.from || m.sender || m.author || m.chatId || m.key?.remoteJid || ''
-      const to = m.to || m.recipient || ''
+      const remoteJid = m.from || m.key?.remoteJid || m.chatId || ''
+      const group = isGroupJid(remoteJid)
+      // Em grupo, quem enviou é `participant`; em conversa direta é o próprio remoteJid
+      const senderJid = group ? (m.key?.participant || m.participant || '') : remoteJid
+      const senderPhone = digits(senderJid)
+      const pushName = m.pushName || null
       const body = getMessageText(m)
       const whatsappId = m.id || m.messageId || m.key?.id || null
-      const pushName = m.pushName || null
+      const to = m.to || m.recipient || ''
 
-      const phone = (from || '').replace(/[^0-9]/g, '')
+      if (!senderPhone) continue // sem remetente identificável, ignora
 
-      // Sem telefone não dá pra saber quem mandou — ignora em vez de criar contato em branco
-      if (!phone) continue
-
-      // Encontra ou cria contato pelo telefone, sempre dentro desta empresa
-      let contact = null
-      if (phone) {
-        contact = await prisma.contact.findFirst({ where: { phone, tenantId: tenant.id } })
+      // idempotência: não processa a mesma mensagem duas vezes
+      if (whatsappId) {
+        const existing = await prisma.message.findUnique({ where: { whatsappMessageId: whatsappId } }).catch(() => null)
+        if (existing) { processed += 1; continue }
       }
 
+      // Mídia (se houver)
+      let mediaType = null, mediaUrl = null
+      const media = detectIncomingMedia(m)
+      if (media) {
+        mediaType = media.kind
+        const buf = await fetchIncomingMediaBuffer(m, evo)
+        if (buf) { try { mediaUrl = await saveMedia(tenant.id, buf, media.mimetype || 'application/octet-stream') } catch {} }
+      }
+
+      // ── GRUPO: não cria contato, guarda a conversa por chatJid ───────────────
+      if (group) {
+        const chatName = await resolveGroupName(remoteJid, evo)
+        await prisma.message.create({
+          data: {
+            contactId: null,
+            tenantId: tenant.id,
+            from: senderJid,
+            to,
+            body: body || (mediaType ? `[${mediaType}]` : ''),
+            direction: 'in',
+            chatJid: remoteJid,
+            isGroup: true,
+            chatName,
+            senderPhone,
+            senderName: pushName,
+            mediaType,
+            mediaUrl,
+            whatsappMessageId: whatsappId,
+            raw: m,
+          },
+        })
+        processed += 1
+        continue
+      }
+
+      // ── DIRETO: acha ou cria contato pelo telefone, dentro da empresa ────────
+      let contact = await prisma.contact.findFirst({ where: { phone: senderPhone, tenantId: tenant.id } })
       if (!contact) {
-        // prioriza o nome de exibição do WhatsApp (Evolution manda em pushName); cai pro texto se não vier
         const name = pushName || extractName(body) || ''
         const email = extractEmail(body)
-        const phoneExtracted = extractPhone(body) || phone
+        const phoneExtracted = extractPhone(body) || senderPhone
         contact = await prisma.contact.create({ data: { tenantId: tenant.id, name, phone: phoneExtracted, email: email || null } })
       } else {
-        // atualiza contato se encontrarmos mais dados
         const name = pushName || extractName(body)
         const email = extractEmail(body)
         const updates = {}
@@ -340,61 +655,41 @@ router.post('/webhook/:tenantId', async (req, res) => {
         }
       }
 
-      // idempotência: ignora mensagens já processadas
-      if (whatsappId) {
-        const existing = await prisma.message.findUnique({ where: { whatsappMessageId: whatsappId } }).catch(()=>null)
-        if (existing) {
-          processed += 1
-          continue
-        }
-      }
-
       await prisma.message.create({
         data: {
           contactId: contact.id,
-          from,
+          tenantId: tenant.id,
+          from: remoteJid,
           to,
-          body,
+          body: body || (mediaType ? `[${mediaType}]` : ''),
           direction: 'in',
+          chatJid: remoteJid,
+          isGroup: false,
+          mediaType,
+          mediaUrl,
           whatsappMessageId: whatsappId,
           raw: m,
         },
       })
 
-      // Dispara os fluxos de automação com gatilho "mensagem recebida no WhatsApp"
-      // (ex: responder automaticamente com uma sequência de mensagens configurada)
-      // Se a pessoa está no meio de um menu, a mensagem é resposta dele, não um gatilho novo
+      // Automações com gatilho "mensagem recebida no WhatsApp"
       const consumedByMenu = await resolveMenuReply(tenant.id, contact.id, body)
       if (!consumedByMenu) {
         triggerFlows(tenant.id, 'whatsapp_message_received', { contactId: contact.id, messageBody: body })
       }
 
-      // Detecção simples de gatilhos para criar deal/task
+      // Detecção simples de intenção → cria deal + task
       const intent = detectIntent(body)
       if (intent === 'interest') {
-        // garante que exista um stage para o tenant
         let stage = await prisma.stage.findFirst({ where: { tenantId: tenant.id } })
         if (!stage) {
           stage = await prisma.stage.create({ data: { tenantId: tenant.id, name: 'Novo', color: '#64748b', order: 0 } })
         }
-
         await prisma.deal.create({
-          data: {
-            tenantId: contact.tenantId || tenant.id,
-            contactId: contact.id,
-            stageId: stage.id,
-            title: `Oportunidade - ${body.slice(0, 60)}`,
-            value: 0,
-          },
+          data: { tenantId: tenant.id, contactId: contact.id, stageId: stage.id, title: `Oportunidade - ${body.slice(0, 60)}`, value: 0 },
         })
-
         await prisma.task.create({
-          data: {
-            tenantId: contact.tenantId || tenant.id,
-            userId: null,
-            contactId: contact.id,
-            title: `Seguir com ${contact.name || phone}`,
-          },
+          data: { tenantId: tenant.id, userId: null, contactId: contact.id, title: `Seguir com ${contact.name || senderPhone}` },
         })
       }
 

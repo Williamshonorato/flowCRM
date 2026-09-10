@@ -33,13 +33,20 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 app.use(cors({ origin: '*', methods: ['GET','POST','PATCH','DELETE','OPTIONS'] }))
 app.use(express.json({ limit: '10mb' }))
 
+// O frontend é HTML/JS servido direto (sem build/hash nos nomes), então cache longo
+// faz o usuário ficar preso numa versão antiga depois de um deploy. Manda sempre
+// revalidar — o custo é um 304 rápido quando nada mudou.
+const staticOpts = {
+  setHeaders: (res) => { res.setHeader('Cache-Control', 'no-cache') },
+}
+
 // Serve os arquivos HTML do frontend em desenvolvimento
-app.use('/app', express.static(join(__dirname, '../public')))
+app.use('/app', express.static(join(__dirname, '../public'), staticOpts))
 
 // Serve o mesmo frontend também na raiz do site, com a tela de login como
 // página padrão — assim https://flowcrm.seculo1.com abre o login sem
 // redirecionar/trocar a URL na barra de endereço.
-app.use(express.static(join(__dirname, '../public'), { index: 'crm-login.html' }))
+app.use(express.static(join(__dirname, '../public'), { ...staticOpts, index: 'crm-login.html' }))
 
 // ── ROUTES ────────────────────────────────────────────────────────────────────
 app.use('/auth',       authRouter)

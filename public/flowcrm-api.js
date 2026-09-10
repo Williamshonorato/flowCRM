@@ -156,8 +156,13 @@ document.addEventListener('DOMContentLoaded', () => {
 async function api(path, opts = {}) {
   const token = getToken();
   let res;
+  // Timeout de 25s — sem isso, uma requisição pendurada (rede ruim, CDN, proxy) deixava
+  // a tela presa em "Carregando..." pra sempre, sem nunca cair no tratamento de erro.
+  const ctrl = new AbortController();
+  const timeoutId = setTimeout(() => ctrl.abort(), 25000);
   try {
     res = await fetch(API_BASE + path, {
+      signal: ctrl.signal,
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -167,8 +172,12 @@ async function api(path, opts = {}) {
       ...opts,
     });
   } catch (err) {
-    apiToast('Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.');
+    apiToast(err?.name === 'AbortError'
+      ? 'O servidor demorou demais pra responder. Tente recarregar a página.'
+      : 'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.');
     return null;
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   if (res.status === 401) { clearToken(); window.location.href = 'crm-login.html'; return null; }

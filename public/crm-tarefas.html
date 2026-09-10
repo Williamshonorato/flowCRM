@@ -260,7 +260,8 @@
     const el = (id, v) => { const e = document.getElementById(id); if(e) e.textContent = v; };
     el('cnt-hoje', hoje); el('cnt-atrasadas', atrasadas); el('cnt-semana', semana);
     el('cnt-todas', todas); el('cnt-concluidas', concluidas);
-    if (typeof setTasksBadge === 'function') setTasksBadge(hoje + atrasadas);
+    // "hoje" já inclui as atrasadas (dueDate <= fim do dia), então não somar de novo — senão o badge conta em dobro.
+    if (typeof setTasksBadge === 'function') setTasksBadge(hoje);
   }
 
   function timeStatus(dueDate, done) {

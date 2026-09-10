@@ -40,6 +40,7 @@ model Tenant {
   expenses        TreasuryExpense[]
   automationFlows AutomationFlow[]
   flowRuns        AutomationFlowRun[]
+  broadcasts      Broadcast[]
 }
 
 // ── AUTOMATION FLOW (fluxo de automação genérico, editável) ──────────────────
@@ -402,5 +403,46 @@ model AutomationDispatch {
   @@index([tenantId])
   @@index([ruleId])
   @@index([contactId])
+}
+
+// ── BROADCAST (disparo em massa de WhatsApp) ─────────────────────────────────
+// Um disparo pra uma lista de contatos escolhida na hora (todos, por filtro, ou
+// seleção manual). O envio real é feito em segundo plano pelo broadcastWorker,
+// aos poucos, pra não tomar bloqueio do WhatsApp.
+model Broadcast {
+  id          String   @id @default(cuid())
+  tenantId    String
+  message     String
+  mediaUrl    String?  // caminho servível de uma imagem opcional
+  mediaType   String?  // image (por enquanto só imagem)
+  status      String   @default("queued") // queued | sending | done | canceled
+  total       Int      @default(0)
+  sentCount   Int      @default(0)
+  failedCount Int      @default(0)
+  createdById String?
+  createdAt   DateTime @default(now())
+  startedAt   DateTime?
+  finishedAt  DateTime?
+
+  tenant     Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  recipients BroadcastRecipient[]
+
+  @@index([tenantId, createdAt])
+  @@index([status])
+}
+
+model BroadcastRecipient {
+  id          String    @id @default(cuid())
+  broadcastId String
+  contactId   String
+  name        String?
+  phone       String
+  status      String    @default("pending") // pending | sent | failed | skipped
+  error       String?
+  sentAt      DateTime?
+
+  broadcast Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+
+  @@index([broadcastId, status])
 }
 

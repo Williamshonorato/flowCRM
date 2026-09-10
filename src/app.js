@@ -14,6 +14,7 @@ import reportsRouter   from './routes/reports.js'
 import settingsRouter  from './routes/settings.js'
 import importRouter    from './routes/import.js'
 import campaignsRouter from './routes/campaigns.js'
+import broadcastsRouter from './routes/broadcasts.js'
 import whatsappRouter  from './routes/whatsapp.js'
 import gmailRouter      from './routes/gmail.js'
 import calendarRouter   from './routes/calendar.js'
@@ -24,6 +25,7 @@ import datasourceRouter from './routes/datasource.js'
 import automationsRouter from './routes/automations.js'
 import platformAdminRouter from './routes/platformAdmin.js'
 import { resumeDueRuns } from './lib/automationEngine.js'
+import { processBroadcasts } from './lib/broadcastWorker.js'
 import { sendError, isBrowserNavigation, errorPageHtml } from './lib/errorPage.js'
 
 const app = express()
@@ -58,6 +60,7 @@ app.use('/reports',    reportsRouter)
 app.use('/settings',   settingsRouter)
 app.use('/import',     importRouter)
 app.use('/campaigns',  campaignsRouter)
+app.use('/broadcasts', broadcastsRouter)
 app.use('/whatsapp',   whatsappRouter)
 app.use('/gmail',      gmailRouter)
 app.use('/calendar',   calendarRouter)
@@ -92,5 +95,8 @@ app.listen(PORT, () => {
 
 // Retoma passos de automação em espera (ex: "wait") — checa a cada 30s
 setInterval(() => { resumeDueRuns().catch(err => console.error('resumeDueRuns falhou', err)) }, 30000)
+
+// Processa a fila de disparos em massa — checa a cada 20s
+setInterval(() => { processBroadcasts().catch(err => console.error('processBroadcasts falhou', err)) }, 20000)
 
 export default app

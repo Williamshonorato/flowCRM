@@ -96,6 +96,35 @@ router.delete('/fields/:id', requireAdmin, async (req, res) => {
   res.status(204).send()
 })
 
+// ── PALAVRAS-CHAVE DE NEGÓCIO ─────────────────────────────────────────────────
+// Controla quando uma mensagem de WhatsApp vira negócio automático no pipeline
+// (ver POST /whatsapp/webhook/:tenantId). Sem nenhuma cadastrada, nada é criado
+// sozinho — é opt-in de propósito.
+router.get('/deal-keywords', async (req, res) => {
+  const keywords = await prisma.dealKeyword.findMany({ where: { tenantId: req.user.tenantId }, orderBy: { createdAt: 'asc' } })
+  res.json(keywords)
+})
+
+router.post('/deal-keywords', requireAdmin, async (req, res) => {
+  const keyword = String(req.body?.keyword || '').trim().toLowerCase()
+  if (!keyword) return res.status(400).json({ error: 'Informe uma palavra-chave.' })
+  if (keyword.length > 60) return res.status(400).json({ error: 'Palavra-chave muito longa.' })
+  try {
+    const created = await prisma.dealKeyword.create({ data: { tenantId: req.user.tenantId, keyword } })
+    res.status(201).json(created)
+  } catch (err) {
+    if (err.code === 'P2002') return res.status(409).json({ error: 'Essa palavra-chave já está cadastrada.' })
+    throw err
+  }
+})
+
+router.delete('/deal-keywords/:id', requireAdmin, async (req, res) => {
+  const existing = await prisma.dealKeyword.findFirst({ where: { id: req.params.id, tenantId: req.user.tenantId } })
+  if (!existing) return res.status(404).json({ error: 'Palavra-chave não encontrada.' })
+  await prisma.dealKeyword.delete({ where: { id: existing.id } })
+  res.status(204).send()
+})
+
 // ── EQUIPE ────────────────────────────────────────────────────────────────────
 router.get('/team', async (req, res) => {
   const users = await prisma.user.findMany({ where: { tenantId: req.user.tenantId }, select: { id: true, name: true, email: true, role: true, active: true, createdAt: true } })

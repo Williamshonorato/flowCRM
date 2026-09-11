@@ -108,6 +108,20 @@
     .modal-actions{display:flex;gap:10px;margin-top:24px}
     .modal-cancel{flex:1;padding:11px;border:1.5px solid var(--border);border-radius:9px;background:#fff;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer}
     .modal-save{flex:2;padding:11px;border:none;border-radius:9px;background:linear-gradient(135deg,var(--green),#1abc9c);font-size:14px;font-weight:700;color:#fff;cursor:pointer}
+
+    /* PALAVRAS-CHAVE */
+    .filter-btn.kw-btn{background:#fff}
+    .kw-modal{width:420px}
+    .kw-hint{font-size:12.5px;color:var(--muted);line-height:1.5;margin-bottom:16px}
+    .kw-add-row{display:flex;gap:8px;margin-bottom:16px}
+    .kw-add-row input{flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:13.5px;outline:none}
+    .kw-add-row input:focus{border-color:var(--green)}
+    .kw-add-row button{padding:0 16px;border:none;border-radius:9px;background:var(--green);color:#fff;font-weight:700;font-size:13px;cursor:pointer}
+    .kw-list{display:flex;flex-wrap:wrap;gap:8px;min-height:32px}
+    .kw-chip{display:flex;align-items:center;gap:7px;background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:6px 8px 6px 13px;font-size:13px;font-weight:600;color:var(--text)}
+    .kw-chip button{border:none;background:#fff;border-radius:50%;width:18px;height:18px;font-size:11px;color:var(--muted);cursor:pointer;line-height:1}
+    .kw-chip button:hover{background:#fee2e2;color:var(--red)}
+    .kw-empty{font-size:12.5px;color:#94a3b8}
   </style>
 </head>
 <body>
@@ -164,6 +178,7 @@
         <button class="filter-clear" onclick="clearFilters()">Limpar filtros</button>
       </div>
     </div>
+    <button class="filter-btn kw-btn" onclick="openKeywordsModal()" title="Só cria negócio automático no WhatsApp pra mensagem que bate com uma dessas">🔑 Palavras-chave</button>
     <button class="btn-green" onclick="openModal()">+ Novo negócio</button>
   </div>
 
@@ -196,6 +211,22 @@
     <div class="modal-actions">
       <button class="modal-cancel" onclick="closeModal()">Cancelar</button>
       <button class="modal-save" onclick="saveCard()">Criar negócio →</button>
+    </div>
+  </div>
+</div>
+
+<!-- PALAVRAS-CHAVE -->
+<div class="overlay" id="kwOverlay" onclick="if(event.target===this)closeKeywordsModal()">
+  <div class="modal kw-modal">
+    <h3>🔑 Palavras-chave</h3>
+    <div class="kw-hint">Quando uma mensagem de WhatsApp bate com uma dessas palavras, o FlowCRM cria um negócio automaticamente aqui no pipeline. Sem nenhuma cadastrada, nada é criado sozinho.</div>
+    <div class="kw-add-row">
+      <input type="text" id="kwInput" placeholder="Ex: orçamento, quero comprar, agendar..." onkeydown="if(event.key==='Enter'){event.preventDefault();addKeyword()}"/>
+      <button onclick="addKeyword()">+ Adicionar</button>
+    </div>
+    <div class="kw-list" id="kwList"></div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeKeywordsModal()">Fechar</button>
     </div>
   </div>
 </div>
@@ -343,6 +374,37 @@
     document.getElementById('overlay').classList.add('open');
   }
   function closeModal() { document.getElementById('overlay').classList.remove('open'); }
+
+  // ── PALAVRAS-CHAVE (gatilho de negócio automático via WhatsApp) ─────────────
+  let dealKeywords = [];
+  async function openKeywordsModal() {
+    document.getElementById('kwOverlay').classList.add('open');
+    document.getElementById('kwInput').value = '';
+    dealKeywords = await api('/settings/deal-keywords') || [];
+    renderKeywords();
+    document.getElementById('kwInput').focus();
+  }
+  function closeKeywordsModal() { document.getElementById('kwOverlay').classList.remove('open'); }
+
+  function renderKeywords() {
+    document.getElementById('kwList').innerHTML = dealKeywords.length
+      ? dealKeywords.map(k => `<span class="kw-chip">${k.keyword.replace(/</g, '&lt;')}<button onclick="removeKeyword('${k.id}')" title="Remover">✕</button></span>`).join('')
+      : '<span class="kw-empty">Nenhuma palavra-chave ainda — negócio automático fica desligado até cadastrar a primeira.</span>';
+  }
+
+  async function addKeyword() {
+    const input = document.getElementById('kwInput');
+    const keyword = input.value.trim();
+    if (!keyword) return;
+    const created = await api('/settings/deal-keywords', { method: 'POST', body: JSON.stringify({ keyword }) });
+    if (created) { dealKeywords.push(created); input.value = ''; renderKeywords(); }
+  }
+
+  async function removeKeyword(id) {
+    dealKeywords = dealKeywords.filter(k => k.id !== id);
+    renderKeywords();
+    await api('/settings/deal-keywords/' + id, { method: 'DELETE' });
+  }
 
   async function saveCard() {
     const title = document.getElementById('m-name').value.trim();

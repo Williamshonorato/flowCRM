@@ -83,8 +83,8 @@ function injectImpersonationBanner() {
   const banner = document.createElement('div');
   banner.id = 'fcrm-impersonation-banner';
   // flex-wrap:wrap pra, se não couber, o botão cair pra uma segunda linha centralizada
-  // em vez de estourar a tela.
-  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#8e44ad;color:#fff;text-align:center;padding:9px 16px;font-size:13px;font-weight:700;z-index:9998;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 14px;box-shadow:0 2px 8px rgba(0,0,0,.2)';
+  // em vez de estourar a tela. Sem position:fixed — ver comentário abaixo.
+  banner.style.cssText = 'background:#8e44ad;color:#fff;text-align:center;padding:9px 16px;font-size:13px;font-weight:700;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 14px;box-shadow:0 2px 8px rgba(0,0,0,.2);flex-shrink:0';
   const safeName = (data.tenantName || '').replace(/</g, '&lt;');
   // A frase inteira precisa estar num único elemento (<span>): texto solto misturado
   // com <b> direto como filhos de um flex container vira um item de flex PRA CADA
@@ -92,15 +92,29 @@ function injectImpersonationBanner() {
   // justify-content:center isso espalhava a frase em pedaços soltos pela tela em vez
   // de ler como uma frase só.
   banner.innerHTML = `<span>🛡️ Vendo o sistema como admin de <b>${safeName}</b></span><button style="background:#fff;color:#8e44ad;border:none;padding:5px 14px;border-radius:6px;font-weight:700;font-size:12px;cursor:pointer;flex-shrink:0" onclick="stopImpersonation()">Sair da visualização</button>`;
-  document.body.prepend(banner);
 
-  // O banner é fixed (fica por cima ao rolar a página), então some do fluxo normal
-  // e cobria o topo da sidebar/topbar de cada tela. Empurra o body pra baixo pela
-  // altura real do banner, em vez de chumbar um valor — e reajusta se a janela for
-  // redimensionada e o texto passar a quebrar em 2 linhas (nome de empresa longo).
-  const syncPadding = () => { document.body.style.paddingTop = banner.offsetHeight + 'px'; };
-  syncPadding();
-  window.addEventListener('resize', syncPadding);
+  // Cada tela do CRM é body{display:flex} com a sidebar e o .main lado a lado.
+  // Um banner position:fixed sai desse fluxo e flutua por cima de tudo — tentamos
+  // "empurrar" o resto com padding-top calculado, mas a conta não fechava direito
+  // (a sidebar ficava com o topo cortado). Em vez de medir e chutar padding, bota o
+  // banner pra valer no fluxo normal do documento: tudo que já tava no body entra
+  // num wrapper, e o banner fica como uma linha normal acima dele — o próprio
+  // navegador empurra o resto pra baixo certinho, sem cálculo nenhum.
+  const wrapper = document.createElement('div');
+  wrapper.id = 'fcrm-app-wrapper';
+  wrapper.style.cssText = 'display:flex;flex:1;min-height:0';
+  while (document.body.firstChild) wrapper.appendChild(document.body.firstChild);
+  document.body.appendChild(banner);
+  document.body.appendChild(wrapper);
+  document.body.style.display = 'flex';
+  document.body.style.flexDirection = 'column';
+  document.body.style.minHeight = '100vh';
+
+  // A sidebar de cada tela usa min-height:100vh pra cobrir a tela toda sozinha; aqui
+  // ela divide a altura com o banner, então troca por 0 — o align-items:stretch
+  // padrão do wrapper já estica ela (e o .main) até a base de verdade.
+  const sidebarEl = wrapper.querySelector('.sidebar');
+  if (sidebarEl) sidebarEl.style.minHeight = '0';
 }
 
 // O bloco "Williams · Plano Profissional" no rodapé do menu lateral existe em toda

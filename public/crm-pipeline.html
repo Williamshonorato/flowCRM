@@ -64,11 +64,12 @@
     .col-total{font-size:11.5px;color:var(--muted);font-weight:600;padding:0 2px 12px}
     .col-bar{height:3px;border-radius:3px;margin-bottom:0;opacity:.5}
 
-    .col-body{display:flex;flex-direction:column;gap:12px;min-height:60px;border-radius:14px;padding:2px;transition:background .15s}
+    .col-body{display:flex;flex-direction:column;gap:8px;min-height:60px;border-radius:14px;padding:2px;transition:background .15s}
 
-    /* CARD */
-    .deal-card{background:#fff;border-radius:13px;padding:15px 15px 13px;border:1px solid var(--border);cursor:grab;transition:box-shadow .18s,transform .18s,border-color .18s;position:relative;overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,.04)}
-    .deal-card:hover{box-shadow:0 10px 24px rgba(15,23,42,.10);transform:translateY(-2px);border-color:#cbd5e1}
+    /* CARD — compacto: uma linha de cabeçalho, uma de resumo, uma de metadados;
+       as ações de mover só aparecem no hover, pra não gastar altura à toa. */
+    .deal-card{background:#fff;border-radius:11px;padding:11px 12px;border:1px solid var(--border);cursor:grab;transition:box-shadow .15s,transform .15s,border-color .15s;position:relative;overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+    .deal-card:hover{box-shadow:0 8px 20px rgba(15,23,42,.10);transform:translateY(-1px);border-color:#cbd5e1}
     .deal-card:active{cursor:grabbing}
     .deal-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
     .deal-card.c0::before{background:var(--amber)}
@@ -77,22 +78,19 @@
     .deal-card.c3::before{background:var(--teal)}
     .deal-card.c4::before{background:var(--green)}
 
-    .card-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:11px}
-    .card-avatar{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;flex-shrink:0}
-    .card-name-wrap{min-width:0;flex:1}
-    .card-name{font-size:13.5px;font-weight:700;color:var(--text);line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .card-sub{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-    .card-value{font-size:14.5px;font-weight:800;color:var(--text);margin-bottom:11px}
-    .card-value.empty{font-size:11.5px;font-weight:600;color:#94a3b8}
-    .card-footer{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-    .card-tag{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:6px;line-height:1.3}
-    .tag-hot{background:#fef2f2;color:var(--red)}
-    .tag-warm{background:#fff7ed;color:var(--amber)}
-    .tag-cold{background:#eff6ff;color:var(--blue)}
-    .tag-new{background:#f0fdf4;color:var(--green)}
-    .card-date{margin-left:auto;font-size:10.5px;color:#94a3b8;font-weight:500}
-    .card-actions{display:flex;gap:6px;margin-top:11px;padding-top:11px;border-top:1px solid var(--bg)}
-    .card-btn{flex:1;padding:6px;border:1px solid var(--border);border-radius:7px;background:#fff;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;transition:all .15s;text-align:center}
+    .card-row1{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+    .card-avatar{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff;flex-shrink:0}
+    .card-name{font-size:12.5px;font-weight:700;color:var(--text);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .card-date{font-size:10px;color:#94a3b8;font-weight:600;flex-shrink:0}
+    .card-sub{font-size:11px;color:var(--muted);line-height:1.4;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .card-meta{display:flex;align-items:center;gap:6px;font-size:10.5px;color:#94a3b8;font-weight:600;white-space:nowrap;overflow:hidden}
+    .card-meta .sep{opacity:.5}
+    .card-meta .val.empty{font-style:italic;opacity:.85}
+    .temp-dot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:middle;flex-shrink:0}
+    .temp-hot{background:var(--red)}.temp-warm{background:var(--amber)}.temp-cold{background:var(--blue)}.temp-new{background:var(--green)}
+    .card-actions{display:none;gap:6px;margin-top:9px;padding-top:9px;border-top:1px solid var(--bg)}
+    .deal-card:hover .card-actions{display:flex}
+    .card-btn{flex:1;padding:5px;border:1px solid var(--border);border-radius:6px;background:#fff;font-size:10.5px;font-weight:600;color:var(--muted);cursor:pointer;transition:all .15s;text-align:center}
     .card-btn:hover{border-color:var(--blue);color:var(--blue);background:#eff6ff}
 
     /* ADD CARD */
@@ -255,6 +253,7 @@
     return `linear-gradient(90deg,${c},${map[c]||c})`;
   }
   const tempLabels = { hot:'🔥 Quente', warm:'🌡️ Morno', cold:'❄️ Frio', new:'🆕 Novo' };
+  const tempWords  = { hot:'quente', warm:'morno', cold:'frio', new:'novo' };
 
   function toggleFilterDropdown(e) {
     e.stopPropagation();
@@ -324,19 +323,20 @@
           ${colDeals.map((d, di) => {
             const name = d.contact?.name || d.title;
             const showSub = d.contact?.name && d.title && d.title !== name;
+            const temp = d.contact?.temperature;
+            const dateLbl = new Date(d.updatedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+            const valueLbl = Number(d.value) ? fmtMoney(d.value) : 'Sem valor';
             return `
             <div class="deal-card c${ci}" data-id="${d.id}" draggable="true">
-              <div class="card-top">
+              <div class="card-row1">
                 <div class="card-avatar" style="background:${palColor(di)}">${initials(name)}</div>
-                <div class="card-name-wrap">
-                  <div class="card-name">${esc(name)}</div>
-                  ${showSub ? `<div class="card-sub">${esc(d.title)}</div>` : ''}
-                </div>
+                <div class="card-name">${esc(name)}</div>
+                <div class="card-date">${dateLbl}</div>
               </div>
-              <div class="card-value${Number(d.value) ? '' : ' empty'}">${Number(d.value) ? fmtMoney(d.value) : 'Sem valor definido'}</div>
-              <div class="card-footer">
-                ${d.contact?.temperature ? `<span class="card-tag tag-${d.contact.temperature}">${tempLabels[d.contact.temperature]}</span>` : ''}
-                <span class="card-date">${new Date(d.updatedAt).toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})}</span>
+              ${showSub ? `<div class="card-sub">${esc(d.title)}</div>` : ''}
+              <div class="card-meta">
+                <span class="val${Number(d.value) ? '' : ' empty'}">${valueLbl}</span>
+                ${temp ? `<span class="sep">·</span><span><span class="temp-dot temp-${temp}"></span>${tempWords[temp]}</span>` : ''}
               </div>
               <div class="card-actions">
                 ${ci > 0 ? `<button class="card-btn" onclick="moveCard('${d.id}',${ci},${ci-1})">← Voltar</button>` : ''}

@@ -2,8 +2,9 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+import fs from 'fs'
 import { fileURLToPath } from 'url'
-import { dirname, join } from 'path'
+import { dirname, join, normalize } from 'path'
 
 import authRouter      from './routes/auth.js'
 import dashboardRouter from './routes/dashboard.js'
@@ -42,13 +43,50 @@ const staticOpts = {
   setHeaders: (res) => { res.setHeader('Cache-Control', 'no-cache') },
 }
 
+// O "no-cache" acima não é suficiente sozinho: o Cloudflare está configurado pra
+// forçar os navegadores a guardar .js em cache por 4h (Browser Cache TTL),
+// ignorando esse header — então um deploy novo não chegava em quem já tinha o
+// site aberto, só depois de limpar o cache na mão. Em vez de depender de mudar
+// isso no painel do Cloudflare, cada boot do servidor (= cada deploy, via
+// `pm2 restart`) ganha um ID novo, e todo HTML servido troca a URL dos dois
+// scripts compartilhados pra incluir esse ID — como a URL muda, o navegador
+// busca de novo na hora, não importa o que tinha em cache.
+const PUBLIC_DIR = join(__dirname, '../public')
+const BUILD_ID = Date.now().toString(36)
+function bustSharedScripts(html) {
+  return html
+    .replace(/(["'])flowcrm-api\.js(?:\?v=[^"'?]*)?\1/g, `$1flowcrm-api.js?v=${BUILD_ID}$1`)
+    .replace(/(["'])crm-sidebar\.js(?:\?v=[^"'?]*)?\1/g, `$1crm-sidebar.js?v=${BUILD_ID}$1`)
+}
+
+// Serve todo .html do public/ (e a raiz "/", que aponta pro login) reescrevendo
+// os dois <script src> compartilhados; qualquer outro caminho (imagens, o
+// próprio flowcrm-api.js, uploads...) passa direto pro express.static de sempre.
+function serveHtmlWithCacheBust(req, res, next) {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next()
+  const reqPath = req.path === '/' ? '/crm-login.html' : req.path
+  if (!reqPath.endsWith('.html')) return next()
+
+  const filePath = normalize(join(PUBLIC_DIR, reqPath))
+  if (!filePath.startsWith(PUBLIC_DIR)) return next() // fora de public/ — deixa 404 seguir o rito normal
+
+  fs.readFile(filePath, 'utf8', (err, html) => {
+    if (err) return next() // ex: 404 — deixa o handler padrão cuidar
+    res.setHeader('Content-Type', 'text/html; charset=UTF-8')
+    res.setHeader('Cache-Control', 'no-cache')
+    res.send(bustSharedScripts(html))
+  })
+}
+
 // Serve os arquivos HTML do frontend em desenvolvimento
-app.use('/app', express.static(join(__dirname, '../public'), staticOpts))
+app.use('/app', serveHtmlWithCacheBust)
+app.use('/app', express.static(PUBLIC_DIR, staticOpts))
 
 // Serve o mesmo frontend também na raiz do site, com a tela de login como
 // página padrão — assim https://flowcrm.seculo1.com abre o login sem
 // redirecionar/trocar a URL na barra de endereço.
-app.use(express.static(join(__dirname, '../public'), { ...staticOpts, index: 'crm-login.html' }))
+app.use(serveHtmlWithCacheBust)
+app.use(express.static(PUBLIC_DIR, { ...staticOpts, index: 'crm-login.html' }))
 
 // ── ROUTES ────────────────────────────────────────────────────────────────────
 app.use('/auth',       authRouter)

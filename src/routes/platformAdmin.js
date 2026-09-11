@@ -37,6 +37,63 @@ router.get('/tenants', async (req, res) => {
   })))
 })
 
+// GET /platform/stats — visão agregada de negócio: crescimento, planos, cobrança
+// e o que os clientes estão fazendo dentro do CRM deles (contatos, negócios,
+// pipeline, WhatsApp conectado). Tudo cruzando TODOS os tenants, exceto o interno.
+router.get('/stats', async (req, res) => {
+  const now = new Date()
+  const tenants = await prisma.tenant.findMany({ where: { slug: { not: INTERNAL_TENANT_SLUG } } })
+  const tenantIds = tenants.map(t => t.id)
+
+  // Novas empresas por mês (últimos 6 meses)
+  const months = Array.from({ length: 6 }, (_, k) => {
+    const i = 5 - k
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59)
+    return { d, end }
+  })
+  const signupsByMonth = months.map(({ d, end }) => ({
+    month: d.toLocaleString('pt-BR', { month: 'short' }),
+    count: tenants.filter(t => t.createdAt >= d && t.createdAt <= end).length,
+  }))
+
+  // Empresas por plano
+  const PLAN_COLOR = { starter: '#64748b', professional: '#2980b9', connected: '#8e44ad', enterprise: '#f39c12' }
+  const planCounts = {}
+  tenants.forEach(t => { planCounts[t.plan] = (planCounts[t.plan] || 0) + 1 })
+  const planDistribution = Object.entries(planCounts).map(([plan, count]) => ({ plan, count, color: PLAN_COLOR[plan] || '#94a3b8' }))
+
+  // Status de cobrança (mesma regra de "atrasado" do GET /tenants: sempre pela data)
+  const billing = { trial: 0, ok: 0, late: 0, canceled: 0 }
+  tenants.forEach(t => {
+    if (t.billingStatus === 'trial') billing.trial++
+    else if (t.billingStatus === 'canceled') billing.canceled++
+    else billing[t.nextDueDate && new Date(t.nextDueDate) < now ? 'late' : 'ok']++
+  })
+
+  const [contactsTotal, dealsTotal, pipelineAgg, closedAgg, whatsappConnected] = tenantIds.length ? await Promise.all([
+    prisma.contact.count({ where: { tenantId: { in: tenantIds } } }),
+    prisma.deal.count({ where: { tenantId: { in: tenantIds } } }),
+    prisma.deal.aggregate({ where: { tenantId: { in: tenantIds }, closedAt: null }, _sum: { value: true } }),
+    prisma.deal.aggregate({ where: { tenantId: { in: tenantIds }, closedAt: { not: null } }, _sum: { value: true } }),
+    prisma.integration.count({ where: { tenantId: { in: tenantIds }, type: 'whatsapp', status: 'connected' } }),
+  ]) : [0, 0, { _sum: { value: 0 } }, { _sum: { value: 0 } }, 0]
+
+  res.json({
+    signupsByMonth,
+    planDistribution,
+    billing,
+    business: {
+      totalTenants: tenants.length,
+      contactsTotal,
+      dealsTotal,
+      pipelineValue: Number(pipelineAgg._sum.value || 0),
+      closedValue: Number(closedAgg._sum.value || 0),
+      whatsappConnected,
+    },
+  })
+})
+
 // GET /platform/tenants/:id — detalhe de uma empresa
 router.get('/tenants/:id', async (req, res) => {
   const tenant = await prisma.tenant.findUnique({

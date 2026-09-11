@@ -82,10 +82,16 @@ function injectImpersonationBanner() {
 
   const banner = document.createElement('div');
   banner.id = 'fcrm-impersonation-banner';
-  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#8e44ad;color:#fff;text-align:center;padding:9px 16px;font-size:13px;font-weight:700;z-index:9998;display:flex;align-items:center;justify-content:center;gap:14px;box-shadow:0 2px 8px rgba(0,0,0,.2)';
+  // flex-wrap:wrap pra, se não couber, o botão cair pra uma segunda linha centralizada
+  // em vez de estourar a tela.
+  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#8e44ad;color:#fff;text-align:center;padding:9px 16px;font-size:13px;font-weight:700;z-index:9998;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 14px;box-shadow:0 2px 8px rgba(0,0,0,.2)';
   const safeName = (data.tenantName || '').replace(/</g, '&lt;');
-  banner.innerHTML = `🛡️ Vendo o sistema como admin de <b>${safeName}</b>
-    <button style="background:#fff;color:#8e44ad;border:none;padding:5px 14px;border-radius:6px;font-weight:700;font-size:12px;cursor:pointer" onclick="stopImpersonation()">Sair da visualização</button>`;
+  // A frase inteira precisa estar num único elemento (<span>): texto solto misturado
+  // com <b> direto como filhos de um flex container vira um item de flex PRA CADA
+  // pedaço (o texto, o nome em negrito, o espaço em branco entre eles...) — com
+  // justify-content:center isso espalhava a frase em pedaços soltos pela tela em vez
+  // de ler como uma frase só.
+  banner.innerHTML = `<span>🛡️ Vendo o sistema como admin de <b>${safeName}</b></span><button style="background:#fff;color:#8e44ad;border:none;padding:5px 14px;border-radius:6px;font-weight:700;font-size:12px;cursor:pointer;flex-shrink:0" onclick="stopImpersonation()">Sair da visualização</button>`;
   document.body.prepend(banner);
 
   // O banner é fixed (fica por cima ao rolar a página), então some do fluxo normal

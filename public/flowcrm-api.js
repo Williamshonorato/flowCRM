@@ -87,6 +87,14 @@ function injectImpersonationBanner() {
   banner.innerHTML = `🛡️ Vendo o sistema como admin de <b>${safeName}</b>
     <button style="background:#fff;color:#8e44ad;border:none;padding:5px 14px;border-radius:6px;font-weight:700;font-size:12px;cursor:pointer" onclick="stopImpersonation()">Sair da visualização</button>`;
   document.body.prepend(banner);
+
+  // O banner é fixed (fica por cima ao rolar a página), então some do fluxo normal
+  // e cobria o topo da sidebar/topbar de cada tela. Empurra o body pra baixo pela
+  // altura real do banner, em vez de chumbar um valor — e reajusta se a janela for
+  // redimensionada e o texto passar a quebrar em 2 linhas (nome de empresa longo).
+  const syncPadding = () => { document.body.style.paddingTop = banner.offsetHeight + 'px'; };
+  syncPadding();
+  window.addEventListener('resize', syncPadding);
 }
 
 // O bloco "Williams · Plano Profissional" no rodapé do menu lateral existe em toda

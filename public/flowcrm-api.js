@@ -10,6 +10,16 @@ function clearToken(){ localStorage.removeItem('flowcrm_token'); }
 
 function authGuard() {
   if (!getToken()) { window.location.href = 'crm-login.html'; return false; }
+  // Admin da plataforma "puro" (não impersonando um cliente) não deve cair nas
+  // telas normais do CRM — a área dele é o painel da plataforma. Só vê o CRM de
+  // verdade quando entra num cliente ("Entrar como admin" em crm-plataforma.html),
+  // que troca o token e ativa flowcrm_impersonating.
+  const here = (location.pathname.split('/').pop() || '').toLowerCase();
+  const isImpersonating = !!localStorage.getItem('flowcrm_impersonating');
+  if (here !== 'crm-plataforma.html' && !isImpersonating && getPlatformRole()) {
+    window.location.href = 'crm-plataforma.html';
+    return false;
+  }
   return true;
 }
 

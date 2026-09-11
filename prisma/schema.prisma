@@ -41,6 +41,7 @@ model Tenant {
   automationFlows AutomationFlow[]
   flowRuns        AutomationFlowRun[]
   broadcasts      Broadcast[]
+  dealKeywords    DealKeyword[]
 }
 
 // ── AUTOMATION FLOW (fluxo de automação genérico, editável) ──────────────────
@@ -444,5 +445,22 @@ model BroadcastRecipient {
   broadcast Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
 
   @@index([broadcastId, status])
+}
+
+// ── DEAL KEYWORD ──────────────────────────────────────────────────────────────
+// Palavras-chave definidas pela empresa: só mensagem de WhatsApp que bate com uma
+// delas vira negócio automaticamente no pipeline. Antes disso era um regex fixo
+// ("quero", "preço"...) que confundia mensagem de grupo/propaganda com interesse
+// de verdade e enchia o "Novo" de negócio-lixo.
+model DealKeyword {
+  id        String   @id @default(cuid())
+  tenantId  String
+  keyword   String
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, keyword])
+  @@index([tenantId])
 }
 

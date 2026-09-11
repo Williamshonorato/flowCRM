@@ -5,7 +5,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { randomUUID } from 'crypto'
 import prisma from '../lib/prisma.js'
-import { extractName, extractEmail, extractPhone, detectIntent } from '../lib/whatsappParser.js'
+import { extractName, extractEmail, extractPhone } from '../lib/whatsappParser.js'
 import { requireAuth } from '../middleware/auth.js'
 import { triggerFlows, resolveMenuReply } from '../lib/automationEngine.js'
 
@@ -532,6 +532,34 @@ async function fetchIncomingMediaBuffer(m, evo) {
 }
 
 // Assunto do grupo — cacheado em memória pra não bater na Evolution a cada mensagem
+// Acha o contato comparando só os dígitos do telefone. Contato importado de
+// planilha ou cadastrado manualmente pode ter o telefone formatado
+// ("(41) 96543-2109"), enquanto o WhatsApp manda só dígitos ("41965432109") —
+// comparar string exata perdia esses contatos e criava um duplicado a cada
+// mensagem nova de alguém que já existia no CRM.
+async function findContactByPhone(tenantId, phoneDigits) {
+  if (!phoneDigits) return null
+  const rows = await prisma.$queryRaw`
+    SELECT id FROM "Contact"
+    WHERE "tenantId" = ${tenantId} AND regexp_replace(phone, '[^0-9]', '', 'g') = ${phoneDigits}
+    LIMIT 1
+  `
+  if (!rows.length) return null
+  return prisma.contact.findUnique({ where: { id: rows[0].id } })
+}
+
+// Palavra-chave (cadastrada em Pipeline → 🔑 Palavras-chave / Configurações) que
+// bate com a mensagem, se houver. Sem nenhuma cadastrada devolve null — não cria
+// negócio sozinho até a empresa configurar pelo menos uma.
+async function matchDealKeyword(tenantId, body) {
+  if (!body) return null
+  const keywords = await prisma.dealKeyword.findMany({ where: { tenantId }, select: { keyword: true } })
+  if (!keywords.length) return null
+  const lc = body.toLowerCase()
+  const hit = keywords.find(k => lc.includes(k.keyword))
+  return hit ? hit.keyword : null
+}
+
 const groupNameCache = new Map() // jid -> { name, at }
 async function resolveGroupName(jid, evo) {
   const hit = groupNameCache.get(jid)
@@ -638,7 +666,7 @@ router.post('/webhook/:tenantId', async (req, res) => {
       }
 
       // ── DIRETO: acha ou cria contato pelo telefone, dentro da empresa ────────
-      let contact = await prisma.contact.findFirst({ where: { phone: senderPhone, tenantId: tenant.id } })
+      let contact = await findContactByPhone(tenant.id, senderPhone)
       if (!contact) {
         const name = pushName || extractName(body) || ''
         const email = extractEmail(body)
@@ -678,19 +706,28 @@ router.post('/webhook/:tenantId', async (req, res) => {
         triggerFlows(tenant.id, 'whatsapp_message_received', { contactId: contact.id, messageBody: body })
       }
 
-      // Detecção simples de intenção → cria deal + task
-      const intent = detectIntent(body)
-      if (intent === 'interest') {
-        let stage = await prisma.stage.findFirst({ where: { tenantId: tenant.id } })
-        if (!stage) {
-          stage = await prisma.stage.create({ data: { tenantId: tenant.id, name: 'Novo', color: '#64748b', order: 0 } })
+      // Cria negócio automático SÓ quando a mensagem bate com uma palavra-chave
+      // cadastrada pela empresa (Pipeline → 🔑 Palavras-chave). Sem nenhuma
+      // cadastrada, não cria nada sozinho — antes era um regex fixo ("quero",
+      // "preço"...) que confundia mensagem de grupo/propaganda com interesse de
+      // verdade e enchia o "Novo" de negócio-lixo.
+      const matchedKeyword = await matchDealKeyword(tenant.id, body)
+      if (matchedKeyword) {
+        // Não cria de novo se esse contato já tem um negócio em aberto — sem isso,
+        // cada mensagem nova da mesma pessoa virava um negócio a mais.
+        const hasOpenDeal = await prisma.deal.findFirst({ where: { tenantId: tenant.id, contactId: contact.id, closedAt: null } })
+        if (!hasOpenDeal) {
+          let stage = await prisma.stage.findFirst({ where: { tenantId: tenant.id }, orderBy: { order: 'asc' } })
+          if (!stage) {
+            stage = await prisma.stage.create({ data: { tenantId: tenant.id, name: 'Novo', color: '#64748b', order: 0 } })
+          }
+          await prisma.deal.create({
+            data: { tenantId: tenant.id, contactId: contact.id, stageId: stage.id, title: `Oportunidade - ${body.slice(0, 60)}`, value: 0 },
+          })
+          await prisma.task.create({
+            data: { tenantId: tenant.id, userId: null, contactId: contact.id, title: `Seguir com ${contact.name || senderPhone} — mencionou "${matchedKeyword}"` },
+          })
         }
-        await prisma.deal.create({
-          data: { tenantId: tenant.id, contactId: contact.id, stageId: stage.id, title: `Oportunidade - ${body.slice(0, 60)}`, value: 0 },
-        })
-        await prisma.task.create({
-          data: { tenantId: tenant.id, userId: null, contactId: contact.id, title: `Seguir com ${contact.name || senderPhone}` },
-        })
       }
 
       processed += 1

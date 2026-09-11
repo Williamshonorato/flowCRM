@@ -45,6 +45,32 @@
   .admin-form input,.admin-form select{padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px}
   #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1e293b;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;opacity:0;pointer-events:none;transition:all .25s;z-index:100}
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  .stats-row{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+  .stat-card.accent{border-color:var(--purple);background:linear-gradient(135deg,#faf5ff,#fff)}
+  .stat-card.warn .num{color:var(--red)}
+  .money-cell .val{font-weight:700}
+  .money-cell .due{font-size:11px;color:var(--muted);margin-top:2px}
+  .money-cell .due.late{color:var(--red);font-weight:700}
+  .badge-billing{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap}
+  .billing-trial{background:#eff6ff;color:#1d4ed8}
+  .billing-ok{background:#dcfce7;color:#166534}
+  .billing-late{background:#fee2e2;color:#991b1b}
+  .billing-canceled{background:#f1f5f9;color:#64748b}
+
+  /* MODAL DE EDIÇÃO */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:none;align-items:center;justify-content:center}
+  .overlay.open{display:flex}
+  .modal{background:#fff;border-radius:18px;padding:28px;width:420px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+  .modal h3{font-size:16px;font-weight:800;color:var(--text);margin-bottom:18px}
+  .modal .inp-g{margin-bottom:14px}
+  .modal .inp-g label{display:block;font-size:12.5px;font-weight:600;color:var(--text);margin-bottom:5px}
+  .modal .inp-g input,.modal .inp-g select{width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;font-size:13.5px;color:var(--text);outline:none;background:#fff}
+  .modal .inp-g input:focus,.modal .inp-g select:focus{border-color:var(--purple)}
+  .modal .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .modal-actions{display:flex;gap:10px;margin-top:20px}
+  .modal-cancel{flex:1;padding:10px;border:1.5px solid var(--border);border-radius:9px;background:#fff;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer}
+  .modal-save{flex:2;padding:10px;border:none;border-radius:9px;background:linear-gradient(135deg,var(--purple),#c084fc);font-size:13.5px;font-weight:700;color:#fff;cursor:pointer}
 </style>
 </head>
 <body>
@@ -63,7 +89,7 @@
   <div class="section-title">Empresas cadastradas</div>
   <table>
     <thead>
-      <tr><th>Empresa</th><th>Plano</th><th>Usuários</th><th>Contatos</th><th>Negócios</th><th>Status</th><th></th></tr>
+      <tr><th>Empresa</th><th>Plano</th><th>Mensalidade</th><th>Cobrança</th><th>Usuários</th><th>Contatos</th><th>Status</th><th></th></tr>
     </thead>
     <tbody id="tenantsBody"></tbody>
   </table>
@@ -80,6 +106,40 @@
       <input type="password" id="na-pass" placeholder="Senha (mín. 6)"/>
       <select id="na-role"><option value="superadmin">superadmin</option><option value="owner">owner</option></select>
       <button class="btn-purple" onclick="createAdmin()">+ Adicionar admin</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDITAR EMPRESA -->
+<div class="overlay" id="editOverlay" onclick="if(event.target===this)closeEdit()">
+  <div class="modal">
+    <h3>✏️ Editar empresa</h3>
+    <div class="inp-g"><label>Nome do negócio</label><input type="text" id="e-name"/></div>
+    <div class="row2">
+      <div class="inp-g"><label>Plano</label>
+        <select id="e-plan">
+          <option value="starter">Starter</option>
+          <option value="professional">Profissional</option>
+          <option value="connected">Connected</option>
+          <option value="enterprise">Enterprise</option>
+        </select>
+      </div>
+      <div class="inp-g"><label>Mensalidade (R$)</label><input type="number" id="e-value" min="0" step="0.01" placeholder="0,00"/></div>
+    </div>
+    <div class="row2">
+      <div class="inp-g"><label>Status de cobrança</label>
+        <select id="e-billing">
+          <option value="trial">Trial</option>
+          <option value="active">Ativa (cobrando)</option>
+          <option value="canceled">Cancelada</option>
+        </select>
+      </div>
+      <div class="inp-g"><label>Próximo vencimento</label><input type="date" id="e-due"/></div>
+    </div>
+    <div class="inp-g" style="margin-bottom:0"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="e-active" style="width:auto"/> Empresa ativa (login liberado)</label></div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeEdit()">Cancelar</button>
+      <button class="modal-save" onclick="saveEdit()">Salvar alterações</button>
     </div>
   </div>
 </div>
@@ -105,6 +165,11 @@
   }
 
   let tenants = [];
+  const PLAN_LABEL = (typeof PLAN_LABELS !== 'undefined') ? PLAN_LABELS
+    : { starter: 'Starter', professional: 'Profissional', connected: 'Connected', enterprise: 'Enterprise' };
+  const BILLING_LABEL = { trial: 'Trial', active: 'Em dia', canceled: 'Cancelada' };
+
+  function esc(s) { return String(s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 
   async function loadTenants() {
     tenants = await api('/platform/tenants') || [];
@@ -116,34 +181,83 @@
     const totalUsers = tenants.reduce((s, t) => s + t._count.users, 0);
     const totalContacts = tenants.reduce((s, t) => s + t._count.contacts, 0);
     const active = tenants.filter(t => t.active).length;
+    const mrr = tenants.filter(t => t.billingStatus === 'active').reduce((s, t) => s + Number(t.monthlyValue || 0), 0);
+    const overdue = tenants.filter(t => t.overdue).length;
     document.getElementById('statsRow').innerHTML = `
       <div class="stat-card"><div class="num">${tenants.length}</div><div class="lbl">Empresas cadastradas</div></div>
       <div class="stat-card"><div class="num">${active}</div><div class="lbl">Ativas</div></div>
+      <div class="stat-card accent"><div class="num">${fmtMoney(mrr)}</div><div class="lbl">Receita mensal (MRR)</div></div>
+      <div class="stat-card${overdue ? ' warn' : ''}"><div class="num">${overdue}</div><div class="lbl">Em atraso</div></div>
       <div class="stat-card"><div class="num">${totalUsers}</div><div class="lbl">Usuários no total</div></div>
       <div class="stat-card"><div class="num">${totalContacts}</div><div class="lbl">Contatos no total</div></div>
     `;
   }
 
+  function billingBadge(t) {
+    if (t.billingStatus === 'trial') return `<span class="badge-billing billing-trial">Trial</span>`;
+    if (t.billingStatus === 'canceled') return `<span class="badge-billing billing-canceled">Cancelada</span>`;
+    return t.overdue ? `<span class="badge-billing billing-late">Atrasado</span>` : `<span class="badge-billing billing-ok">Em dia</span>`;
+  }
+
   function renderTenants() {
     const box = document.getElementById('tenantsBody');
-    if (!tenants.length) { box.innerHTML = `<tr><td colspan="7"><div class="empty">Nenhuma empresa cadastrada ainda.</div></td></tr>`; return; }
-    box.innerHTML = tenants.map(t => `
+    if (!tenants.length) { box.innerHTML = `<tr><td colspan="8"><div class="empty">Nenhuma empresa cadastrada ainda.</div></td></tr>`; return; }
+    box.innerHTML = tenants.map(t => {
+      const due = t.nextDueDate ? new Date(t.nextDueDate).toLocaleDateString('pt-BR') : null;
+      return `
       <tr>
-        <td><div class="tname">${t.name}</div><div class="tmeta">${t.slug}</div></td>
-        <td>${t.plan}</td>
+        <td><div class="tname">${esc(t.name)}</div><div class="tmeta">${esc(t.slug)}</div></td>
+        <td>${PLAN_LABEL[t.plan] || t.plan}</td>
+        <td class="money-cell">
+          <div class="val">${fmtMoney(t.monthlyValue)}</div>
+          ${due ? `<div class="due${t.overdue ? ' late' : ''}">vence ${due}</div>` : ''}
+        </td>
+        <td>${billingBadge(t)}</td>
         <td>${t._count.users}</td>
         <td>${t._count.contacts}</td>
-        <td>${t._count.deals}</td>
         <td><span class="badge-status ${t.active ? 'badge-active' : 'badge-inactive'}">${t.active ? 'Ativa' : 'Suspensa'}</span></td>
         <td>
           <div class="row-actions">
             <button class="btn-sm primary" onclick="enterAsTenant('${t.id}')">Entrar como admin</button>
+            <button class="btn-sm" onclick="openEdit('${t.id}')">Editar</button>
             <button class="btn-sm" onclick="toggleActive('${t.id}', ${!t.active})">${t.active ? 'Suspender' : 'Reativar'}</button>
             <button class="btn-sm danger" onclick="deleteTenant('${t.id}','${t.name.replace(/'/g, "\\'")}')">Excluir</button>
           </div>
         </td>
-      </tr>
-    `).join('');
+      </tr>`;
+    }).join('');
+  }
+
+  // ── EDITAR EMPRESA ───────────────────────────────────────────────────────────
+  let editingId = null;
+  function openEdit(id) {
+    const t = tenants.find(x => x.id === id);
+    if (!t) return;
+    editingId = id;
+    document.getElementById('e-name').value = t.name || '';
+    document.getElementById('e-plan').value = t.plan || 'starter';
+    document.getElementById('e-value').value = Number(t.monthlyValue || 0);
+    document.getElementById('e-billing').value = t.billingStatus || 'trial';
+    document.getElementById('e-due').value = t.nextDueDate ? t.nextDueDate.slice(0, 10) : '';
+    document.getElementById('e-active').checked = !!t.active;
+    document.getElementById('editOverlay').classList.add('open');
+  }
+  function closeEdit() { document.getElementById('editOverlay').classList.remove('open'); editingId = null; }
+
+  async function saveEdit() {
+    if (!editingId) return;
+    const name = document.getElementById('e-name').value.trim();
+    if (!name) { showToast('Informe o nome da empresa.'); return; }
+    const body = {
+      name,
+      plan: document.getElementById('e-plan').value,
+      monthlyValue: Number(document.getElementById('e-value').value) || 0,
+      billingStatus: document.getElementById('e-billing').value,
+      nextDueDate: document.getElementById('e-due').value || null,
+      active: document.getElementById('e-active').checked,
+    };
+    const result = await api('/platform/tenants/' + editingId, { method: 'PATCH', body: JSON.stringify(body) });
+    if (result) { showToast('Empresa atualizada.'); closeEdit(); loadTenants(); }
   }
 
   async function enterAsTenant(id) {

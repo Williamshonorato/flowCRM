@@ -28,7 +28,13 @@ router.get('/tenants', async (req, res) => {
     orderBy: { createdAt: 'desc' },
     include: { _count: { select: { users: true, contacts: true, deals: true } } },
   })
-  res.json(tenants)
+  const now = new Date()
+  // "Inadimplente" é sempre derivado da data — nunca marcado à mão — pra nunca
+  // ficar desatualizado por alguém esquecer de trocar o status.
+  res.json(tenants.map(t => ({
+    ...t,
+    overdue: t.billingStatus === 'active' && !!t.nextDueDate && new Date(t.nextDueDate) < now,
+  })))
 })
 
 // GET /platform/tenants/:id — detalhe de uma empresa
@@ -44,17 +50,26 @@ router.get('/tenants/:id', async (req, res) => {
   res.json(tenant)
 })
 
-// PATCH /platform/tenants/:id — ativar/desativar ou mudar plano de uma empresa
+// PATCH /platform/tenants/:id — editar empresa: ativar/desativar, plano, cobrança
 const updateTenantSchema = z.object({
-  active: z.boolean().optional(),
-  plan:   z.string().optional(),
+  name:          z.string().min(1).optional(),
+  active:        z.boolean().optional(),
+  plan:          z.string().optional(),
+  billingStatus: z.enum(['trial', 'active', 'canceled']).optional(),
+  monthlyValue:  z.number().min(0).optional(),
+  nextDueDate:   z.string().nullable().optional(), // ISO date, ou null pra limpar
 })
 router.patch('/tenants/:id', async (req, res) => {
   const parsed = updateTenantSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
   const existing = await prisma.tenant.findUnique({ where: { id: req.params.id } })
   if (!existing) return res.status(404).json({ error: 'Empresa não encontrada.' })
-  const tenant = await prisma.tenant.update({ where: { id: req.params.id }, data: parsed.data })
+
+  const { nextDueDate, ...rest } = parsed.data
+  const tenant = await prisma.tenant.update({
+    where: { id: req.params.id },
+    data: { ...rest, ...(nextDueDate !== undefined && { nextDueDate: nextDueDate ? new Date(nextDueDate) : null }) },
+  })
   res.json(tenant)
 })
 

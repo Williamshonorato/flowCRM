@@ -24,6 +24,13 @@ model Tenant {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // Cobrança — controlada à mão pelo painel da plataforma (sem gateway de pagamento
+  // integrado ainda). "active" com nextDueDate no passado = inadimplente; a data é
+  // a fonte da verdade, ninguém marca "atrasado" manualmente.
+  billingStatus String    @default("trial") // trial | active | canceled
+  monthlyValue  Decimal   @default(0) @db.Decimal(10, 2)
+  nextDueDate   DateTime?
+
   users        User[]
   contacts     Contact[]
   deals        Deal[]

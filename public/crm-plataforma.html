@@ -6,20 +6,53 @@
 <title>FlowCRM — Painel da plataforma</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
-  :root{--purple:#8e44ad;--green:#27ae60;--red:#e74c3c;--amber:#f39c12;--bg:#f1f5f9;--border:#e2e8f0;--text:#1e293b;--muted:#64748b}
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);min-height:100vh}
-  .topbar{background:#0f172a;color:#fff;padding:16px 28px;display:flex;align-items:center;gap:12px}
-  .topbar .badge{background:linear-gradient(135deg,var(--purple),#c084fc);font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px}
-  .topbar .title{font-size:16px;font-weight:800;flex:1}
-  .topbar .who{font-size:12.5px;color:#94a3b8}
-  .topbar button{background:transparent;border:1px solid #334155;color:#cbd5e1;padding:7px 14px;border-radius:8px;font-size:12.5px;cursor:pointer;margin-left:12px}
-  .topbar button:hover{border-color:#64748b;color:#fff}
-  .content{padding:28px;max-width:1200px;margin:0 auto}
-  .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
-  .stat-card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px}
+  :root{--purple:#8e44ad;--green:#27ae60;--blue:#2980b9;--red:#e74c3c;--amber:#f39c12;--bg:#f1f5f9;--border:#e2e8f0;--text:#1e293b;--muted:#64748b;--sidebar:#0f172a}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);display:flex;min-height:100vh}
+
+  /* SIDEBAR */
+  .sidebar{width:230px;min-height:100vh;background:var(--sidebar);display:flex;flex-direction:column;flex-shrink:0}
+  .sb-brand{padding:20px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.07)}
+  .sb-icon{width:34px;height:34px;background:linear-gradient(135deg,var(--purple),#c084fc);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px}
+  .sb-name{font-size:17px;font-weight:800;color:#fff}.sb-name span{color:#c084fc}
+  .sb-tag{margin:14px 18px 0;background:linear-gradient(135deg,var(--purple),#c084fc);color:#fff;font-size:10.5px;font-weight:800;letter-spacing:.5px;padding:4px 10px;border-radius:20px;display:inline-block;width:fit-content}
+  .sb-nav{flex:1;padding:16px 10px}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;font-size:13.5px;font-weight:500;color:#94a3b8;cursor:pointer;text-decoration:none;transition:all .18s;margin-bottom:2px}
+  .nav-item:hover{background:rgba(255,255,255,.06);color:#e2e8f0}
+  .nav-item.active{background:linear-gradient(135deg,rgba(142,68,173,.22),rgba(192,132,252,.12));color:#e9d5ff;font-weight:700}
+  .nav-item .ico{width:18px;text-align:center;font-size:15px}
+  .sb-bottom{padding:14px 10px;border-top:1px solid rgba(255,255,255,.07)}
+  .user-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px}
+  .user-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--purple),#c084fc);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;flex-shrink:0}
+  .user-info{min-width:0}
+  .user-info .name{font-size:13px;font-weight:600;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .user-info .role{font-size:11px;color:#64748b;text-transform:capitalize}
+  .logout-btn{width:100%;margin-top:8px;background:transparent;border:1px solid #334155;color:#cbd5e1;padding:8px;border-radius:8px;font-size:12.5px;cursor:pointer}
+  .logout-btn:hover{border-color:#64748b;color:#fff}
+
+  /* MAIN */
+  .main{flex:1;display:flex;flex-direction:column;min-width:0}
+  .topbar{background:#fff;border-bottom:1px solid var(--border);padding:0 28px;height:58px;display:flex;align-items:center;flex-shrink:0}
+  .page-title{font-size:17px;font-weight:800;color:var(--text)}
+  .content{padding:28px;overflow-y:auto}
+  .view-panel{display:none}
+  .view-panel.active{display:block}
+
+  .stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:24px}
+  .stat-card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px;position:relative;overflow:hidden}
   .stat-card .num{font-size:26px;font-weight:800;color:var(--text)}
   .stat-card .lbl{font-size:12px;color:var(--muted);margin-top:2px}
+  .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+  .stat-card.c-purple::before{background:linear-gradient(90deg,var(--purple),#c084fc)}
+  .stat-card.c-green::before{background:linear-gradient(90deg,var(--green),#1abc9c)}
+  .stat-card.c-blue::before{background:linear-gradient(90deg,#2980b9,#5dade2)}
+  .stat-card.c-amber::before{background:linear-gradient(90deg,var(--amber),#f1c40f)}
+  .stat-card.c-red::before{background:linear-gradient(90deg,var(--red),#f1948a)}
+  .stat-card .ico{position:absolute;right:14px;top:14px;font-size:20px;opacity:.14}
+  .stat-card.accent{border-color:var(--purple);background:linear-gradient(135deg,#faf5ff,#fff)}
+  .stat-card.warn .num{color:var(--red)}
+
   .section-title{font-size:15px;font-weight:800;color:var(--text);margin:24px 0 12px}
+  .section-title:first-child{margin-top:0}
   table{width:100%;border-collapse:collapse;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04)}
   th{text-align:left;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;padding:12px 16px;background:#f8fafc;border-bottom:1px solid var(--border)}
   td{padding:14px 16px;font-size:13.5px;color:var(--text);border-bottom:1px solid var(--border)}
@@ -29,7 +62,7 @@
   .badge-status{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px}
   .badge-active{background:#dcfce7;color:#166534}
   .badge-inactive{background:#fee2e2;color:#991b1b}
-  .row-actions{display:flex;gap:6px}
+  .row-actions{display:flex;gap:6px;flex-wrap:wrap}
   .btn-sm{padding:6px 12px;border-radius:7px;border:1px solid var(--border);background:#fff;font-size:12px;font-weight:700;cursor:pointer}
   .btn-sm:hover{border-color:#94a3b8}
   .btn-sm.primary{border-color:var(--purple);color:var(--purple)}
@@ -38,7 +71,6 @@
   .btn-sm.danger:hover{border-color:var(--red);background:#fef2f2}
   .btn-purple{padding:9px 16px;border:none;border-radius:9px;background:linear-gradient(135deg,var(--purple),#c084fc);color:#fff;font-size:13px;font-weight:700;cursor:pointer}
   .empty{padding:40px;text-align:center;color:#94a3b8;font-size:13px}
-  #ownerOnly{display:none}
   .admin-form{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
   .admin-form input,.admin-form select{padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px}
   #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1e293b;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;opacity:0;pointer-events:none;transition:all .25s;z-index:100}
@@ -51,20 +83,6 @@
   .banner-hero{text-align:right;flex-shrink:0}
   .banner-hero-val{font-size:34px;font-weight:800;letter-spacing:-.5px}
   .banner-hero-lbl{font-size:12px;opacity:.88;margin-top:2px}
-
-  /* KPI CARDS coloridos, estilo dashboard do CRM */
-  .stats-row{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
-  .stat-card{position:relative;overflow:hidden}
-  .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
-  .stat-card.c-purple::before{background:linear-gradient(90deg,var(--purple),#c084fc)}
-  .stat-card.c-green::before{background:linear-gradient(90deg,var(--green),#1abc9c)}
-  .stat-card.c-blue::before{background:linear-gradient(90deg,#2980b9,#5dade2)}
-  .stat-card.c-amber::before{background:linear-gradient(90deg,var(--amber),#f1c40f)}
-  .stat-card.c-red::before{background:linear-gradient(90deg,var(--red),#f1948a)}
-  .stat-card .ico{position:absolute;right:14px;top:14px;font-size:20px;opacity:.14}
-  .stat-card.accent{border-color:var(--purple);background:linear-gradient(135deg,#faf5ff,#fff)}
-  .stat-card.warn .num{color:var(--red)}
-  .section-sub{font-size:12px;color:var(--muted);margin-top:-8px;margin-bottom:16px}
 
   /* GRÁFICOS */
   .chart-row{display:grid;grid-template-columns:1fr 340px;gap:16px;margin-bottom:24px}
@@ -117,72 +135,103 @@
 </head>
 <body>
 
-<div class="topbar">
-  <div class="badge">🛡️ PLATAFORMA</div>
-  <div class="title">FlowCRM — Painel administrativo</div>
-  <div class="who" id="whoAmI"></div>
-  <button onclick="logout()">Sair</button>
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sb-brand">
+    <div class="sb-icon">🛡️</div>
+    <div class="sb-name">Flow<span>CRM</span></div>
+  </div>
+  <div class="sb-tag">PLATAFORMA</div>
+  <nav class="sb-nav">
+    <a class="nav-item active" data-view="dashboard" onclick="showView('dashboard',this)"><span class="ico">📊</span>Dashboard</a>
+    <a class="nav-item" data-view="clientes" onclick="showView('clientes',this)"><span class="ico">🏢</span>Clientes</a>
+    <a class="nav-item" id="navAdmins" data-view="admins" onclick="showView('admins',this)" style="display:none"><span class="ico">🛡️</span>Admins da plataforma</a>
+  </nav>
+  <div class="sb-bottom">
+    <div class="user-row">
+      <div class="user-avatar" id="userAvatar">–</div>
+      <div class="user-info">
+        <div class="name" id="userName">–</div>
+        <div class="role" id="userRole"></div>
+      </div>
+    </div>
+    <button class="logout-btn" onclick="logout()">Sair</button>
+  </div>
 </div>
 
-<div class="content">
-  <div class="banner">
-    <div>
-      <div class="banner-greet" id="bannerGreet">Olá 👋</div>
-      <div class="banner-sub" id="bannerSub">—</div>
-    </div>
-    <div class="banner-hero">
-      <div class="banner-hero-val" id="bannerMrr">—</div>
-      <div class="banner-hero-lbl">receita mensal recorrente</div>
-    </div>
-  </div>
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar"><div class="page-title" id="pageTitle">Dashboard</div></div>
 
-  <div class="stats-row" id="statsRow"></div>
-  <div class="stats-row" id="businessRow" style="margin-top:14px"></div>
+  <div class="content">
 
-  <div class="chart-row">
-    <div class="chart-card">
-      <div class="chart-title">Novas empresas por mês</div>
-      <div class="chart-sub">Últimos 6 meses</div>
-      <div class="bar-chart" id="signupsChart"></div>
-    </div>
-    <div class="chart-card">
-      <div class="comp-block">
-        <div class="chart-title">Empresas por plano</div>
-        <div class="chart-sub" id="planSub">—</div>
-        <div class="donut-wrap">
-          <svg width="120" height="120" viewBox="0 0 140 140" id="planDonut"></svg>
-          <div class="donut-legend" id="planLegend"></div>
+    <!-- DASHBOARD -->
+    <div class="view-panel active" id="view-dashboard">
+      <div class="banner">
+        <div>
+          <div class="banner-greet" id="bannerGreet">Olá 👋</div>
+          <div class="banner-sub" id="bannerSub">—</div>
+        </div>
+        <div class="banner-hero">
+          <div class="banner-hero-val" id="bannerMrr">—</div>
+          <div class="banner-hero-lbl">receita mensal recorrente</div>
         </div>
       </div>
-      <div class="comp-block">
-        <div class="comp-block-title">Status de cobrança</div>
-        <div class="stack-bar" id="billingStackBar"></div>
-        <div class="donut-legend" id="billingLegend"></div>
+
+      <div class="stats-row" id="statsRow"></div>
+      <div class="stats-row" id="businessRow"></div>
+
+      <div class="chart-row">
+        <div class="chart-card">
+          <div class="chart-title">Novas empresas por mês</div>
+          <div class="chart-sub">Últimos 6 meses</div>
+          <div class="bar-chart" id="signupsChart"></div>
+        </div>
+        <div class="chart-card">
+          <div class="comp-block">
+            <div class="chart-title">Empresas por plano</div>
+            <div class="chart-sub" id="planSub">—</div>
+            <div class="donut-wrap">
+              <svg width="120" height="120" viewBox="0 0 140 140" id="planDonut"></svg>
+              <div class="donut-legend" id="planLegend"></div>
+            </div>
+          </div>
+          <div class="comp-block">
+            <div class="comp-block-title">Status de cobrança</div>
+            <div class="stack-bar" id="billingStackBar"></div>
+            <div class="donut-legend" id="billingLegend"></div>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div class="section-title">Empresas cadastradas</div>
-  <table>
-    <thead>
-      <tr><th>Empresa</th><th>Plano</th><th>Mensalidade</th><th>Cobrança</th><th>Usuários</th><th>Contatos</th><th>Status</th><th></th></tr>
-    </thead>
-    <tbody id="tenantsBody"></tbody>
-  </table>
-
-  <div id="ownerOnly">
-    <div class="section-title">Admins da plataforma</div>
-    <table>
-      <thead><tr><th>Nome</th><th>E-mail</th><th>Papel</th><th></th></tr></thead>
-      <tbody id="adminsBody"></tbody>
-    </table>
-    <div class="admin-form">
-      <input type="text" id="na-name" placeholder="Nome"/>
-      <input type="email" id="na-email" placeholder="E-mail"/>
-      <input type="password" id="na-pass" placeholder="Senha (mín. 6)"/>
-      <select id="na-role"><option value="superadmin">superadmin</option><option value="owner">owner</option></select>
-      <button class="btn-purple" onclick="createAdmin()">+ Adicionar admin</button>
+    <!-- CLIENTES -->
+    <div class="view-panel" id="view-clientes">
+      <div class="section-title">Empresas cadastradas</div>
+      <table>
+        <thead>
+          <tr><th>Empresa</th><th>Plano</th><th>Mensalidade</th><th>Cobrança</th><th>Usuários</th><th>Contatos</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody id="tenantsBody"></tbody>
+      </table>
     </div>
+
+    <!-- ADMINS DA PLATAFORMA -->
+    <div class="view-panel" id="view-admins">
+      <div class="section-title">Admins da plataforma</div>
+      <table>
+        <thead><tr><th>Nome</th><th>E-mail</th><th>Papel</th><th></th></tr></thead>
+        <tbody id="adminsBody"></tbody>
+      </table>
+      <div class="admin-form">
+        <input type="text" id="na-name" placeholder="Nome"/>
+        <input type="email" id="na-email" placeholder="E-mail"/>
+        <input type="password" id="na-pass" placeholder="Senha (mín. 6)"/>
+        <select id="na-role"><option value="superadmin">superadmin</option><option value="owner">owner</option></select>
+        <button class="btn-purple" onclick="createAdmin()">+ Adicionar admin</button>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -226,13 +275,27 @@
 <script>
   if (!authGuard()) { /* já redireciona */ }
   let mePromise = getMe();
+  let isOwner = false;
   (async () => {
     const me = await mePromise;
     if (!me?.user?.platformRole) {
       apiToast('Essa área é restrita ao painel da plataforma.');
       window.location.href = 'crm-dashboard.html';
+      return;
     }
+    isOwner = me.user.platformRole === 'owner';
+    if (isOwner) document.getElementById('navAdmins').style.display = '';
   })();
+
+  const VIEW_TITLES = { dashboard: 'Dashboard', clientes: 'Clientes', admins: 'Admins da plataforma' };
+  function showView(name, el) {
+    if (name === 'admins' && !isOwner) return; // só o owner mexe em quem administra a plataforma
+    document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('view-' + name).classList.add('active');
+    if (el) el.classList.add('active');
+    document.getElementById('pageTitle').textContent = VIEW_TITLES[name] || name;
+  }
 
   function showToast(msg) {
     const t = document.getElementById('toast');
@@ -425,7 +488,6 @@
   async function loadAdmins() {
     const me = await mePromise;
     if (me?.user?.platformRole !== 'owner') return;
-    document.getElementById('ownerOnly').style.display = 'block';
     const admins = await api('/platform/admins') || [];
     document.getElementById('adminsBody').innerHTML = admins.map(a => `
       <tr>
@@ -467,8 +529,11 @@
 
   (async function init() {
     const me = await mePromise;
-    document.getElementById('whoAmI').textContent = me ? `${me.user.name} · ${me.user.platformRole}` : '';
-    const firstName = (me?.user?.name || '').trim().split(/\s+/)[0] || '';
+    if (!me?.user) return;
+    document.getElementById('userAvatar').textContent = initials(me.user.name);
+    document.getElementById('userName').textContent = me.user.name;
+    document.getElementById('userRole').textContent = me.user.platformRole;
+    const firstName = (me.user.name || '').trim().split(/\s+/)[0] || '';
     document.getElementById('bannerGreet').textContent = `${greetingNow()}, ${firstName} 👋`;
     const dateLabel = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
     document.getElementById('bannerSub').textContent = `Painel da plataforma · ${dateLabel}`;

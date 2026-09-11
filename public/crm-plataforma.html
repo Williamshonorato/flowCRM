@@ -44,9 +44,53 @@
   #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1e293b;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;opacity:0;pointer-events:none;transition:all .25s;z-index:100}
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
-  .stats-row{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+  /* BANNER */
+  .banner{background:linear-gradient(120deg,var(--purple),#5b21b6);border-radius:18px;padding:26px 30px;margin-bottom:22px;display:flex;align-items:center;justify-content:space-between;gap:20px;color:#fff;box-shadow:0 10px 28px rgba(142,68,173,.28)}
+  .banner-greet{font-size:20px;font-weight:800}
+  .banner-sub{font-size:13px;opacity:.88;margin-top:4px}
+  .banner-hero{text-align:right;flex-shrink:0}
+  .banner-hero-val{font-size:34px;font-weight:800;letter-spacing:-.5px}
+  .banner-hero-lbl{font-size:12px;opacity:.88;margin-top:2px}
+
+  /* KPI CARDS coloridos, estilo dashboard do CRM */
+  .stats-row{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
+  .stat-card{position:relative;overflow:hidden}
+  .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+  .stat-card.c-purple::before{background:linear-gradient(90deg,var(--purple),#c084fc)}
+  .stat-card.c-green::before{background:linear-gradient(90deg,var(--green),#1abc9c)}
+  .stat-card.c-blue::before{background:linear-gradient(90deg,#2980b9,#5dade2)}
+  .stat-card.c-amber::before{background:linear-gradient(90deg,var(--amber),#f1c40f)}
+  .stat-card.c-red::before{background:linear-gradient(90deg,var(--red),#f1948a)}
+  .stat-card .ico{position:absolute;right:14px;top:14px;font-size:20px;opacity:.14}
   .stat-card.accent{border-color:var(--purple);background:linear-gradient(135deg,#faf5ff,#fff)}
   .stat-card.warn .num{color:var(--red)}
+  .section-sub{font-size:12px;color:var(--muted);margin-top:-8px;margin-bottom:16px}
+
+  /* GRÁFICOS */
+  .chart-row{display:grid;grid-template-columns:1fr 340px;gap:16px;margin-bottom:24px}
+  .chart-card{background:#fff;border-radius:16px;border:1px solid var(--border);padding:22px}
+  .chart-title{font-size:14px;font-weight:800;color:var(--text)}
+  .chart-sub{font-size:12px;color:var(--muted);margin-top:2px;margin-bottom:16px}
+  .bar-chart{display:flex;align-items:flex-end;gap:10px;height:150px;padding:0 4px}
+  .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%}
+  .bar-col .bar-val{font-size:10px;font-weight:700;color:var(--muted)}
+  .bar-outer{flex:1;width:100%;display:flex;flex-direction:column;justify-content:flex-end}
+  .bar-fill{width:100%;border-radius:5px 5px 0 0;background:linear-gradient(180deg,var(--purple),#c084fc);opacity:.7;min-height:4px;transition:opacity .2s}
+  .bar-fill:hover{opacity:1}
+  .bar-fill.current{opacity:1;box-shadow:0 0 12px rgba(142,68,173,.35)}
+  .bar-col .bar-lbl{font-size:10px;color:var(--muted);font-weight:600}
+  .donut-wrap{display:flex;flex-direction:column;align-items:center;gap:16px}
+  .donut-legend{width:100%;display:flex;flex-direction:column;gap:9px}
+  .legend-row{display:flex;align-items:center;gap:9px}
+  .legend-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+  .legend-label{font-size:12.5px;color:var(--text);flex:1;text-transform:capitalize}
+  .legend-pct{font-size:12.5px;font-weight:700;color:var(--text)}
+  .legend-count{font-size:11px;color:var(--muted);margin-left:4px}
+  .comp-block{margin-bottom:6px}
+  .comp-block-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin:16px 0 8px}
+  .comp-block:first-child .comp-block-title{margin-top:0}
+  .stack-bar{display:flex;height:14px;border-radius:8px;overflow:hidden;background:var(--bg);margin-bottom:12px}
+  .stack-seg{height:100%}
   .money-cell .val{font-weight:700}
   .money-cell .due{font-size:11px;color:var(--muted);margin-top:2px}
   .money-cell .due.late{color:var(--red);font-weight:700}
@@ -81,7 +125,42 @@
 </div>
 
 <div class="content">
+  <div class="banner">
+    <div>
+      <div class="banner-greet" id="bannerGreet">Olá 👋</div>
+      <div class="banner-sub" id="bannerSub">—</div>
+    </div>
+    <div class="banner-hero">
+      <div class="banner-hero-val" id="bannerMrr">—</div>
+      <div class="banner-hero-lbl">receita mensal recorrente</div>
+    </div>
+  </div>
+
   <div class="stats-row" id="statsRow"></div>
+  <div class="stats-row" id="businessRow" style="margin-top:14px"></div>
+
+  <div class="chart-row">
+    <div class="chart-card">
+      <div class="chart-title">Novas empresas por mês</div>
+      <div class="chart-sub">Últimos 6 meses</div>
+      <div class="bar-chart" id="signupsChart"></div>
+    </div>
+    <div class="chart-card">
+      <div class="comp-block">
+        <div class="chart-title">Empresas por plano</div>
+        <div class="chart-sub" id="planSub">—</div>
+        <div class="donut-wrap">
+          <svg width="120" height="120" viewBox="0 0 140 140" id="planDonut"></svg>
+          <div class="donut-legend" id="planLegend"></div>
+        </div>
+      </div>
+      <div class="comp-block">
+        <div class="comp-block-title">Status de cobrança</div>
+        <div class="stack-bar" id="billingStackBar"></div>
+        <div class="donut-legend" id="billingLegend"></div>
+      </div>
+    </div>
+  </div>
 
   <div class="section-title">Empresas cadastradas</div>
   <table>
@@ -164,7 +243,6 @@
   let tenants = [];
   const PLAN_LABEL = (typeof PLAN_LABELS !== 'undefined') ? PLAN_LABELS
     : { starter: 'Starter', professional: 'Profissional', connected: 'Connected', enterprise: 'Enterprise' };
-  const BILLING_LABEL = { trial: 'Trial', active: 'Em dia', canceled: 'Cancelada' };
 
   function esc(s) { return String(s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 
@@ -181,13 +259,83 @@
     const mrr = tenants.filter(t => t.billingStatus === 'active').reduce((s, t) => s + Number(t.monthlyValue || 0), 0);
     const overdue = tenants.filter(t => t.overdue).length;
     document.getElementById('statsRow').innerHTML = `
-      <div class="stat-card"><div class="num">${tenants.length}</div><div class="lbl">Empresas cadastradas</div></div>
-      <div class="stat-card"><div class="num">${active}</div><div class="lbl">Ativas</div></div>
-      <div class="stat-card accent"><div class="num">${fmtMoney(mrr)}</div><div class="lbl">Receita mensal (MRR)</div></div>
-      <div class="stat-card${overdue ? ' warn' : ''}"><div class="num">${overdue}</div><div class="lbl">Em atraso</div></div>
-      <div class="stat-card"><div class="num">${totalUsers}</div><div class="lbl">Usuários no total</div></div>
-      <div class="stat-card"><div class="num">${totalContacts}</div><div class="lbl">Contatos no total</div></div>
+      <div class="stat-card c-purple"><span class="ico">🏢</span><div class="num">${tenants.length}</div><div class="lbl">Empresas cadastradas</div></div>
+      <div class="stat-card c-green"><span class="ico">✅</span><div class="num">${active}</div><div class="lbl">Ativas</div></div>
+      <div class="stat-card c-green accent"><span class="ico">💰</span><div class="num">${fmtMoney(mrr)}</div><div class="lbl">Receita mensal (MRR)</div></div>
+      <div class="stat-card c-red${overdue ? ' warn' : ''}"><span class="ico">🔴</span><div class="num">${overdue}</div><div class="lbl">Em atraso</div></div>
+      <div class="stat-card c-blue"><span class="ico">👤</span><div class="num">${totalUsers}</div><div class="lbl">Usuários no total</div></div>
+      <div class="stat-card c-blue"><span class="ico">👥</span><div class="num">${totalContacts}</div><div class="lbl">Contatos no total</div></div>
     `;
+    document.getElementById('bannerMrr').textContent = fmtMoney(mrr);
+  }
+
+  // ── DADOS DE NEGÓCIO CRUZANDO TODOS OS CLIENTES ─────────────────────────────
+  async function loadStats() {
+    const s = await api('/platform/stats');
+    if (!s) return;
+    renderBusinessRow(s.business);
+    renderSignupsChart(s.signupsByMonth);
+    renderPlanDonut(s.planDistribution);
+    renderBillingStack(s.billing);
+  }
+
+  function renderBusinessRow(b) {
+    document.getElementById('businessRow').innerHTML = `
+      <div class="stat-card c-purple"><span class="ico">🗂️</span><div class="num">${b.dealsTotal}</div><div class="lbl">Negócios no CRM (todos os clientes)</div></div>
+      <div class="stat-card c-green"><span class="ico">📈</span><div class="num">${fmtMoney(b.pipelineValue)}</div><div class="lbl">Pipeline em aberto</div></div>
+      <div class="stat-card c-amber"><span class="ico">🏆</span><div class="num">${fmtMoney(b.closedValue)}</div><div class="lbl">Fechado pelos clientes</div></div>
+      <div class="stat-card c-blue"><span class="ico">💬</span><div class="num">${b.whatsappConnected}/${b.totalTenants}</div><div class="lbl">WhatsApp conectado</div></div>
+    `;
+  }
+
+  function renderSignupsChart(rows) {
+    const el = document.getElementById('signupsChart');
+    if (!rows?.length) { el.innerHTML = ''; return; }
+    const max = Math.max(...rows.map(r => r.count), 1);
+    el.innerHTML = rows.map((r, i) => {
+      const pct = (r.count / max * 100).toFixed(1);
+      const isCurrent = i === rows.length - 1;
+      return `<div class="bar-col">
+        <div class="bar-val">${r.count}</div>
+        <div class="bar-outer"><div class="bar-fill${isCurrent ? ' current' : ''}" style="height:${Math.max(pct, r.count ? 6 : 0)}%"></div></div>
+        <div class="bar-lbl">${r.month}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderPlanDonut(dist) {
+    const total = (dist || []).reduce((s, d) => s + d.count, 0);
+    const C = 2 * Math.PI * 44;
+    let cum = 0;
+    const bg = `<circle cx="70" cy="70" r="44" fill="none" stroke="#f1f5f9" stroke-width="22"/>`;
+    const segs = (dist || []).filter(d => d.count > 0).map(d => {
+      const pct = total ? d.count / total * 100 : 0;
+      const len = pct / 100 * C;
+      const dashoffset = -(cum / 100 * C);
+      cum += pct;
+      return `<circle cx="70" cy="70" r="44" fill="none" stroke="${d.color}" stroke-width="22" stroke-dasharray="${len.toFixed(1)} ${(C - len).toFixed(1)}" stroke-dashoffset="${dashoffset.toFixed(1)}" transform="rotate(-90 70 70)"/>`;
+    }).join('');
+    const centerText = `<text x="70" y="65" text-anchor="middle" font-size="18" font-weight="800" fill="#1e293b">${total}</text><text x="70" y="81" text-anchor="middle" font-size="10" fill="#64748b">empresas</text>`;
+    document.getElementById('planDonut').innerHTML = bg + segs + centerText;
+    document.getElementById('planSub').textContent = `${total} empresa${total === 1 ? '' : 's'} no total`;
+    document.getElementById('planLegend').innerHTML = (dist || []).map(d => {
+      const pct = total ? Math.round(d.count / total * 100) : 0;
+      return `<div class="legend-row"><div class="legend-dot" style="background:${d.color}"></div><span class="legend-label">${PLAN_LABEL[d.plan] || d.plan}</span><span class="legend-pct">${pct}%<span class="legend-count">(${d.count})</span></span></div>`;
+    }).join('') || '<div style="color:#94a3b8;font-size:12px">Sem empresas ainda</div>';
+  }
+
+  const BILLING_COLOR = { trial: '#2980b9', ok: '#27ae60', late: '#e74c3c', canceled: '#94a3b8' };
+  const BILLING_TEXT  = { trial: 'Trial', ok: 'Em dia', late: 'Atrasado', canceled: 'Cancelada' };
+  function renderBillingStack(billing) {
+    const entries = Object.entries(billing || {});
+    const total = entries.reduce((s, [, c]) => s + c, 0);
+    document.getElementById('billingStackBar').innerHTML = total
+      ? entries.filter(([, c]) => c > 0).map(([k, c]) => `<div class="stack-seg" style="width:${(c / total * 100).toFixed(1)}%;background:${BILLING_COLOR[k]}" title="${BILLING_TEXT[k]}: ${c}"></div>`).join('')
+      : '';
+    document.getElementById('billingLegend').innerHTML = entries.map(([k, c]) => {
+      const pct = total ? Math.round(c / total * 100) : 0;
+      return `<div class="legend-row"><div class="legend-dot" style="background:${BILLING_COLOR[k]}"></div><span class="legend-label">${BILLING_TEXT[k]}</span><span class="legend-pct">${pct}%<span class="legend-count">(${c})</span></span></div>`;
+    }).join('') || '<div style="color:#94a3b8;font-size:12px">Sem empresas ainda</div>';
   }
 
   function billingBadge(t) {
@@ -312,12 +460,22 @@
     loadAdmins();
   }
 
+  function greetingNow() {
+    const h = new Date().getHours();
+    return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+  }
+
   (async function init() {
     const me = await mePromise;
     document.getElementById('whoAmI').textContent = me ? `${me.user.name} · ${me.user.platformRole}` : '';
+    const firstName = (me?.user?.name || '').trim().split(/\s+/)[0] || '';
+    document.getElementById('bannerGreet').textContent = `${greetingNow()}, ${firstName} 👋`;
+    const dateLabel = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    document.getElementById('bannerSub').textContent = `Painel da plataforma · ${dateLabel}`;
   })();
   loadTenants();
   loadAdmins();
+  loadStats();
 </script>
 </body>
 </html>

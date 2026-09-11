@@ -5,9 +5,30 @@ import { requireAuth } from '../middleware/auth.js'
 const router = Router()
 router.use(requireAuth)
 
-// GET /dashboard — KPIs + gráfico de receita + funil
+// Início/fim do período escolhido + do período anterior equivalente, pra
+// comparar "essa semana vs a passada", "esse mês vs o passado" etc — só a
+// receita do card "Visão geral" responde ao period (o resto é sempre um
+// retrato de agora, igual "sócios ativos" não muda com o filtro de período).
+function periodRange(period, now, monthStart, monthEnd, lastMonthStart, lastMonthEnd) {
+  if (period === 'semana') {
+    const start = new Date(now); start.setDate(start.getDate() - 6); start.setHours(0, 0, 0, 0)
+    const prevEnd = new Date(start.getTime() - 1)
+    const prevStart = new Date(prevEnd); prevStart.setDate(prevStart.getDate() - 6); prevStart.setHours(0, 0, 0, 0)
+    return { start, end: now, prevStart, prevEnd, label: 'semana anterior' }
+  }
+  if (period === 'ano') {
+    const start = new Date(now.getFullYear(), 0, 1)
+    const prevStart = new Date(now.getFullYear() - 1, 0, 1)
+    const prevEnd = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59)
+    return { start, end: now, prevStart, prevEnd, label: 'ano anterior' }
+  }
+  return { start: monthStart, end: now, prevStart: lastMonthStart, prevEnd: lastMonthEnd, label: 'mês anterior' }
+}
+
+// GET /dashboard?period=semana|mes|ano — KPIs + gráfico de receita + funil
 router.get('/', async (req, res) => {
   const { tenantId } = req.user
+  const period = ['semana', 'mes', 'ano'].includes(req.query.period) ? req.query.period : 'mes'
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
   const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
@@ -15,6 +36,8 @@ router.get('/', async (req, res) => {
   const today = new Date(); today.setHours(23, 59, 59)
   const RECENT_MESSAGE_DAYS = 5
   const recentSince = new Date(now.getTime() - RECENT_MESSAGE_DAYS * 24 * 60 * 60 * 1000)
+  const { start: pStart, end: pEnd, prevStart: pPrevStart, prevEnd: pPrevEnd, label: pPrevLabel } =
+    periodRange(period, now, startOfMonth, now, startOfLastMonth, endOfLastMonth)
 
   // Meses (6 últimos) pro gráfico de receita
   const months = Array.from({ length: 6 }, (_, k) => {
@@ -26,15 +49,18 @@ router.get('/', async (req, res) => {
 
   // ── Consultas independentes entre si — todas de uma vez, sem esperar uma pela outra ──
   const [
-    deals, lastMonthDeals, tasks, contacts, stages,
+    periodDeals, prevPeriodDeals, tasks, contacts, stages,
     activeDeals, closedDeals,
     monthlyRevenueRows,
     recentDeals, upcomingTasks, overdueTasksList,
     recentInbound,
     openDealsForActions,
+    pipelineValueAgg, newContactsThisMonth, temperatureRaw,
+    whatsappIntegration, whatsappToday, whatsappUnreadRaw, whatsappTotal,
+    teamSize,
   ] = await Promise.all([
-    prisma.deal.findMany({ where: { tenantId, closedAt: { gte: startOfMonth } }, select: { value: true } }),
-    prisma.deal.findMany({ where: { tenantId, closedAt: { gte: startOfLastMonth, lte: endOfLastMonth } }, select: { value: true } }),
+    prisma.deal.findMany({ where: { tenantId, closedAt: { gte: pStart, lte: pEnd } }, select: { value: true } }),
+    prisma.deal.findMany({ where: { tenantId, closedAt: { gte: pPrevStart, lte: pPrevEnd } }, select: { value: true } }),
     prisma.task.findMany({ where: { tenantId, doneAt: null }, select: { dueDate: true } }),
     prisma.contact.count({ where: { tenantId } }),
     prisma.stage.findMany({ where: { tenantId }, orderBy: { order: 'asc' }, include: { deals: { select: { value: true } } } }),
@@ -72,11 +98,19 @@ router.get('/', async (req, res) => {
       take: 25,
       select: { id: true, title: true, value: true, updatedAt: true, contactId: true, contact: { select: { name: true } }, stage: { select: { name: true } } },
     }),
+    prisma.deal.aggregate({ where: { tenantId, closedAt: null }, _sum: { value: true } }),
+    prisma.contact.count({ where: { tenantId, createdAt: { gte: startOfMonth } } }),
+    prisma.contact.groupBy({ by: ['temperature'], where: { tenantId }, _count: true }),
+    prisma.integration.findUnique({ where: { tenantId_type: { tenantId, type: 'whatsapp' } } }),
+    prisma.message.count({ where: { OR: [{ contact: { tenantId } }, { tenantId }], channel: 'whatsapp', createdAt: { gte: new Date(now.getFullYear(), now.getMonth(), now.getDate()) } } }),
+    prisma.message.groupBy({ by: ['contactId'], where: { contact: { tenantId }, channel: 'whatsapp', direction: 'in', readAt: null }, _count: true }),
+    prisma.message.count({ where: { OR: [{ contact: { tenantId } }, { tenantId }], channel: 'whatsapp' } }),
+    prisma.user.count({ where: { tenantId, active: true } }),
   ])
 
-  const revenue = deals.reduce((s, d) => s + Number(d.value), 0)
-  const lastRevenue = lastMonthDeals.reduce((s, d) => s + Number(d.value), 0)
-  const revenueGrowth = lastRevenue > 0 ? ((revenue - lastRevenue) / lastRevenue * 100).toFixed(1) : null
+  const revenue = periodDeals.reduce((s, d) => s + Number(d.value), 0)
+  const prevRevenue = prevPeriodDeals.reduce((s, d) => s + Number(d.value), 0)
+  const revenueGrowth = prevRevenue > 0 ? ((revenue - prevRevenue) / prevRevenue * 100).toFixed(1) : null
 
   const totalDeals = activeDeals + closedDeals
   const conversion = totalDeals > 0 ? ((closedDeals / totalDeals) * 100).toFixed(1) : 0
@@ -97,6 +131,29 @@ router.get('/', async (req, res) => {
     count: s.deals.length,
     value: s.deals.reduce((sum, d) => sum + Number(d.value), 0),
   }))
+
+  // Composição da base de contatos por temperatura — o equivalente ao "sócio
+  // ativo / carência / inadimplente" de um sistema de associados: aqui é o
+  // termômetro de quão perto do fechamento cada contato está.
+  const TEMP_META = {
+    new:  { label: 'Novo',  color: '#64748b' },
+    hot:  { label: 'Quente', color: '#e74c3c' },
+    warm: { label: 'Morno', color: '#f39c12' },
+    cold: { label: 'Frio',  color: '#2980b9' },
+  }
+  const tempCounts = Object.fromEntries(temperatureRaw.map(t => [t.temperature, t._count]))
+  const contactComposition = Object.keys(TEMP_META).map(key => ({
+    key, label: TEMP_META[key].label, color: TEMP_META[key].color, count: tempCounts[key] || 0,
+  }))
+
+  const pipelineValue = Number(pipelineValueAgg._sum.value || 0)
+
+  const whatsapp = {
+    connected: whatsappIntegration?.status === 'connected',
+    messagesTotal: whatsappTotal,
+    messagesToday: whatsappToday,
+    unreadConversations: whatsappUnreadRaw.length,
+  }
 
   // ── Alerta: contatos que responderam recentemente e não têm follow-up agendado ──
   const lastInboundByContact = {}
@@ -170,9 +227,17 @@ router.get('/', async (req, res) => {
   }).filter(Boolean).sort((a, b) => b.urgency - a.urgency || b.value - a.value).slice(0, 6)
 
   res.json({
-    kpis: { revenue, revenueGrowth, activeDeals, conversion: Number(conversion), todayTasks, overdueTasks, contacts },
+    period,
+    periodPrevLabel: pPrevLabel,
+    kpis: {
+      revenue, revenueGrowth, activeDeals, pipelineValue, conversion: Number(conversion),
+      todayTasks, overdueTasks, contacts, newContactsThisMonth, teamSize,
+      followUpCount: followUpAlerts.length,
+    },
     monthlyRevenue,
     funnel,
+    contactComposition,
+    whatsapp,
     recentDeals,
     upcomingTasks,
     overdueTasksList,

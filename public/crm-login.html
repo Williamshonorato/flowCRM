@@ -543,8 +543,8 @@
 
 <script src="flowcrm-api.js"></script>
 <script>
-  // Se já autenticado, vai direto ao dashboard
-  if (getToken()) window.location.href = 'crm-dashboard.html';
+  // Se já autenticado, vai direto ao dashboard — admin da plataforma vai pro painel dele
+  if (getToken()) window.location.href = getPlatformRole() ? 'crm-plataforma.html' : 'crm-dashboard.html';
 
   document.getElementById('passwordInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') doLogin();
@@ -585,7 +585,7 @@
       errEl.style.display = 'block';
     } else {
       setToken(data.token);
-      window.location.href = 'crm-dashboard.html';
+      window.location.href = getPlatformRole() ? 'crm-plataforma.html' : 'crm-dashboard.html';
     }
   }
 </script>

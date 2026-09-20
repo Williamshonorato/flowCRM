@@ -90,6 +90,7 @@ router.get('/', async (req, res) => {
     prisma.message.findMany({
       where: { direction: 'in', createdAt: { gte: recentSince }, contact: { tenantId } },
       orderBy: { createdAt: 'desc' },
+      take: 1000, // sem teto, uma empresa muito ativa carregava 5 dias inteiros de mensagens a cada abertura do dashboard
       select: { contactId: true, createdAt: true, contact: { select: { id: true, name: true } } },
     }),
     prisma.deal.findMany({

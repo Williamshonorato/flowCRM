@@ -1,8 +1,8 @@
 import { Router } from 'express'
 import multer from 'multer'
-import XLSX from 'xlsx'
 import prisma from '../lib/prisma.js'
 import { requireAuth } from '../middleware/auth.js'
+import { parseRows } from '../lib/fileParser.js'
 
 const router = Router()
 router.use(requireAuth)
@@ -13,23 +13,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 router.post('/preview', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Arquivo não enviado.' })
 
-  const ext = req.file.originalname.split('.').pop().toLowerCase()
-  let rows = []
-
-  if (ext === 'csv') {
-    const text = req.file.buffer.toString('utf-8')
-    const lines = text.trim().split('\n')
-    const sep = lines[0].includes(';') ? ';' : ','
-    const headers = lines[0].split(sep).map(h => h.trim().replace(/^"|"$/g, ''))
-    rows = lines.slice(1).map(l => {
-      const vals = l.split(sep).map(v => v.trim().replace(/^"|"$/g, ''))
-      const obj = {}; headers.forEach((h, i) => obj[h] = vals[i] || '')
-      return obj
-    })
-  } else {
-    const wb = XLSX.read(req.file.buffer, { type: 'buffer' })
-    rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' })
-  }
+  const rows = parseRows(req.file.buffer, req.file.originalname)
 
   if (!rows.length) return res.status(400).json({ error: 'Arquivo vazio.' })
 
@@ -44,33 +28,19 @@ router.post('/execute', upload.single('file'), async (req, res) => {
 
   const { tenantId } = req.user
   // mapping: JSON string de { sheetColumn: crmField }
-  const mapping = JSON.parse(req.body.mapping || '{}')
+  let mapping
+  try { mapping = JSON.parse(req.body.mapping || '{}') } catch { return res.status(400).json({ error: 'Mapeamento inválido.' }) }
 
-  const ext = req.file.originalname.split('.').pop().toLowerCase()
-  let rows = []
-
-  if (ext === 'csv') {
-    const text = req.file.buffer.toString('utf-8')
-    const lines = text.trim().split('\n')
-    const sep = lines[0].includes(';') ? ';' : ','
-    const headers = lines[0].split(sep).map(h => h.trim().replace(/^"|"$/g, ''))
-    rows = lines.slice(1).map(l => {
-      const vals = l.split(sep).map(v => v.trim().replace(/^"|"$/g, ''))
-      const obj = {}; headers.forEach((h, i) => obj[h] = vals[i] || '')
-      return obj
-    })
-  } else {
-    const wb = XLSX.read(req.file.buffer, { type: 'buffer' })
-    rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' })
-  }
+  const rows = parseRows(req.file.buffer, req.file.originalname)
 
   const log = await prisma.importLog.create({
     data: { tenantId, fileName: req.file.originalname, totalRows: rows.length, status: 'processing' }
   })
 
   let imported = 0, duplicates = 0, errors = 0
+  // e-mails comparados em minúsculas: "Ana@x.com" e "ana@x.com" são o mesmo contato
   const existingEmails = new Set(
-    (await prisma.contact.findMany({ where: { tenantId, email: { not: null } }, select: { email: true } })).map(c => c.email)
+    (await prisma.contact.findMany({ where: { tenantId, email: { not: null } }, select: { email: true } })).map(c => c.email.toLowerCase())
   )
 
   for (const row of rows) {
@@ -83,7 +53,7 @@ router.post('/execute', upload.single('file'), async (req, res) => {
       if (!mapped.nome || !mapped.nome.trim()) { errors++; continue }
 
       // Verifica duplicata por e-mail
-      if (mapped.email && existingEmails.has(mapped.email)) { duplicates++; continue }
+      if (mapped.email && existingEmails.has(mapped.email.toLowerCase())) { duplicates++; continue }
 
       const customData = {}
       for (const [k, v] of Object.entries(mapped)) {
@@ -103,7 +73,7 @@ router.post('/execute', upload.single('file'), async (req, res) => {
         }
       })
 
-      if (mapped.email) existingEmails.add(mapped.email)
+      if (mapped.email) existingEmails.add(mapped.email.toLowerCase())
       imported++
     } catch { errors++ }
   }

@@ -3,9 +3,9 @@ import multer from 'multer'
 import fs from 'fs/promises'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { randomUUID } from 'crypto'
+import { randomUUID, createHmac, timingSafeEqual } from 'crypto'
 import prisma from '../lib/prisma.js'
-import { extractName, extractEmail, extractPhone } from '../lib/whatsappParser.js'
+import { extractName, extractEmail } from '../lib/whatsappParser.js'
 import { requireAuth } from '../middleware/auth.js'
 import { triggerFlows, resolveMenuReply } from '../lib/automationEngine.js'
 
@@ -31,6 +31,22 @@ function evoHeaders() {
   return { 'Content-Type': 'application/json', apikey: EVOLUTION_API_KEY }
 }
 
+// ── Autenticação do webhook ──────────────────────────────────────────────────
+// A URL do webhook é por empresa (/whatsapp/webhook/:tenantId) e o tenantId aparece em
+// telas e logs, então "saber a URL" não pode ser o bastante pra forjar mensagens. Cada
+// empresa tem um token próprio, derivado (HMAC) do JWT_SECRET — sem coluna nova no banco —
+// que vai na query (?token=) da URL registrada na Evolution, ou no header x-whatsapp-token.
+function webhookTokenFor(tenantId) {
+  return createHmac('sha256', process.env.JWT_SECRET || '').update('whatsapp-webhook:' + tenantId).digest('hex')
+}
+function safeEqual(a, b) {
+  const x = Buffer.from(String(a || '')), y = Buffer.from(String(b || ''))
+  return x.length === y.length && timingSafeEqual(x, y)
+}
+function webhookBaseUrl(req) {
+  return (process.env.APP_PUBLIC_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '')
+}
+
 // Só os dígitos de um telefone/jid ("55 (11) 9..." ou "5511...@s.whatsapp.net")
 function digits(v) {
   return String(v || '').replace(/[^0-9]/g, '')
@@ -49,10 +65,12 @@ const EXT_BY_MIME = {
   'video/mp4': '.mp4', 'video/webm': '.webm', 'video/3gpp': '.3gp', 'video/quicktime': '.mov',
   'application/pdf': '.pdf',
 }
+// Só extensões conhecidas e inofensivas. O mimetype de mídia RECEBIDA vem do remetente
+// (qualquer pessoa que mande mensagem pro número da empresa) — derivar a extensão dele
+// deixava alguém mandar "text/html" e o app servir um .html no nosso domínio (XSS).
 function extForMime(mime) {
-  if (EXT_BY_MIME[mime]) return EXT_BY_MIME[mime]
-  const sub = String(mime || '').split('/')[1]
-  return sub ? '.' + sub.split(';')[0].replace(/[^a-z0-9]/gi, '') : '.bin'
+  const base = String(mime || '').split(';')[0].trim().toLowerCase()
+  return EXT_BY_MIME[base] || '.bin'
 }
 function mediaKindForMime(mime) {
   const m = String(mime || '')
@@ -219,28 +237,40 @@ router.post('/connect', requireAuth, async (req, res) => {
   }
 
   const instance = instanceNameFor(tenantId)
+  const previous = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId, type: 'whatsapp' } } })
   // NUNCA usar req.protocol/req.get('host') aqui — o Evolution API roda num container
   // Docker separado; "127.0.0.1" do ponto de vista dele não chega no nosso app (já
   // vimos esse exato bug antes com o redirect do Google OAuth). Precisa ser a URL
   // pública de verdade, que o container alcança pela internet.
-  const webhookUrl = `${(process.env.APP_PUBLIC_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '')}/whatsapp/webhook/${tenantId}`
+  const webhookUrl = `${webhookBaseUrl(req)}/whatsapp/webhook/${tenantId}?token=${webhookTokenFor(tenantId)}`
+  const webhookCfg = { url: webhookUrl, byEvents: false, base64: true, events: ['MESSAGES_UPSERT'] }
 
   // Tenta criar a instância — se já existir, a Evolution retorna erro, que a gente
   // ignora de propósito: o /instance/connect logo abaixo funciona igual pra uma
   // instância nova ou já existente, então só a criação falhando não deve travar o fluxo.
+  let webhookRegistered = false
   try {
-    await fetch(`${EVOLUTION_API_URL}/instance/create`, {
+    const createRes = await fetch(`${EVOLUTION_API_URL}/instance/create`, {
       method: 'POST',
       headers: evoHeaders(),
-      body: JSON.stringify({
-        instanceName: instance,
-        qrcode: true,
-        integration: 'WHATSAPP-BAILEYS',
-        webhook: { url: webhookUrl, byEvents: false, base64: true, events: ['MESSAGES_UPSERT'] },
-      }),
+      body: JSON.stringify({ instanceName: instance, qrcode: true, integration: 'WHATSAPP-BAILEYS', webhook: webhookCfg }),
     })
+    webhookRegistered = createRes.ok
   } catch (err) {
     console.error('whatsapp connect: falha ao criar instância (pode já existir)', err.message)
+  }
+  // Instância que já existia foi criada com a URL ANTIGA (sem token): atualiza o webhook dela.
+  if (!webhookRegistered) {
+    try {
+      const setRes = await fetch(`${EVOLUTION_API_URL}/webhook/set/${instance}`, {
+        method: 'POST',
+        headers: evoHeaders(),
+        body: JSON.stringify({ webhook: { enabled: true, ...webhookCfg } }),
+      })
+      webhookRegistered = setRes.ok
+    } catch (err) {
+      console.error('whatsapp connect: falha ao atualizar webhook da instância', err.message)
+    }
   }
 
   let qrData
@@ -254,11 +284,19 @@ router.post('/connect', requireAuth, async (req, res) => {
 
   await prisma.integration.upsert({
     where: { tenantId_type: { tenantId, type: 'whatsapp' } },
-    create: { tenantId, type: 'whatsapp', status: 'connecting', config: { instance, phone: phone || null, provider: 'evolution' } },
-    update: { status: 'connecting', config: { instance, phone: phone || null, provider: 'evolution' } },
+    create: { tenantId, type: 'whatsapp', status: 'connecting', config: { instance, phone: phone || null, provider: 'evolution', webhookSecured: webhookRegistered } },
+    update: { status: 'connecting', config: { instance, phone: phone || null, provider: 'evolution', webhookSecured: webhookRegistered || !!previous?.config?.webhookSecured } },
   })
 
   res.json({ qrcode: qrData?.base64 || null, pairingCode: qrData?.pairingCode || null })
+})
+
+// GET /whatsapp/webhook-url — a URL que a Evolution deve chamar. Com o token só pra admin
+// (quem vê o token consegue forjar mensagens); os demais recebem a URL sem ele.
+router.get('/webhook-url', requireAuth, (req, res) => {
+  const { tenantId, role } = req.user
+  const base = `${webhookBaseUrl(req)}/whatsapp/webhook/${tenantId}`
+  res.json({ url: role === 'admin' ? `${base}?token=${webhookTokenFor(tenantId)}` : base })
 })
 
 // GET /whatsapp/status — o frontend consulta em loop enquanto espera o escaneamento;
@@ -275,6 +313,10 @@ router.get('/status', requireAuth, async (req, res) => {
 
     if (state === 'open') {
       await prisma.integration.updateMany({ where: { tenantId, type: 'whatsapp' }, data: { status: 'connected' } })
+    } else if (state === 'close') {
+      // O celular foi desvinculado (ou a instância sumiu): sem isto o CRM seguia dizendo "conectado"
+      // e disparos/respostas falhavam sem explicação. 'connecting' (esperando o QR) fica como está.
+      await prisma.integration.updateMany({ where: { tenantId, type: 'whatsapp', status: 'connected' }, data: { status: 'disconnected' } })
     }
     res.json({ status: state })
   } catch (err) {
@@ -548,6 +590,15 @@ async function findContactByPhone(tenantId, phoneDigits) {
   return prisma.contact.findUnique({ where: { id: rows[0].id } })
 }
 
+// E-mail citado no texto de uma mensagem só vira o e-mail do contato se nenhum outro contato
+// da empresa já usa ele — o unique [tenantId, email] faria o create/update estourar e a
+// mensagem inteira (e o webhook, com 500) se perderiam por causa de um detalhe do texto.
+async function freeEmail(tenantId, email) {
+  if (!email) return null
+  const taken = await prisma.contact.findFirst({ where: { tenantId, email }, select: { id: true } })
+  return taken ? null : email
+}
+
 // Palavra-chave (cadastrada em Pipeline → 🔑 Palavras-chave / Configurações) que
 // bate com a mensagem, se houver. Sem nenhuma cadastrada devolve null — não cria
 // negócio sozinho até a empresa configurar pelo menos uma.
@@ -580,20 +631,32 @@ async function resolveGroupName(jid, evo) {
 
 // Webhook para receber mensagens do WhatsApp — uma URL por empresa.
 router.post('/webhook/:tenantId', async (req, res) => {
-  const token = process.env.WHATSAPP_TOKEN
-  if (token && req.headers['x-whatsapp-token'] !== token) {
-    return res.status(401).json({ error: 'Token inválido.' })
-  }
-
   const tenant = await prisma.tenant.findUnique({ where: { id: req.params.tenantId } })
   if (!tenant) return res.status(404).json({ error: 'Empresa não encontrada.' })
+
+  if (!tenant.active) return res.json({ ok: true, ignored: 'empresa suspensa' })
+
+  const integration = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId: tenant.id, type: 'whatsapp' } } }).catch(() => null)
+
+  // Credencial válida: o token DESSA empresa (query ou header) ou o token global do .env.
+  // Exigida quando: WHATSAPP_TOKEN/WHATSAPP_WEBHOOK_STRICT estão no .env, ou a empresa já
+  // registrou a URL com token na Evolution (config.webhookSecured, marcado no /connect).
+  // Instâncias antigas, criadas com a URL sem token, seguem aceitas (com aviso no log) até
+  // reconectarem — exigir token delas já faria todo WhatsApp parar de chegar num deploy.
+  const provided = req.query.token || req.headers['x-whatsapp-token']
+  const globalToken = process.env.WHATSAPP_TOKEN
+  const valid = safeEqual(provided, webhookTokenFor(tenant.id)) || (!!globalToken && safeEqual(req.headers['x-whatsapp-token'], globalToken))
+  const required = !!globalToken || process.env.WHATSAPP_WEBHOOK_STRICT === '1' || !!integration?.config?.webhookSecured
+  if (!valid) {
+    if (required) return res.status(401).json({ error: 'Token inválido.' })
+    console.warn(`whatsapp webhook sem token aceito (modo legado) — tenant ${tenant.id}; reconecte o WhatsApp pra proteger`)
+  }
 
   const eventType = req.body?.event
   if (eventType && eventType !== 'messages.upsert') {
     return res.json({ ok: true, ignored: eventType })
   }
 
-  const integration = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId: tenant.id, type: 'whatsapp' } } }).catch(() => null)
   const evo = evoConfigFrom(integration, tenant.id)
 
   try {
@@ -626,7 +689,7 @@ router.post('/webhook/:tenantId', async (req, res) => {
 
       // idempotência: não processa a mesma mensagem duas vezes
       if (whatsappId) {
-        const existing = await prisma.message.findUnique({ where: { whatsappMessageId: whatsappId } }).catch(() => null)
+        const existing = await prisma.message.findFirst({ where: { tenantId: tenant.id, whatsappMessageId: whatsappId } }).catch(() => null)
         if (existing) { processed += 1; continue }
       }
 
@@ -669,12 +732,13 @@ router.post('/webhook/:tenantId', async (req, res) => {
       let contact = await findContactByPhone(tenant.id, senderPhone)
       if (!contact) {
         const name = pushName || extractName(body) || ''
-        const email = extractEmail(body)
-        const phoneExtracted = extractPhone(body) || senderPhone
-        contact = await prisma.contact.create({ data: { tenantId: tenant.id, name, phone: phoneExtracted, email: email || null } })
+        // O telefone do contato é SEMPRE o número de quem mandou. Antes pegava qualquer
+        // sequência de 8-15 dígitos do texto ("meu pedido é 12345678") e a pessoa virava um
+        // contato com telefone errado — a mensagem seguinte não casava e criava outro.
+        contact = await prisma.contact.create({ data: { tenantId: tenant.id, name, phone: senderPhone, email: await freeEmail(tenant.id, extractEmail(body)) } })
       } else {
         const name = pushName || extractName(body)
-        const email = extractEmail(body)
+        const email = contact.email ? null : await freeEmail(tenant.id, extractEmail(body))
         const updates = {}
         if (name && !contact.name) updates.name = name
         if (email && !contact.email) updates.email = email

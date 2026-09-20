@@ -11,8 +11,11 @@
 <body>
   Entrando...
 <script>
-  const params = new URLSearchParams(location.search);
+  // O token vem no fragmento (#token=...) — não na query — pra não ficar em log/histórico/Referer.
+  // ?token= segue aceito só pra quem ainda cair num redirect gerado antes deste deploy.
+  const params = new URLSearchParams(location.hash.replace(/^#/, '') || location.search);
   const token = params.get('token');
+  history.replaceState(null, '', location.pathname);
   if (token) {
     localStorage.setItem('flowcrm_token', token);
     window.location.href = 'crm-dashboard.html';

@@ -249,9 +249,9 @@
     const list = contactsCache.filter(c => !q || (c.name||'').toLowerCase().includes(q) || (c.phone||'').includes(q));
     document.getElementById('pickerList').innerHTML = list.slice(0, 300).map(c => `
       <label class="cp-item">
-        <input type="checkbox" ${selected.has(c.id)?'checked':''} onchange="togglePick('${c.id}', this.checked)"/>
-        <span>${(c.name||'(sem nome)').replace(/</g,'&lt;')}</span>
-        <span class="ph">${c.phone||''}</span>
+        <input type="checkbox" ${selected.has(c.id)?'checked':''} onchange="togglePick(${jsAttr(c.id)}, this.checked)"/>
+        <span>${escHtml(c.name||'(sem nome)')}</span>
+        <span class="ph">${escHtml(c.phone||'')}</span>
       </label>`).join('') || '<div class="cp-item">Nenhum contato com telefone.</div>';
     document.getElementById('selCount').textContent = selected.size;
   }
@@ -331,13 +331,13 @@
       const pct = b.total ? Math.round(done / b.total * 100) : 0;
       return `<div class="bc-item">
         <div class="bc-top">
-          <div class="bc-msg">${(b.message || '[imagem]').replace(/</g,'&lt;')}</div>
-          <span class="bc-badge st-${b.status}">${ST_LABEL[b.status] || b.status}</span>
+          <div class="bc-msg">${escHtml(b.message || '[imagem]')}</div>
+          <span class="bc-badge st-${escHtml(b.status)}">${escHtml(ST_LABEL[b.status] || b.status)}</span>
         </div>
         <div class="bar"><span style="width:${pct}%"></span></div>
         <div class="bc-meta">
           <span>${b.sentCount} enviadas · ${b.failedCount} falharam · ${b.total} no total</span>
-          ${(b.status === 'queued' || b.status === 'sending') ? `<button class="bc-cancel" onclick="cancelBc('${b.id}')">cancelar</button>` : `<span>${new Date(b.createdAt).toLocaleString('pt-BR')}</span>`}
+          ${(b.status === 'queued' || b.status === 'sending') ? `<button class="bc-cancel" onclick="cancelBc(${jsAttr(b.id)})">cancelar</button>` : `<span>${new Date(b.createdAt).toLocaleString('pt-BR')}</span>`}
         </div>
       </div>`;
     }).join('');

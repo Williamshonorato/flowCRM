@@ -286,7 +286,7 @@
     const originsSeen = new Set();
     stages.forEach(col => col.deals.forEach(d => originsSeen.add(d.contact?.origin || 'outro')));
     document.getElementById('filterOrigins').innerHTML = [...originsSeen].sort().map(o => `
-      <label class="filter-opt"><input type="checkbox" ${activeFilters.origins.has(o) ? 'checked' : ''} onchange="toggleOriginFilter('${o}')"/>${originLabels[o] || o}</label>
+      <label class="filter-opt"><input type="checkbox" ${activeFilters.origins.has(o) ? 'checked' : ''} onchange="toggleOriginFilter(${jsAttr(o)})"/>${escHtml(originLabels[o] || o)}</label>
     `).join('') || '<div style="font-size:12px;color:#94a3b8">Nenhum lead ainda</div>';
 
     document.getElementById('filterTemps').innerHTML = Object.entries(tempLabels).map(([k, label]) => `
@@ -329,11 +329,11 @@
       div.className = 'column';
       div.innerHTML = `
         <div class="col-header">
-          <div class="col-dot" style="background:${col.color}"></div>
+          <div class="col-dot" style="background:${escHtml(col.color)}"></div>
           <div class="col-name">${esc(col.name)}</div>
-          <div class="col-count" style="background:${col.color}">${colDeals.length}</div>
+          <div class="col-count" style="background:${escHtml(col.color)}">${colDeals.length}</div>
         </div>
-        <div class="col-bar" style="background:${colrGrad(col.color)}"></div>
+        <div class="col-bar" style="background:${escHtml(colrGrad(col.color))}"></div>
         <div class="col-total">${fmtMoney(total)} total</div>
         <div class="col-body" id="col-${ci}">
           ${colDeals.map((d, di) => {
@@ -343,20 +343,20 @@
             const dateLbl = new Date(d.updatedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
             const valueLbl = Number(d.value) ? fmtMoney(d.value) : 'Sem valor';
             return `
-            <div class="deal-card c${ci}" data-id="${d.id}" draggable="true">
+            <div class="deal-card c${ci}" data-id="${escHtml(d.id)}" draggable="true">
               <div class="card-row1">
-                <div class="card-avatar" style="background:${palColor(di)}">${initials(name)}</div>
+                <div class="card-avatar" style="background:${palColor(di)}">${escHtml(initials(name))}</div>
                 <div class="card-name">${esc(name)}</div>
                 <div class="card-date">${dateLbl}</div>
               </div>
               ${showSub ? `<div class="card-sub">${esc(d.title)}</div>` : ''}
               <div class="card-meta">
                 <span class="val${Number(d.value) ? '' : ' empty'}">${valueLbl}</span>
-                ${temp ? `<span class="sep">·</span><span><span class="temp-dot temp-${temp}"></span>${tempWords[temp]}</span>` : ''}
+                ${temp ? `<span class="sep">·</span><span><span class="temp-dot temp-${escHtml(temp)}"></span>${escHtml(tempWords[temp])}</span>` : ''}
               </div>
               <div class="card-actions">
-                ${ci > 0 ? `<button class="card-btn" onclick="moveCard('${d.id}',${ci},${ci-1})">← Voltar</button>` : ''}
-                ${ci < stages.length-1 ? `<button class="card-btn" onclick="moveCard('${d.id}',${ci},${ci+1})">Avançar →</button>` : ''}
+                ${ci > 0 ? `<button class="card-btn" onclick="moveCard(${jsAttr(d.id)},${ci},${ci-1})">← Voltar</button>` : ''}
+                ${ci < stages.length-1 ? `<button class="card-btn" onclick="moveCard(${jsAttr(d.id)},${ci},${ci+1})">Avançar →</button>` : ''}
               </div>
             </div>`;
           }).join('')}
@@ -400,7 +400,7 @@
   function openModal(stageIdx = 0) {
     modalStageIdx = stageIdx;
     const sel = document.getElementById('m-stage');
-    sel.innerHTML = stages.map((s, i) => `<option value="${i}" ${i === stageIdx ? 'selected' : ''}>${s.name}</option>`).join('');
+    sel.innerHTML = stages.map((s, i) => `<option value="${i}" ${i === stageIdx ? 'selected' : ''}>${escHtml(s.name)}</option>`).join('');
     document.getElementById('overlay').classList.add('open');
   }
   function closeModal() { document.getElementById('overlay').classList.remove('open'); }
@@ -418,7 +418,7 @@
 
   function renderKeywords() {
     document.getElementById('kwList').innerHTML = dealKeywords.length
-      ? dealKeywords.map(k => `<span class="kw-chip">${k.keyword.replace(/</g, '&lt;')}<button onclick="removeKeyword('${k.id}')" title="Remover">✕</button></span>`).join('')
+      ? dealKeywords.map(k => `<span class="kw-chip">${escHtml(k.keyword)}<button onclick="removeKeyword(${jsAttr(k.id)})" title="Remover">✕</button></span>`).join('')
       : '<span class="kw-empty">Nenhuma palavra-chave ainda — negócio automático fica desligado até cadastrar a primeira.</span>';
   }
 

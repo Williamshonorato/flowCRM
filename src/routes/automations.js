@@ -6,6 +6,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import prisma from '../lib/prisma.js'
+import { patchSchema } from '../lib/patchSchema.js'
 import { requireAuth } from '../middleware/auth.js'
 import { startFlowRun } from '../lib/automationEngine.js'
 
@@ -85,7 +86,7 @@ router.patch('/flows/:id', async (req, res) => {
   const existing = await prisma.automationFlow.findFirst({ where: { id: req.params.id, tenantId } })
   if (!existing) return res.status(404).json({ error: 'Fluxo não encontrado.' })
 
-  const parsed = flowSchema.partial().safeParse(req.body)
+  const parsed = patchSchema(flowSchema).safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
 
   const flow = await prisma.automationFlow.update({ where: { id: req.params.id }, data: parsed.data })
@@ -112,6 +113,10 @@ router.post('/flows/:id/run', async (req, res) => {
   if (contactId) {
     const c = await prisma.contact.findFirst({ where: { id: contactId, tenantId } })
     if (!c) return res.status(404).json({ error: 'Contato não encontrado.' })
+  }
+  if (dealId) {
+    const d = await prisma.deal.findFirst({ where: { id: dealId, tenantId } })
+    if (!d) return res.status(404).json({ error: 'Negócio não encontrado.' })
   }
 
   const run = await startFlowRun(flow, { contactId, dealId })

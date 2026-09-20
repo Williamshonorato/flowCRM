@@ -359,10 +359,10 @@
     }
     const triggerLabel = { contact_created:'Contato criado', deal_created:'Negócio criado', deal_stage_changed:'Negócio mudou de estágio', deal_closed:'Negócio fechado', whatsapp_message_received:'Mensagem no WhatsApp', manual:'Manual' };
     grid.innerHTML = flows.map(f => `
-      <div class="flow-card" onclick="openEditor('${f.id}')">
-        <div class="fc-top"><div class="fc-name">${f.name}</div><span class="fc-badge ${f.active ? 'fc-active' : 'fc-inactive'}" style="cursor:pointer" title="Clique para ${f.active ? 'desativar' : 'ativar'}" onclick="event.stopPropagation(); toggleFlowActive('${f.id}', ${f.active})">${f.active ? 'Ativo' : 'Inativo'}</span></div>
-        <div class="fc-desc">${f.description || ''}</div>
-        <div class="fc-meta"><span>⚡ ${triggerLabel[f.triggerType] || f.triggerType}</span><span>🧩 ${(f.steps || []).length} passo${(f.steps||[]).length===1?'':'s'}</span><span>▶ ${f._count?.runs ?? 0} execuções</span></div>
+      <div class="flow-card" onclick="openEditor(${jsAttr(f.id)})">
+        <div class="fc-top"><div class="fc-name">${escHtml(f.name)}</div><span class="fc-badge ${f.active ? 'fc-active' : 'fc-inactive'}" style="cursor:pointer" title="Clique para ${f.active ? 'desativar' : 'ativar'}" onclick="event.stopPropagation(); toggleFlowActive(${jsAttr(f.id)}, ${f.active})">${f.active ? 'Ativo' : 'Inativo'}</span></div>
+        <div class="fc-desc">${escHtml(f.description || '')}</div>
+        <div class="fc-meta"><span>⚡ ${escHtml(triggerLabel[f.triggerType] || f.triggerType)}</span><span>🧩 ${(f.steps || []).length} passo${(f.steps||[]).length===1?'':'s'}</span><span>▶ ${f._count?.runs ?? 0} execuções</span></div>
       </div>
     `).join('');
   }
@@ -475,27 +475,27 @@
     const val = step.config[field.key] ?? '';
     const cls = field.full ? 'full' : '';
     if (field.type === 'select') {
-      return `<div class="${cls}"><label>${field.label}</label><select onchange="setStepConfig('${step.id}','${field.key}',this.value)">
+      return `<div class="${cls}"><label>${field.label}</label><select onchange="setStepConfig(${jsAttr(step.id)},${jsAttr(field.key)},this.value)">
         ${field.options.map(([v, l]) => `<option value="${v}" ${val === v ? 'selected' : ''}>${l}</option>`).join('')}
       </select></div>`;
     }
     if (field.type === 'stage-select') {
-      return `<div class="${cls}"><label>${field.label}</label><select onchange="setStepConfig('${step.id}','${field.key}',this.value)">
+      return `<div class="${cls}"><label>${field.label}</label><select onchange="setStepConfig(${jsAttr(step.id)},${jsAttr(field.key)},this.value)">
         <option value="">— Selecione —</option>
-        ${stages.map(s => `<option value="${s.id}" ${val === s.id ? 'selected' : ''}>${s.name}</option>`).join('')}
+        ${stages.map(s => `<option value="${escHtml(s.id)}" ${val === s.id ? 'selected' : ''}>${escHtml(s.name)}</option>`).join('')}
       </select></div>`;
     }
     if (field.type === 'textarea') {
-      return `<div class="${cls}"><label>${field.label}</label><textarea onchange="setStepConfig('${step.id}','${field.key}',this.value)">${val}</textarea></div>`;
+      return `<div class="${cls}"><label>${field.label}</label><textarea onchange="setStepConfig(${jsAttr(step.id)},${jsAttr(field.key)},this.value)">${escHtml(val)}</textarea></div>`;
     }
     if (field.type === 'image-upload') {
       const url = step.config.imageUrl;
       const preview = url
-        ? `<div class="wz-img-preview"><img src="${url}"/><button class="step-btn danger" type="button" title="Remover imagem" onclick="classicRemoveImage('${step.id}')">✕</button></div>`
-        : `<label class="wz-img-upload">📷 Anexar imagem<input type="file" accept="image/*" style="display:none" onchange="classicUploadImage('${step.id}', this)"/></label>`;
+        ? `<div class="wz-img-preview"><img src="${escHtml(url)}"/><button class="step-btn danger" type="button" title="Remover imagem" onclick="classicRemoveImage(${jsAttr(step.id)})">✕</button></div>`
+        : `<label class="wz-img-upload">📷 Anexar imagem<input type="file" accept="image/*" style="display:none" onchange="classicUploadImage(${jsAttr(step.id)}, this)"/></label>`;
       return `<div class="${cls}"><label>${field.label}</label>${preview}</div>`;
     }
-    return `<div class="${cls}"><label>${field.label}</label><input type="${field.type}" value="${val}" onchange="setStepConfig('${step.id}','${field.key}',${field.type === 'number' ? 'Number(this.value)' : 'this.value'})"/></div>`;
+    return `<div class="${cls}"><label>${field.label}</label><input type="${escHtml(field.type)}" value="${escHtml(val)}" onchange="setStepConfig(${jsAttr(step.id)},${jsAttr(field.key)},${field.type === 'number' ? 'Number(this.value)' : 'this.value'})"/></div>`;
   }
 
   async function classicUploadImage(stepId, fileInput) {
@@ -540,18 +540,18 @@
         <div class="menu-options">
           ${step.config.options.map(opt => renderMenuOption(step, opt)).join('')}
         </div>
-        <button class="add-step-btn small" onclick="addMenuOption('${step.id}')">+ Adicionar opção</button>`;
+        <button class="add-step-btn small" onclick="addMenuOption(${jsAttr(step.id)})">+ Adicionar opção</button>`;
     }
     return `<div class="step-card">
       <div class="step-head">
         <div class="step-num">${i + 1}</div>
-        <select class="step-type-select" onchange="setStepType('${step.id}', this.value)">
+        <select class="step-type-select" onchange="setStepType(${jsAttr(step.id)}, this.value)">
           ${Object.entries(STEP_TYPES).map(([k, d]) => `<option value="${k}" ${k === step.type ? 'selected' : ''}>${d.label}</option>`).join('')}
         </select>
         <div class="step-actions">
-          <button class="step-btn" title="Subir" onclick="moveStep('${step.id}',-1)" ${i === 0 ? 'disabled' : ''}>↑</button>
-          <button class="step-btn" title="Descer" onclick="moveStep('${step.id}',1)" ${i === total - 1 ? 'disabled' : ''}>↓</button>
-          <button class="step-btn danger" title="Remover" onclick="removeStep('${step.id}')">✕</button>
+          <button class="step-btn" title="Subir" onclick="moveStep(${jsAttr(step.id)},-1)" ${i === 0 ? 'disabled' : ''}>↑</button>
+          <button class="step-btn" title="Descer" onclick="moveStep(${jsAttr(step.id)},1)" ${i === total - 1 ? 'disabled' : ''}>↓</button>
+          <button class="step-btn danger" title="Remover" onclick="removeStep(${jsAttr(step.id)})">✕</button>
         </div>
       </div>
       <div class="step-fields">${def.fields.map(f => fieldHtml(step, f)).join('')}</div>
@@ -563,14 +563,14 @@
     if (!Array.isArray(opt.steps)) opt.steps = [];
     return `<div class="menu-option-card">
       <div class="mo-head">
-        <input type="text" value="${opt.label || ''}" placeholder="Nome da opção (ex: Vendas)"
-          onchange="setOptionField('${parentStep.id}','${opt.id}','label',this.value)"/>
-        <input type="text" value="${(opt.keywords || []).join(', ')}" placeholder="Palavras-chave, separadas por vírgula (ex: vendas, comprar)"
-          onchange="setOptionField('${parentStep.id}','${opt.id}','keywords',this.value)"/>
-        <button class="step-btn danger" title="Remover opção" onclick="removeMenuOption('${parentStep.id}','${opt.id}')">✕</button>
+        <input type="text" value="${escHtml(opt.label || '')}" placeholder="Nome da opção (ex: Vendas)"
+          onchange="setOptionField(${jsAttr(parentStep.id)},${jsAttr(opt.id)},'label',this.value)"/>
+        <input type="text" value="${escHtml((opt.keywords || []).join(', '))}" placeholder="Palavras-chave, separadas por vírgula (ex: vendas, comprar)"
+          onchange="setOptionField(${jsAttr(parentStep.id)},${jsAttr(opt.id)},'keywords',this.value)"/>
+        <button class="step-btn danger" title="Remover opção" onclick="removeMenuOption(${jsAttr(parentStep.id)},${jsAttr(opt.id)})">✕</button>
       </div>
       <div class="mo-steps">${renderStepArray(opt.steps)}</div>
-      <button class="add-step-btn small" onclick="addStepToOption('${parentStep.id}','${opt.id}')">+ Adicionar passo nesta opção</button>
+      <button class="add-step-btn small" onclick="addStepToOption(${jsAttr(parentStep.id)},${jsAttr(opt.id)})">+ Adicionar passo nesta opção</button>
     </div>`;
   }
 
@@ -584,7 +584,7 @@
     if (TRIGGER_NEEDS_STAGE.has(trigger)) {
       wrap.innerHTML = `<label>Estágio específico (opcional)</label><select id="f-trigger-stage">
         <option value="">— Qualquer estágio —</option>
-        ${stages.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
+        ${stages.map(s => `<option value="${escHtml(s.id)}">${escHtml(s.name)}</option>`).join('')}
       </select>`;
     } else if (TRIGGER_NEEDS_KEYWORD.has(trigger)) {
       wrap.innerHTML = `<label>Só se a mensagem contiver (opcional)</label><input type="text" id="f-trigger-keyword" placeholder="Ex: orçamento — deixe vazio pra disparar em qualquer mensagem"/>`;
@@ -621,7 +621,7 @@
         if (kw) kw.value = flow.triggerConfig.keyword;
       }
       steps = (flow.steps || []).map(s => ({ ...s }));
-      document.getElementById('testContact').innerHTML = contacts.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+      document.getElementById('testContact').innerHTML = contacts.map(c => `<option value="${escHtml(c.id)}">${escHtml(c.name)}</option>`).join('');
       loadRunLog();
     } else {
       document.getElementById('f-name').value = '';
@@ -690,8 +690,8 @@
     const box = document.getElementById('runLog');
     box.innerHTML = runs.map(r => `
       <div class="run-item">
-        <span class="rs rs-${r.status}">${r.status}</span><b>${r.contactName || 'sem contato'}</b> — ${new Date(r.startedAt).toLocaleString('pt-BR')}
-        <div class="run-steps">${(r.log || []).map(l => `${l.type}: ${JSON.stringify(l.result)}`).join(' · ') || 'sem passos ainda'}</div>
+        <span class="rs rs-${escHtml(r.status)}">${escHtml(r.status)}</span><b>${escHtml(r.contactName || 'sem contato')}</b> — ${new Date(r.startedAt).toLocaleString('pt-BR')}
+        <div class="run-steps">${escHtml((r.log || []).map(l => `${l.type}: ${JSON.stringify(l.result)}`).join(' · ')) || 'sem passos ainda'}</div>
       </div>
     `).join('') || '<div style="font-size:12.5px;color:#94a3b8">Nenhuma execução ainda.</div>';
   }
@@ -737,7 +737,7 @@
       titleEl.textContent = wzNode.step === wzRoot
         ? 'Qual mensagem o bot manda assim que alguém escrever no WhatsApp?'
         : 'E nesse submenu, qual mensagem o bot manda?';
-      bodyEl.innerHTML = `<textarea id="wz-message" placeholder="Ex: Oi! Sou o assistente virtual, como posso ajudar?" oninput="wzSetMessage(this.value)">${wzNode.step.config.message || ''}</textarea>`;
+      bodyEl.innerHTML = `<textarea id="wz-message" placeholder="Ex: Oi! Sou o assistente virtual, como posso ajudar?" oninput="wzSetMessage(this.value)">${escHtml(wzNode.step.config.message || '')}</textarea>`;
       navEl.innerHTML = `<button class="btn-save" onclick="wzToOptions()">Próximo →</button>`;
     }
 
@@ -788,9 +788,9 @@
 
   function wzOptRowHtml(o) {
     return `<div class="wz-opt-row">
-      <input type="text" value="${o.label || ''}" placeholder="Ex: Vendas" oninput="wzSetOptField('${o.id}','label',this.value)"/>
-      <input type="text" value="${(o.keywords || []).join(', ')}" placeholder="Opcional — ex: vendas, comprar" oninput="wzSetOptField('${o.id}','keywords',this.value)"/>
-      <button class="step-btn danger" onclick="wzRemoveOption('${o.id}')">✕</button>
+      <input type="text" value="${escHtml(o.label || '')}" placeholder="Ex: Vendas" oninput="wzSetOptField(${jsAttr(o.id)},'label',this.value)"/>
+      <input type="text" value="${escHtml((o.keywords || []).join(', '))}" placeholder="Opcional — ex: vendas, comprar" oninput="wzSetOptField(${jsAttr(o.id)},'keywords',this.value)"/>
+      <button class="step-btn danger" onclick="wzRemoveOption(${jsAttr(o.id)})">✕</button>
     </div>`;
   }
 
@@ -843,7 +843,7 @@
   }
 
   function wzChoiceHtml(opt, action, icon, label, chosen) {
-    return `<div class="wz-choice ${chosen === action ? 'selected' : ''}" onclick="wzChooseAction('${opt.id}','${action}')">
+    return `<div class="wz-choice ${chosen === action ? 'selected' : ''}" onclick="wzChooseAction(${jsAttr(opt.id)},${jsAttr(action)})">
       <span class="ico">${icon}</span><span class="lbl">${label}</span>
     </div>`;
   }
@@ -851,14 +851,14 @@
     const s = (opt.steps || [])[0];
     if (chosen === 'message') {
       const imgHtml = s?.config?.imageUrl
-        ? `<div class="wz-img-preview"><img src="${s.config.imageUrl}"/><button class="step-btn danger" title="Remover imagem" onclick="wzRemoveImage('${opt.id}')">✕</button></div>`
-        : `<label class="wz-img-upload">📷 Anexar uma imagem (opcional)<input type="file" accept="image/*" style="display:none" onchange="wzUploadImage('${opt.id}', this)"/></label>`;
+        ? `<div class="wz-img-preview"><img src="${escHtml(s.config.imageUrl)}"/><button class="step-btn danger" title="Remover imagem" onclick="wzRemoveImage(${jsAttr(opt.id)})">✕</button></div>`
+        : `<label class="wz-img-upload">📷 Anexar uma imagem (opcional)<input type="file" accept="image/*" style="display:none" onchange="wzUploadImage(${jsAttr(opt.id)}, this)"/></label>`;
       return `<div class="wz-choice-input">
-        <textarea placeholder="O que o bot responde?" oninput="wzSetActionValue('${opt.id}','message',this.value)">${s?.config?.message || ''}</textarea>
+        <textarea placeholder="O que o bot responde?" oninput="wzSetActionValue(${jsAttr(opt.id)},'message',this.value)">${escHtml(s?.config?.message || '')}</textarea>
         ${imgHtml}
       </div>`;
     }
-    if (chosen === 'task') return `<div class="wz-choice-input"><input type="text" placeholder="Título da tarefa (ex: Ligar pro cliente)" oninput="wzSetActionValue('${opt.id}','task',this.value)" value="${s?.config?.title || ''}"/></div>`;
+    if (chosen === 'task') return `<div class="wz-choice-input"><input type="text" placeholder="Título da tarefa (ex: Ligar pro cliente)" oninput="wzSetActionValue(${jsAttr(opt.id)},'task',this.value)" value="${escHtml(s?.config?.title || '')}"/></div>`;
     if (chosen === 'submenu') return `<p style="font-size:12.5px;color:var(--muted);margin-top:8px">Você vai configurar as opções desse submenu em seguida.</p>`;
     return '';
   }
@@ -959,7 +959,7 @@
       if (!s) { box.innerHTML = '<div class="wp-empty">Escolha o que acontece quando a pessoa escolher essa opção.</div>'; return; }
       if (s.type === 'send_whatsapp') {
         const safeMsg = (s.config.message || '(sem mensagem)').replace(/</g, '&lt;');
-        const imgHtml = s.config.imageUrl ? `<img src="${s.config.imageUrl}" style="max-width:100%;border-radius:6px;margin-bottom:6px;display:block"/>` : '';
+        const imgHtml = s.config.imageUrl ? `<img src="${escHtml(s.config.imageUrl)}" style="max-width:100%;border-radius:6px;margin-bottom:6px;display:block"/>` : '';
         box.innerHTML = `<div class="wp-bubble">${imgHtml}${safeMsg}</div>`;
       } else if (s.type === 'create_task') {
         const safeTitle = (s.config.title || '(sem título)').replace(/</g, '&lt;');

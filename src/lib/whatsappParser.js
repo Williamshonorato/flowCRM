@@ -2,7 +2,9 @@
 export function extractName(text) {
   if (!text) return null
   // exemplos: "meu nome é João", "sou João", "chamo-me Ana"
-  const patterns = [/meu nome é\s+([A-ZÁÉÍÓÚÇÃÕÂÊÔ][a-záéíóúçãõâêô]+(?:\s+[A-ZÁÉÍÓÚÇÃÕÂÊÔ][a-záéíóúçãõâêô]+)?)/i, /sou\s+([A-ZÁÉÍÓÚÇÃÕÂÊÔ][a-záéíóúçãõâêô]+(?:\s+[A-ZÁÉÍÓÚÇÃÕÂÊÔ][a-záéíóúçãõâêô]+)?)/i, /chamo(?:-me| me)\s+([A-ZÁÉÍÓÚÇÃÕÂÊÔ][a-záéíóúçãõâêô]+)/i]
+  // Sem a flag /i de propósito: com ela [A-Z] casava qualquer letra e "estou pensando em comprar"
+  // virava nome "pensando". O nome tem que começar com maiúscula, e "sou" como palavra inteira.
+  const patterns = [/\b[Mm]eu nome é\s+([A-ZÁÉÍÓÚÇÃÕÂÊÔ][a-záéíóúçãõâêô]+(?:\s+[A-ZÁÉÍÓÚÇÃÕÂÊÔ][a-záéíóúçãõâêô]+)?)/, /\b[Ss]ou\s+([A-ZÁÉÍÓÚÇÃÕÂÊÔ][a-záéíóúçãõâêô]+(?:\s+[A-ZÁÉÍÓÚÇÃÕÂÊÔ][a-záéíóúçãõâêô]+)?)/, /\b[Cc]hamo(?:-me| me)\s+([A-ZÁÉÍÓÚÇÃÕÂÊÔ][a-záéíóúçãõâêô]+)/]
   for (const p of patterns) {
     const m = text.match(p)
     if (m) return m[1].trim()

@@ -2,8 +2,9 @@ import { Router } from 'express'
 import { Client as PgClient } from 'pg'
 import mysql from 'mysql2/promise'
 import prisma from '../lib/prisma.js'
-import { requireAuth } from '../middleware/auth.js'
+import { requireAuth, requireAdmin } from '../middleware/auth.js'
 import { importMemberRows } from '../lib/memberImport.js'
+import { assertPublicHost } from '../lib/ssrf.js'
 
 const router = Router()
 router.use(requireAuth)
@@ -18,6 +19,7 @@ function assertValidIdentifier(name, label) {
 // Suporta apenas leitura — nunca fazemos INSERT/UPDATE/DELETE no banco de terceiros.
 async function withConnection(conn, fn) {
   const { dbType, host, port, database, user, password, ssl } = conn
+  await assertPublicHost(host) // nunca conecta em rede interna (SSRF)
 
   if (dbType === 'postgresql') {
     const client = new PgClient({
@@ -118,7 +120,7 @@ router.get('/', async (req, res) => {
 })
 
 // POST /datasource/save — salva a conexão testada (config fica no Integration, como as outras integrações)
-router.post('/save', async (req, res) => {
+router.post('/save', requireAdmin, async (req, res) => {
   const { tenantId } = req.user
   const { dbType, host, port, database, user, password, ssl } = req.body
   if (!dbType || !host || !database || !user) {
@@ -161,7 +163,7 @@ router.post('/import', async (req, res) => {
 })
 
 // DELETE /datasource — desconecta e apaga as credenciais salvas
-router.delete('/', async (req, res) => {
+router.delete('/', requireAdmin, async (req, res) => {
   await prisma.integration.updateMany({ where: { tenantId: req.user.tenantId, type: 'external_db' }, data: { status: 'disconnected', config: {} } })
   res.status(204).send()
 })

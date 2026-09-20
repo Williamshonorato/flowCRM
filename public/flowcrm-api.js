@@ -85,7 +85,7 @@ function injectImpersonationBanner() {
   // flex-wrap:wrap pra, se não couber, o botão cair pra uma segunda linha centralizada
   // em vez de estourar a tela. Sem position:fixed — ver comentário abaixo.
   banner.style.cssText = 'background:#8e44ad;color:#fff;text-align:center;padding:9px 16px;font-size:13px;font-weight:700;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 14px;box-shadow:0 2px 8px rgba(0,0,0,.2);flex-shrink:0';
-  const safeName = (data.tenantName || '').replace(/</g, '&lt;');
+  const safeName = escHtml(data.tenantName || '');
   // A frase inteira precisa estar num único elemento (<span>): texto solto misturado
   // com <b> direto como filhos de um flex container vira um item de flex PRA CADA
   // pedaço (o texto, o nome em negrito, o espaço em branco entre eles...) — com
@@ -199,15 +199,18 @@ async function api(path, opts = {}) {
   const ctrl = new AbortController();
   const timeoutId = setTimeout(() => ctrl.abort(), 25000);
   try {
+    // headers por último e FORA do spread de opts: com `...opts` depois, um opts.headers
+    // substituía o objeto inteiro e o Authorization sumia (a chamada virava 401 e deslogava).
+    const { headers: extraHeaders, ...restOpts } = opts;
     res = await fetch(API_BASE + path, {
       signal: ctrl.signal,
+      ...restOpts,
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
         ...(token ? { Authorization: 'Bearer ' + token } : {}),
-        ...(opts.headers || {}),
+        ...(extraHeaders || {}),
       },
-      ...opts,
     });
   } catch (err) {
     apiToast(err?.name === 'AbortError'
@@ -248,6 +251,22 @@ function apiToast(msg) {
   el.style.transform = 'translateX(-50%) translateY(0)';
   clearTimeout(el._fcrmTimer);
   el._fcrmTimer = setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateX(-50%) translateY(20px)'; }, 4000);
+}
+
+// Escape de HTML pra QUALQUER dado vindo do servidor que entre em innerHTML/template
+// string (nome de contato, título de negócio, texto de atividade...). Muito desse dado é
+// controlado por terceiros — ex.: o nome do contato vem do pushName do WhatsApp — e o
+// token de login fica no localStorage, então HTML sem escape aqui é roubo de sessão.
+function escHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Valor JS seguro pra usar DENTRO de um atributo inline (onclick="fn(${jsAttr(x)})"):
+// vira um literal JSON (aspas e barras escapadas pro JS) e depois é escapado pra HTML
+// (o navegador desfaz o escape do atributo antes de rodar o JS, então só o
+// escape de HTML sozinho, como em '${escHtml(x)}', NÃO protege).
+function jsAttr(v) {
+  return escHtml(JSON.stringify(v == null ? '' : v));
 }
 
 // Formatar valores monetários

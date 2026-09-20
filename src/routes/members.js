@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import multer from 'multer'
 import prisma from '../lib/prisma.js'
+import { patchSchema } from '../lib/patchSchema.js'
 import { requireAuth } from '../middleware/auth.js'
 import { parseRows } from '../lib/fileParser.js'
 import { importMemberRows } from '../lib/memberImport.js'
@@ -19,15 +20,15 @@ const memberSchema = z.object({
   email:        z.string().email().optional().or(z.literal('')),
   phone:        z.string().optional(),
   status:       z.enum(['active', 'inactive']).default('active'),
-  joinedAt:     z.string().optional(),
+  joinedAt:     z.string().refine(v => !Number.isNaN(Date.parse(v)), 'Data inválida.').optional(),
   notes:        z.string().optional(),
   customData:   z.record(z.any()).optional().default({}),
 })
 
 const contributionSchema = z.object({
   amount:    z.number().min(0),
-  dueDate:   z.string(),
-  paidAt:    z.string().optional(),
+  dueDate:   z.string().refine(v => !Number.isNaN(Date.parse(v)), 'Data inválida.'),
+  paidAt:    z.string().refine(v => !Number.isNaN(Date.parse(v)), 'Data inválida.').optional(),
   status:    z.enum(['pending', 'paid', 'overdue']).default('pending'),
   reference: z.string().optional(),
 })
@@ -102,7 +103,7 @@ router.patch('/:id', async (req, res) => {
   const existing = await prisma.member.findFirst({ where: { id: req.params.id, tenantId } })
   if (!existing) return res.status(404).json({ error: 'Inscrito não encontrado.' })
 
-  const parsed = memberSchema.partial().safeParse(req.body)
+  const parsed = patchSchema(memberSchema).safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
 
   const member = await prisma.member.update({
@@ -148,7 +149,7 @@ router.patch('/:memberId/contributions/:id', async (req, res) => {
   const existing = await prisma.contribution.findFirst({ where: { id: req.params.id, memberId: req.params.memberId, tenantId } })
   if (!existing) return res.status(404).json({ error: 'Contribuição não encontrada.' })
 
-  const parsed = contributionSchema.partial().safeParse(req.body)
+  const parsed = patchSchema(contributionSchema).safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
 
   const data = { ...parsed.data }
@@ -184,7 +185,8 @@ router.post('/import/preview', upload.single('file'), async (req, res) => {
 router.post('/import/execute', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Arquivo não enviado.' })
   const { tenantId } = req.user
-  const mapping = JSON.parse(req.body.mapping || '{}')
+  let mapping
+  try { mapping = JSON.parse(req.body.mapping || '{}') } catch { return res.status(400).json({ error: 'Mapeamento inválido.' }) }
   const rows = parseRows(req.file.buffer, req.file.originalname)
 
   const result = await importMemberRows(tenantId, rows, mapping)

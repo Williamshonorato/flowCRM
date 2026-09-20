@@ -305,8 +305,8 @@
   authGuard();
 
   // A URL do webhook é única por empresa — a Evolution API dessa empresa deve apontar exatamente pra ela
-  api('/auth/me').then(data => {
-    if (data?.tenant?.id) document.getElementById('webhookUrl').textContent = `${location.origin}/whatsapp/webhook/${data.tenant.id}`;
+  api('/whatsapp/webhook-url').then(data => {
+    if (data?.url) document.getElementById('webhookUrl').textContent = data.url;
   });
 
   let toastTimer;
@@ -326,10 +326,12 @@
     navigator.clipboard?.writeText(url).then(() => showToast('Webhook URL copiada.')).catch(() => showToast('Não foi possível copiar.'));
   }
 
-  async function connectGmail() {
-    const token = getToken();
-    window.location.href = '/gmail/connect?token=' + encodeURIComponent(token);
+  // Ticket curto e de finalidade única (2 min) em vez do JWT da sessão na URL do redirect
+  async function startOAuth(provider) {
+    const t = await api('/auth/oauth-ticket', { method: 'POST' });
+    if (t?.ticket) window.location.href = '/' + provider + '/connect?token=' + encodeURIComponent(t.ticket);
   }
+  async function connectGmail() { startOAuth('gmail'); }
 
   async function disconnectGmail() {
     document.getElementById('gmailBtn').disabled = true;
@@ -478,6 +480,9 @@
   function maskKey(k) { return k.slice(0, 13) + '•'.repeat(k.length - 13); }
 
   async function loadApiKey() {
+    // a API key dá acesso total à conta: o backend só entrega pra admin (pros demais seria um 403 + toast de erro)
+    const me = await getMe();
+    if (me?.user?.role !== 'admin') { document.getElementById('apiKey').textContent = 'Somente administradores'; return; }
     const data = await api('/settings/api-key');
     realApiKey = data?.apiKey || null;
     document.getElementById('apiKey').textContent = realApiKey ? maskKey(realApiKey) : 'erro ao carregar';
@@ -500,7 +505,7 @@
   }
 
   async function connectOutlook() {
-    window.location.href = '/outlook/connect?token=' + encodeURIComponent(getToken());
+    startOAuth('outlook');
   }
   async function disconnectOutlook() {
     document.getElementById('outlookBtn').disabled = true;
@@ -509,7 +514,7 @@
   }
 
   async function connectCalendar() {
-    window.location.href = '/calendar/connect?token=' + encodeURIComponent(getToken());
+    startOAuth('calendar');
   }
   async function disconnectCalendar() {
     document.getElementById('calendarBtn').disabled = true;

@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import prisma from '../lib/prisma.js'
+import { patchSchema } from '../lib/patchSchema.js'
 import { requireAuth } from '../middleware/auth.js'
 
 const router = Router()
@@ -160,7 +161,7 @@ router.patch('/:id', async (req, res) => {
   const existing = await prisma.automationRule.findFirst({ where: { id: req.params.id, tenantId } })
   if (!existing) return res.status(404).json({ error: 'Regra não encontrada.' })
 
-  const parsed = ruleSchema.partial().safeParse(req.body)
+  const parsed = patchSchema(ruleSchema).safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
 
   const data = { ...parsed.data }

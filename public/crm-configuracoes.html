@@ -487,10 +487,10 @@
     document.getElementById('stagesList').innerHTML = stages.map((s, i) => `
       <div class="stage-row">
         <span class="stage-handle">⋮⋮</span>
-        <div class="stage-color" style="background:${s.color}"></div>
-        <div class="stage-name">${s.name}</div>
-        <div class="stage-meta">${s._count?.deals ?? ''}</div>
-        ${stages.length > 1 ? `<span class="stage-del" onclick="removeStage('${s.id}')">×</span>` : ''}
+        <div class="stage-color" style="background:${escHtml(s.color)}"></div>
+        <div class="stage-name">${escHtml(s.name)}</div>
+        <div class="stage-meta">${escHtml(s._count?.deals ?? '')}</div>
+        ${stages.length > 1 ? `<span class="stage-del" onclick="removeStage(${jsAttr(s.id)})">×</span>` : ''}
       </div>`).join('');
   }
   async function addStage() {
@@ -515,9 +515,9 @@
     document.getElementById('fieldList').innerHTML = fields.map(f => `
       <div class="field-row">
         <span class="field-ico">${TYPE_ICONS[f.type] || '📝'}</span>
-        <div class="field-name">${f.name}</div>
-        <span class="field-type-badge ftype-${f.type}">${f.type==='text'?'Texto':f.type==='num'?'Número':f.type==='date'?'Data':'Lista'}</span>
-        <span class="field-del" onclick="removeField('${f.id}')">×</span>
+        <div class="field-name">${escHtml(f.name)}</div>
+        <span class="field-type-badge ftype-${escHtml(f.type)}">${f.type==='text'?'Texto':f.type==='num'?'Número':f.type==='date'?'Data':'Lista'}</span>
+        <span class="field-del" onclick="removeField(${jsAttr(f.id)})">×</span>
       </div>`).join('');
   }
   async function addField() {
@@ -543,10 +543,10 @@
   function renderUsers() {
     document.getElementById('userList').innerHTML = users.map((u, i) => `
       <div class="user-item">
-        <div class="ui-avatar" style="background:${palColor(i)}">${initials(u.name)}</div>
-        <div class="ui-info"><div class="ui-name">${u.name}${u.id === myId ? ' (você)' : ''}</div><div class="ui-email">${u.email}</div></div>
-        <span class="ui-role role-${u.role}">${u.role==='admin'?'Admin':u.role==='viewer'?'Visualizador':'Usuário'}</span>
-        ${u.id !== myId ? `<span class="ui-remove" onclick="removeUser('${u.id}','${u.name}')">✕</span>` : ''}
+        <div class="ui-avatar" style="background:${palColor(i)}">${escHtml(initials(u.name))}</div>
+        <div class="ui-info"><div class="ui-name">${escHtml(u.name)}${u.id === myId ? ' (você)' : ''}</div><div class="ui-email">${escHtml(u.email)}</div></div>
+        <span class="ui-role role-${escHtml(u.role)}">${u.role==='admin'?'Admin':u.role==='viewer'?'Visualizador':'Usuário'}</span>
+        ${u.id !== myId ? `<span class="ui-remove" onclick="removeUser(${jsAttr(u.id)},${jsAttr(u.name)})">✕</span>` : ''}
       </div>`).join('');
   }
   async function removeUser(id, name) {
@@ -558,7 +558,13 @@
     const e = document.getElementById('inviteEmail').value.trim(); if (!e) return;
     const r = document.getElementById('inviteRole').value;
     const u = await api('/settings/team/invite', { method: 'POST', body: JSON.stringify({ email: e, role: r }) });
-    if (u) { document.getElementById('inviteEmail').value = ''; loadTeam(); }
+    if (u) {
+      document.getElementById('inviteEmail').value = '';
+      loadTeam();
+      // A senha temporária só aparece AGORA (não fica guardada em lugar nenhum): copie e envie
+      // pra pessoa, que deve trocá-la em Minha conta.
+      if (u.temporaryPassword) window.prompt('Usuário criado! Copie a senha temporária e envie para ' + u.email + ' (ela só aparece agora):', u.temporaryPassword);
+    }
   }
 
   // ── TOGGLES ──────────────────────────────────────────────────────────────

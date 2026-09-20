@@ -4,7 +4,7 @@ import express from 'express'
 import cors from 'cors'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
-import { dirname, join, normalize } from 'path'
+import { dirname, join, normalize, sep, extname } from 'path'
 
 import authRouter      from './routes/auth.js'
 import dashboardRouter from './routes/dashboard.js'
@@ -29,18 +29,38 @@ import { resumeDueRuns } from './lib/automationEngine.js'
 import { processBroadcasts } from './lib/broadcastWorker.js'
 import { sendError, isBrowserNavigation, errorPageHtml } from './lib/errorPage.js'
 
+// O servidor costuma rodar em UTC, mas os dias/horas "de hoje", "esta semana" e "este mês"
+// (tarefas, dashboard, relatórios) precisam seguir o horário de quem usa o sistema — em UTC,
+// depois das 21h de Brasília o "hoje" já virava amanhã. Sobrescreva com TZ no .env se preciso.
+process.env.TZ = process.env.TZ || 'America/Sao_Paulo'
+
 const app = express()
 const __dirname = dirname(fileURLToPath(import.meta.url))
+const PUBLIC_DIR = join(__dirname, '../public')
 
 // ── MIDDLEWARES ───────────────────────────────────────────────────────────────
 app.use(cors({ origin: '*', methods: ['GET','POST','PATCH','DELETE','OPTIONS'] }))
 app.use(express.json({ limit: '10mb' }))
 
+// Extensões que podem ser abertas direto no navegador dentro de /uploads. Esse diretório
+// guarda arquivos enviados por usuários E mídia recebida de terceiros pelo WhatsApp;
+// qualquer coisa fora dessa lista (html, svg, xml...) é forçada a baixar como binário, pra
+// nunca executar script no nosso domínio, onde fica o token de login.
+const SAFE_UPLOAD_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp3', '.ogg', '.m4a', '.aac', '.wav', '.webm', '.mp4', '.3gp', '.mov', '.pdf'])
 // O frontend é HTML/JS servido direto (sem build/hash nos nomes), então cache longo
 // faz o usuário ficar preso numa versão antiga depois de um deploy. Manda sempre
 // revalidar — o custo é um 304 rápido quando nada mudou.
 const staticOpts = {
-  setHeaders: (res) => { res.setHeader('Cache-Control', 'no-cache') },
+  setHeaders: (res, filePath) => {
+    res.setHeader('Cache-Control', 'no-cache')
+    if (normalize(filePath).startsWith(join(PUBLIC_DIR, 'uploads') + sep)) {
+      res.setHeader('X-Content-Type-Options', 'nosniff')
+      if (!SAFE_UPLOAD_EXTS.has(extname(filePath).toLowerCase())) {
+        res.setHeader('Content-Type', 'application/octet-stream')
+        res.setHeader('Content-Disposition', 'attachment')
+      }
+    }
+  },
 }
 
 // O "no-cache" acima não é suficiente sozinho: o Cloudflare está configurado pra
@@ -51,7 +71,6 @@ const staticOpts = {
 // `pm2 restart`) ganha um ID novo, e todo HTML servido troca a URL dos dois
 // scripts compartilhados pra incluir esse ID — como a URL muda, o navegador
 // busca de novo na hora, não importa o que tinha em cache.
-const PUBLIC_DIR = join(__dirname, '../public')
 const BUILD_ID = Date.now().toString(36)
 function bustSharedScripts(html) {
   return html
@@ -66,9 +85,10 @@ function serveHtmlWithCacheBust(req, res, next) {
   if (req.method !== 'GET' && req.method !== 'HEAD') return next()
   const reqPath = req.path === '/' ? '/crm-login.html' : req.path
   if (!reqPath.endsWith('.html')) return next()
+  if (reqPath.startsWith('/uploads/')) return next() // conteúdo de usuário nunca passa como página do app
 
   const filePath = normalize(join(PUBLIC_DIR, reqPath))
-  if (!filePath.startsWith(PUBLIC_DIR)) return next() // fora de public/ — deixa 404 seguir o rito normal
+  if (!filePath.startsWith(PUBLIC_DIR + sep)) return next() // fora de public/ — deixa 404 seguir o rito normal
 
   fs.readFile(filePath, 'utf8', (err, html) => {
     if (err) return next() // ex: 404 — deixa o handler padrão cuidar
@@ -123,6 +143,10 @@ app.use((err, req, res, next) => {
   }
   res.status(500).json({ error: 'Erro interno do servidor.', detail: err.message })
 })
+
+// Rede de segurança: uma promise rejeitada esquecida em algum fire-and-forget não deve
+// derrubar o servidor inteiro (o Node 15+ encerra o processo por padrão nesse caso).
+process.on('unhandledRejection', (reason) => { console.error('unhandledRejection', reason) })
 
 const PORT = process.env.PORT || 3333
 app.listen(PORT, () => {

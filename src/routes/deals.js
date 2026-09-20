@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import prisma from '../lib/prisma.js'
+import { patchSchema } from '../lib/patchSchema.js'
 import { requireAuth } from '../middleware/auth.js'
 import { dispatchWebhook } from '../lib/webhooks.js'
 import { triggerFlows } from '../lib/automationEngine.js'
@@ -72,8 +73,12 @@ router.post('/', async (req, res) => {
 
   const stage = await prisma.stage.findFirst({ where: { id: parsed.data.stageId, tenantId } })
   if (!stage) return res.status(400).json({ error: 'Estágio inválido.' })
+  if (parsed.data.contactId && !(await prisma.contact.findFirst({ where: { id: parsed.data.contactId, tenantId }, select: { id: true } }))) {
+    return res.status(400).json({ error: 'Contato inválido.' })
+  }
 
-  const deal = await prisma.deal.create({ data: { tenantId, ...parsed.data } })
+  // Criado direto no estágio "Fechado" já nasce fechado (senão fica "em aberto" nos relatórios)
+  const deal = await prisma.deal.create({ data: { tenantId, ...parsed.data, closedAt: stage.name === 'Fechado' ? new Date() : null } })
   await prisma.activity.create({ data: { tenantId, userId, dealId: deal.id, contactId: deal.contactId, type: 'deal_created', content: `Negócio "${deal.title}" criado em "${stage.name}".` } })
   triggerFlows(tenantId, 'deal_created', { contactId: deal.contactId, dealId: deal.id })
 
@@ -86,25 +91,41 @@ router.patch('/:id', async (req, res) => {
   const existing = await prisma.deal.findFirst({ where: { id: req.params.id, tenantId }, include: { stage: true } })
   if (!existing) return res.status(404).json({ error: 'Negócio não encontrado.' })
 
-  const parsed = schema.partial().safeParse(req.body)
+  const parsed = patchSchema(schema).safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
+
+  // Tudo que o PATCH referencia (estágio, contato) precisa ser DESTA empresa — antes o
+  // estágio era buscado só pelo id (dava pra mover o negócio pro estágio de outra empresa)
+  // e um id inexistente estourava 500 depois de já ter gravado atividade e disparado fluxos.
+  let newStage = null
+  const stageChanged = !!parsed.data.stageId && parsed.data.stageId !== existing.stageId
+  if (stageChanged) {
+    newStage = await prisma.stage.findFirst({ where: { id: parsed.data.stageId, tenantId } })
+    if (!newStage) return res.status(400).json({ error: 'Estágio inválido.' })
+  }
+  if (parsed.data.contactId && !(await prisma.contact.findFirst({ where: { id: parsed.data.contactId, tenantId }, select: { id: true } }))) {
+    return res.status(400).json({ error: 'Contato inválido.' })
+  }
 
   // Se está fechando o negócio (stage com nome "Fechado")
   let closedAt = existing.closedAt
-  if (parsed.data.stageId && parsed.data.stageId !== existing.stageId) {
-    const newStage = await prisma.stage.findUnique({ where: { id: parsed.data.stageId } })
-    if (newStage?.name === 'Fechado' && !closedAt) closedAt = new Date()
-    if (newStage && newStage.name !== 'Fechado') closedAt = null
+  if (stageChanged) {
+    if (newStage.name === 'Fechado' && !closedAt) closedAt = new Date()
+    if (newStage.name !== 'Fechado') closedAt = null
+  }
 
-    await prisma.activity.create({ data: { tenantId, userId, dealId: existing.id, contactId: existing.contactId, type: 'stage_change', content: `Negócio movido de "${existing.stage.name}" para "${newStage?.name}".` } })
-    dispatchWebhook(tenantId, 'deal.stage_changed', { dealId: existing.id, title: existing.title, from: existing.stage.name, to: newStage?.name })
+  const deal = await prisma.deal.update({ where: { id: req.params.id }, data: { ...parsed.data, closedAt } })
+
+  // Efeitos colaterais só DEPOIS de a mudança ter sido gravada com sucesso
+  if (stageChanged) {
+    await prisma.activity.create({ data: { tenantId, userId, dealId: existing.id, contactId: existing.contactId, type: 'stage_change', content: `Negócio movido de "${existing.stage.name}" para "${newStage.name}".` } })
+    dispatchWebhook(tenantId, 'deal.stage_changed', { dealId: existing.id, title: existing.title, from: existing.stage.name, to: newStage.name })
     triggerFlows(tenantId, 'deal_stage_changed', { contactId: existing.contactId, dealId: existing.id, stageId: parsed.data.stageId })
-    if (newStage?.name === 'Fechado' && !existing.closedAt) {
+    if (newStage.name === 'Fechado' && !existing.closedAt) {
       triggerFlows(tenantId, 'deal_closed', { contactId: existing.contactId, dealId: existing.id })
     }
   }
 
-  const deal = await prisma.deal.update({ where: { id: req.params.id }, data: { ...parsed.data, closedAt } })
   res.json(deal)
 })
 

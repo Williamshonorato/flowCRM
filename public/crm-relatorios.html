@@ -225,9 +225,9 @@
   function renderFunnel(funnel) {
     document.getElementById('funnel').innerHTML = (funnel || []).map(f => `
       <div class="funnel-row">
-        <div class="funnel-label">${f.name}</div>
-        <div class="funnel-bar-wrap"><div class="funnel-bar-fill" style="width:${f.pct}%;background:${f.color}">${f.count}</div></div>
-        <div class="funnel-pct" style="color:${f.color}">${f.pct}%</div>
+        <div class="funnel-label">${escHtml(f.name)}</div>
+        <div class="funnel-bar-wrap"><div class="funnel-bar-fill" style="width:${Number(f.pct)}%;background:${escHtml(f.color)}">${Number(f.count)}</div></div>
+        <div class="funnel-pct" style="color:${escHtml(f.color)}">${Number(f.pct)}%</div>
       </div>`).join('');
   }
 
@@ -235,7 +235,7 @@
     document.getElementById('origemList').innerHTML = (origins || []).map((o, i) => `
       <div class="origem-row">
         <div class="origem-dot" style="background:${palColor(i)}"></div>
-        <div class="origem-name">${o.name}</div>
+        <div class="origem-name">${escHtml(o.name)}</div>
         <div class="origem-bar-wrap"><div class="origem-bar" style="width:${o.pct}%;background:${palColor(i)}"></div></div>
         <div class="origem-pct">${o.pct}%</div>
       </div>`).join('');
@@ -245,8 +245,8 @@
     document.getElementById('rankList').innerHTML = (topDeals || []).map((d, i) => `
       <div class="rank-row">
         <div class="rank-pos ${i===0?'top':''}">${i+1}</div>
-        <div class="rank-avatar" style="background:${palColor(i)}">${initials(d.contact?.name || d.title)}</div>
-        <div class="rank-info"><div class="rank-name">${d.contact?.name || d.title}</div><div class="rank-stage">${d.stage?.name || '—'}</div></div>
+        <div class="rank-avatar" style="background:${palColor(i)}">${escHtml(initials(d.contact?.name || d.title))}</div>
+        <div class="rank-info"><div class="rank-name">${escHtml(d.contact?.name || d.title)}</div><div class="rank-stage">${escHtml(d.stage?.name || '—')}</div></div>
         <div class="rank-value">${fmtMoney(d.value)}</div>
       </div>`).join('');
   }
@@ -290,9 +290,9 @@
       <div class="insight">
         <div class="insight-ico">${i.icon}</div>
         <div>
-          <div class="insight-title" style="display:flex;align-items:center">${i.title}${insightControlHtml(i.control)}</div>
-          <div class="insight-text">${i.text}</div>
-          ${i.actionUrl ? `<a class="insight-action" href="${i.actionUrl}" style="text-decoration:none;display:inline-block">${i.actionLabel}</a>` : ''}
+          <div class="insight-title" style="display:flex;align-items:center">${escHtml(i.title)}${insightControlHtml(i.control)}</div>
+          <div class="insight-text">${escHtml(i.text)}</div>
+          ${i.actionUrl ? `<a class="insight-action" href="${escHtml(i.actionUrl)}" style="text-decoration:none;display:inline-block">${escHtml(i.actionLabel)}</a>` : ''}
         </div>
       </div>`).join('');
   }

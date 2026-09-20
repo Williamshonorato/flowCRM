@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import prisma from '../lib/prisma.js'
+import { patchSchema } from '../lib/patchSchema.js'
 import { requireAuth } from '../middleware/auth.js'
 
 const router = Router()
@@ -10,7 +11,7 @@ const schema = z.object({
   title:     z.string().min(1),
   type:      z.enum(['call','follow','meet','email','note']).default('follow'),
   priority:  z.enum(['high','mid','low']).default('mid'),
-  dueDate:   z.string().optional(),
+  dueDate:   z.string().refine(v => !Number.isNaN(Date.parse(v)), 'Data inválida.').optional(),
   contactId: z.string().optional(),
   notes:     z.string().optional(),
 })
@@ -69,6 +70,9 @@ router.post('/', async (req, res) => {
   const { tenantId, userId } = req.user
   const parsed = schema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
+  if (parsed.data.contactId && !(await prisma.contact.findFirst({ where: { id: parsed.data.contactId, tenantId }, select: { id: true } }))) {
+    return res.status(400).json({ error: 'Contato inválido.' })
+  }
 
   const task = await prisma.task.create({
     data: {
@@ -89,8 +93,11 @@ router.patch('/:id', async (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Tarefa não encontrada.' })
 
   const { done, ...rest } = req.body
-  const parsed = schema.partial().safeParse(rest)
+  const parsed = patchSchema(schema).safeParse(rest)
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
+  if (parsed.data.contactId && !(await prisma.contact.findFirst({ where: { id: parsed.data.contactId, tenantId }, select: { id: true } }))) {
+    return res.status(400).json({ error: 'Contato inválido.' })
+  }
 
   const task = await prisma.task.update({
     where: { id: req.params.id },

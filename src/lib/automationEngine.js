@@ -3,11 +3,16 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import prisma from './prisma.js'
 import { sendGmailMessage } from './gmailSender.js'
+import { assertPublicUrl } from './ssrf.js'
 
-const APP_ORIGIN = `http://localhost:${process.env.PORT || 3333}`
+// Usado no pixel de rastreio dos e-mails das automações: precisa ser a URL PÚBLICA (o
+// destinatário abre o e-mail na internet) — com localhost o pixel nunca carregava.
+const APP_ORIGIN = (process.env.APP_PUBLIC_URL || `http://localhost:${process.env.PORT || 3333}`).replace(/\/$/, '')
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const UPLOADS_DIR = path.join(__dirname, '../../public/uploads')
 const MIME_BY_EXT = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' }
+
+const MENU_TTL_MS = 24 * 60 * 60 * 1000 // quanto tempo um menu espera a resposta da pessoa
 
 // Executa um passo do fluxo. Cada tipo sabe seu próprio formato de "config" —
 // isso é o que permite passos e opções ilimitados sem mexer no schema.
@@ -39,7 +44,14 @@ async function executeStep(step, ctx) {
 
     case 'change_stage': {
       if (!deal || !step.config?.stageId) return { skipped: 'sem negócio ou estágio' }
-      await prisma.deal.update({ where: { id: deal.id }, data: { stageId: step.config.stageId } })
+      // O estágio precisa ser desta empresa, e "Fechado" fecha o negócio igual ao Kanban
+      // (closedAt) — antes a automação movia pra Fechado e o negócio seguia "em aberto".
+      const stage = await prisma.stage.findFirst({ where: { id: step.config.stageId, tenantId } })
+      if (!stage) return { skipped: 'estágio não encontrado' }
+      if (stage.id === deal.stageId) return { skipped: 'negócio já está nesse estágio' }
+      const closedAt = stage.name === 'Fechado' ? (deal.closedAt || new Date()) : null
+      await prisma.deal.update({ where: { id: deal.id }, data: { stageId: stage.id, closedAt } })
+      await prisma.activity.create({ data: { tenantId, userId: null, dealId: deal.id, contactId: deal.contactId, type: 'stage_change', content: `Negócio movido para "${stage.name}" por uma automação.` } })
       return { done: true }
     }
 
@@ -91,10 +103,13 @@ async function executeStep(step, ctx) {
     case 'webhook': {
       if (!step.config?.url) return { skipped: 'sem URL' }
       try {
+        await assertPublicUrl(step.config.url)
         await fetch(step.config.url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ event: 'automation.step', contact, deal }),
+          redirect: 'error',                     // redirect também poderia apontar pra rede interna
+          signal: AbortSignal.timeout(10000),    // sem timeout um destino lento travava a automação
         })
         return { done: true }
       } catch (err) {
@@ -141,7 +156,7 @@ async function sendWhatsappText(tenantId, contact, message) {
     const data = await evoRes.json().catch(() => ({}))
     if (!evoRes.ok) return { ok: false, error: 'Evolution recusou o envio' }
     await prisma.message.create({
-      data: { contactId: contact.id, from: 'me', to: toPhone, body: message, channel: 'whatsapp', direction: 'out', whatsappMessageId: data?.key?.id || null, raw: data },
+      data: { contactId: contact.id, tenantId, from: 'me', to: toPhone, body: message, channel: 'whatsapp', direction: 'out', chatJid: `${toPhone}@s.whatsapp.net`, isGroup: false, whatsappMessageId: data?.key?.id || null, raw: data },
     }).catch(() => {})
     return { ok: true }
   } catch (err) {
@@ -177,7 +192,7 @@ async function sendWhatsappMedia(tenantId, contact, imagePath, caption) {
     const data = await evoRes.json().catch(() => ({}))
     if (!evoRes.ok) return { ok: false, error: 'Evolution recusou o envio' }
     await prisma.message.create({
-      data: { contactId: contact.id, from: 'me', to: toPhone, body: caption || '[imagem]', channel: 'whatsapp', direction: 'out', whatsappMessageId: data?.key?.id || null, raw: data },
+      data: { contactId: contact.id, tenantId, from: 'me', to: toPhone, body: caption || '[imagem]', channel: 'whatsapp', direction: 'out', chatJid: `${toPhone}@s.whatsapp.net`, isGroup: false, mediaType: 'image', whatsappMessageId: data?.key?.id || null, raw: data },
     }).catch(() => {})
     return { ok: true }
   } catch (err) {
@@ -194,7 +209,9 @@ function formatMenuMessage(message, options) {
 // ou pela posição numérica ("2" bate com a segunda opção), sempre sem diferenciar maiúsculas.
 function matchMenuOption(options, reply) {
   const normalized = String(reply || '').trim().toLowerCase()
-  const byKeyword = options.find(o => (o.keywords || []).some(k => normalized === String(k).toLowerCase() || normalized.includes(String(k).toLowerCase())))
+  // palavra-chave vazia ('' ou só espaços) NÃO conta: "".includes → sempre true e a 1ª opção casava com qualquer resposta
+  const keywordsOf = (o) => (o.keywords || []).map(k => String(k).trim().toLowerCase()).filter(Boolean)
+  const byKeyword = options.find(o => keywordsOf(o).some(k => normalized === k || normalized.includes(k)))
   if (byKeyword) return byKeyword
   const asNumber = parseInt(normalized, 10)
   if (!isNaN(asNumber) && options[asNumber - 1]) return options[asNumber - 1]
@@ -246,6 +263,14 @@ function compare(value, operator, target) {
 export async function advanceRun(runId) {
   const run = await prisma.automationFlowRun.findUnique({ where: { id: runId }, include: { flow: true } })
   if (!run || run.status === 'completed' || run.status === 'failed') return
+
+  // Empresa suspensa não executa automação (não manda WhatsApp/e-mail em nome dela)
+  const tenant = await prisma.tenant.findUnique({ where: { id: run.tenantId }, select: { active: true } })
+  if (!tenant?.active) {
+    const log = [...(Array.isArray(run.log) ? run.log : []), { stepId: null, type: 'tenant_suspended', at: new Date().toISOString(), result: { skipped: 'empresa suspensa' } }]
+    await prisma.automationFlowRun.update({ where: { id: runId }, data: { status: 'failed', log, finishedAt: new Date() } })
+    return
+  }
 
   const steps = Array.isArray(run.currentSteps) ? run.currentSteps : (Array.isArray(run.flow.steps) ? run.flow.steps : [])
   const contact = run.contactId ? await prisma.contact.findUnique({ where: { id: run.contactId } }) : null
@@ -307,6 +332,17 @@ export async function resolveMenuReply(tenantId, contactId, messageBody) {
   })
   if (!run) return false
 
+  // O menu espera resposta por no máximo MENU_TTL_MS. Antes ficava esperando pra sempre: semanas
+  // depois, qualquer "oi" da pessoa virava "resposta inválida" do menu antigo (e, depois de 2
+  // erros, escalava pra um atendente) em vez de disparar os fluxos normais.
+  const lastLog = Array.isArray(run.log) && run.log.length ? run.log[run.log.length - 1] : null
+  const lastAt = new Date(lastLog?.at || run.startedAt).getTime()
+  if (Date.now() - lastAt > MENU_TTL_MS) {
+    const log = [...(Array.isArray(run.log) ? run.log : []), { stepId: null, type: 'menu_expired', at: new Date().toISOString(), result: { skipped: 'sem resposta a tempo' } }]
+    await prisma.automationFlowRun.update({ where: { id: run.id }, data: { status: 'completed', log, finishedAt: new Date() } })
+    return false
+  }
+
   const steps = Array.isArray(run.currentSteps) ? run.currentSteps : []
   const menuStep = steps[run.stepIndex]
   if (!menuStep || menuStep.type !== 'menu') return false
@@ -348,14 +384,20 @@ export async function resolveMenuReply(tenantId, contactId, messageBody) {
 
 // Dispara todos os fluxos ativos de um tenant que casam com o gatilho informado.
 export async function triggerFlows(tenantId, triggerType, { contactId, dealId, stageId, messageBody } = {}) {
-  const flows = await prisma.automationFlow.findMany({ where: { tenantId, active: true, triggerType } })
-  for (const flow of flows) {
-    if (triggerType === 'deal_stage_changed' && flow.triggerConfig?.stageId && flow.triggerConfig.stageId !== stageId) continue
-    if (triggerType === 'whatsapp_message_received' && flow.triggerConfig?.keyword) {
-      const keyword = String(flow.triggerConfig.keyword).toLowerCase()
-      if (!String(messageBody || '').toLowerCase().includes(keyword)) continue
+  // As rotas chamam sem await (é fire-and-forget): um erro solto aqui derrubaria o processo,
+  // então tudo é capturado e logado — uma falha de automação nunca pode afetar a requisição.
+  try {
+    const flows = await prisma.automationFlow.findMany({ where: { tenantId, active: true, triggerType } })
+    for (const flow of flows) {
+      if (triggerType === 'deal_stage_changed' && flow.triggerConfig?.stageId && flow.triggerConfig.stageId !== stageId) continue
+      if (triggerType === 'whatsapp_message_received' && flow.triggerConfig?.keyword) {
+        const keyword = String(flow.triggerConfig.keyword).toLowerCase()
+        if (!String(messageBody || '').toLowerCase().includes(keyword)) continue
+      }
+      startFlowRun(flow, { contactId, dealId }).catch(err => console.error('triggerFlows: startFlowRun falhou', err.message))
     }
-    startFlowRun(flow, { contactId, dealId })
+  } catch (err) {
+    console.error('triggerFlows falhou', err.message)
   }
 }
 

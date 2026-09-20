@@ -493,24 +493,24 @@ function renderMapping(){
   container.innerHTML = headers.map(h => {
     const sample = rawData.slice(0,3).map(r=>r[h]).filter(Boolean).join(', ');
     const isIgnored = !!ignored[h];
-    return `<div class="map-row" id="row-${CSS.escape(h)}">
+    return `<div class="map-row" id="row-${escHtml(CSS.escape(h))}">
       <div class="col-from">
         <div>
-          <div style="font-size:13px;font-weight:600;color:var(--text)">${h}</div>
-          <div class="col-sample" title="${sample}">${sample||'(vazio)'}</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${escHtml(h)}</div>
+          <div class="col-sample" title="${escHtml(sample)}">${escHtml(sample)||'(vazio)'}</div>
         </div>
       </div>
       <div class="arr">${isIgnored?'🚫':'→'}</div>
       <div>
         <select class="map-select ${mapping[h]?'mapped':''} ${isIgnored?'skip':''}"
           ${isIgnored?'disabled':''}
-          onchange="updateMapping('${h}',this.value)">
+          onchange="updateMapping(${jsAttr(h)},this.value)">
           ${CRM_FIELDS.map(f=>`<option value="${f.value}" ${mapping[h]===f.value?'selected':''}>${f.label}</option>`).join('')}
         </select>
       </div>
       <div style="text-align:center">
         <label class="ignore-toggle">
-          <input type="checkbox" ${isIgnored?'checked':''} onchange="toggleIgnore('${h}',this.checked)"/> Ignorar
+          <input type="checkbox" ${isIgnored?'checked':''} onchange="toggleIgnore(${jsAttr(h)},this.checked)"/> Ignorar
         </label>
       </div>
     </div>`;
@@ -594,7 +594,7 @@ function renderPreview(){
       : r._status==='dup'
         ? '<span class="status-warn">⚠ Duplicata</span>'
         : '<span class="status-err">✕ Sem nome</span>';
-    return `<tr class="${cls}"><td>${statusBadge}</td>${mappedFields.map(f=>`<td>${r[f.value]||'—'}</td>`).join('')}</tr>`;
+    return `<tr class="${cls}"><td>${statusBadge}</td>${mappedFields.map(f=>`<td>${escHtml(r[f.value]||'—')}</td>`).join('')}</tr>`;
   }).join('');
 
   if(rows.length > PREVIEW_LIMIT){

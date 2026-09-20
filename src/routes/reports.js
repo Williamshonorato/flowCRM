@@ -83,7 +83,7 @@ router.get('/', async (req, res) => {
     prisma.contact.findMany({ where: { tenantId }, select: { origin: true, deals: { select: { closedAt: true } } } }),
     prisma.deal.findMany({ where: { tenantId, createdAt: { gte: prevStart, lte: prevEnd } }, select: { closedAt: true } }),
     prisma.deal.findMany({ where: { tenantId, closedAt: { gte: prevStart, lte: prevEnd } }, select: { value: true, createdAt: true, closedAt: true } }),
-    prisma.activity.findMany({ where: { tenantId, createdAt: { gte: prevStart, lte: prevEnd } }, select: { contactId: true }, distinct: ['contactId'] }),
+    prisma.activity.findMany({ where: { tenantId, contactId: { not: null }, createdAt: { gte: prevStart, lte: prevEnd } }, select: { contactId: true }, distinct: ['contactId'] }),
     prisma.contact.count({ where: { tenantId } }),
     prisma.stage.findMany({ where: { tenantId }, orderBy: { order: 'asc' }, include: { deals: { select: { value: true } } } }),
     prisma.deal.findMany({ where: { tenantId }, orderBy: { value: 'desc' }, take: 5, include: { contact: { select: { name: true } }, stage: { select: { name: true } } } }),
@@ -107,7 +107,8 @@ router.get('/', async (req, res) => {
     : null
   const prevChurn = totalContacts > 0 ? ((totalContacts - prevActiveContactIds.length) / totalContacts) * 100 : 0
 
-  const activeContactIds = await prisma.activity.findMany({ where: { tenantId, createdAt: { gte: periodStart } }, select: { contactId: true }, distinct: ['contactId'] })
+  // contactId null (atividade sem contato) entrava como "um contato ativo" a mais no distinct
+  const activeContactIds = await prisma.activity.findMany({ where: { tenantId, contactId: { not: null }, createdAt: { gte: periodStart } }, select: { contactId: true }, distinct: ['contactId'] })
   const churn = totalContacts > 0 ? ((totalContacts - activeContactIds.length) / totalContacts) * 100 : 0
 
   const revenueDeltaPct = prevRevenue > 0 ? Math.round(((revenue - prevRevenue) / prevRevenue) * 100) : (revenue > 0 ? 100 : 0)

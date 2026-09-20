@@ -444,7 +444,7 @@
 
     allStages = stagesData || [];
     const stageSelect = document.getElementById('m-filter-stage');
-    stageSelect.innerHTML = '<option value="">Todos</option>' + allStages.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    stageSelect.innerHTML = '<option value="">Todos</option>' + allStages.map(s => `<option value="${escHtml(s.id)}">${escHtml(s.name)}</option>`).join('');
 
     if (rulesData) {
       rules = rulesData.rules || [];
@@ -485,14 +485,14 @@
       const lastRun = r.lastRunAt ? new Date(r.lastRunAt).toLocaleDateString('pt-BR', { day:'2-digit', month:'short' }) : 'Nunca disparado';
       const nextRun = r.active && r.nextRunAt ? new Date(r.nextRunAt).toLocaleDateString('pt-BR', { day:'2-digit', month:'short' }) : null;
 
-      return `<div class="rule-card ${selectedRule?.id === r.id ? 'selected' : ''} ${!r.active ? 'paused' : ''}" onclick="selectRule('${r.id}')">
+      return `<div class="rule-card ${selectedRule?.id === r.id ? 'selected' : ''} ${!r.active ? 'paused' : ''}" onclick="selectRule(${jsAttr(r.id)})">
         <div class="rc-top">
-          <div class="rc-name">${r.name}</div>
+          <div class="rc-name">${escHtml(r.name)}</div>
           <div class="rc-status ${r.active ? 'active' : 'paused'}">
             <div class="rc-dot"></div>${r.active ? 'Ativa' : 'Pausada'}
           </div>
         </div>
-        <div class="rc-tags">${tags.map(t => `<span class="rc-tag ${t.cls}">${t.label}</span>`).join('')}</div>
+        <div class="rc-tags">${tags.map(t => `<span class="rc-tag ${escHtml(t.cls)}">${escHtml(t.label)}</span>`).join('')}</div>
         <div class="rc-stats">
           <div class="rc-stat">Último: <strong>${lastRun}</strong></div>
           ${nextRun ? `<div class="rc-stat">Próximo: <strong>${nextRun}</strong></div>` : ''}
@@ -530,13 +530,13 @@
 
     dc.innerHTML = `
       <div class="dp-header">
-        <div class="dp-title">${rule.name}</div>
+        <div class="dp-title">${escHtml(rule.name)}</div>
         <div class="dp-actions">
-          <button class="toggle-btn ${rule.active ? 'on' : 'off'}" onclick="toggleRule('${rule.id}')">
+          <button class="toggle-btn ${rule.active ? 'on' : 'off'}" onclick="toggleRule(${jsAttr(rule.id)})">
             ${rule.active ? '● Ativa' : '○ Pausada'}
           </button>
-          <button class="btn-edit" onclick="openModal('${rule.id}')">✏️ Editar</button>
-          <button class="btn-dispatch" onclick="dispatchNow('${rule.id}')">⚡ Disparar agora (${preview.total})</button>
+          <button class="btn-edit" onclick="openModal(${jsAttr(rule.id)})">✏️ Editar</button>
+          <button class="btn-dispatch" onclick="dispatchNow(${jsAttr(rule.id)})">⚡ Disparar agora (${preview.total})</button>
         </div>
       </div>
       <div class="dp-body">
@@ -545,9 +545,9 @@
             <div class="dp-section">Configuração</div>
             <div class="dp-config-row"><span class="dp-config-label">Inatividade</span><span class="dp-config-val green">≥ ${rule.inactiveDays} dias</span></div>
             <div class="dp-config-row"><span class="dp-config-label">Frequência</span><span class="dp-config-val">${freqLabel_}</span></div>
-            <div class="dp-config-row"><span class="dp-config-label">Temperatura</span><span class="dp-config-val">${rule.filters?.temperature ? tempLabel(rule.filters.temperature) : 'Todas'}</span></div>
-            <div class="dp-config-row"><span class="dp-config-label">Origem</span><span class="dp-config-val">${rule.filters?.origin || 'Todas'}</span></div>
-            <div class="dp-config-row"><span class="dp-config-label">Estágio</span><span class="dp-config-val">${stageFilter?.name || 'Todos'}</span></div>
+            <div class="dp-config-row"><span class="dp-config-label">Temperatura</span><span class="dp-config-val">${escHtml(rule.filters?.temperature ? tempLabel(rule.filters.temperature) : 'Todas')}</span></div>
+            <div class="dp-config-row"><span class="dp-config-label">Origem</span><span class="dp-config-val">${escHtml(rule.filters?.origin || 'Todas')}</span></div>
+            <div class="dp-config-row"><span class="dp-config-label">Estágio</span><span class="dp-config-val">${escHtml(stageFilter?.name || 'Todos')}</span></div>
             <div class="dp-config-row"><span class="dp-config-label">Último disparo</span><span class="dp-config-val">${lastRun}</span></div>
             <div class="dp-config-row"><span class="dp-config-label">Próximo disparo</span><span class="dp-config-val">${nextRun}</span></div>
           </div>
@@ -563,7 +563,7 @@
           <div>
             <div class="dp-section">Preview da mensagem</div>
             <div class="msg-preview-wrap">
-              <div class="msg-preview-label">📱 ${sample ? sample.name : 'Mensagem modelo'}</div>
+              <div class="msg-preview-label">📱 ${escHtml(sample ? sample.name : 'Mensagem modelo')}</div>
               <div class="msg-bubble">${msgRendered}</div>
             </div>
           </div>
@@ -579,10 +579,10 @@
               const days = Math.floor((Date.now() - new Date(c.lastActivityAt || c.updatedAt)) / 86400000);
               const cls = days >= rule.inactiveDays * 2 ? '' : 'warn';
               return `<div class="preview-row">
-                <div class="pr-avatar" style="background:${palColor(i)}">${initials(c.name)}</div>
+                <div class="pr-avatar" style="background:${palColor(i)}">${escHtml(initials(c.name))}</div>
                 <div class="pr-info">
-                  <div class="pr-name">${c.name}</div>
-                  <div class="pr-meta">${c.phone || c.email || '—'} · ${c.origin || 'Sem origem'}</div>
+                  <div class="pr-name">${escHtml(c.name)}</div>
+                  <div class="pr-meta">${escHtml(c.phone || c.email || '—')} · ${escHtml(c.origin || 'Sem origem')}</div>
                 </div>
                 <div class="pr-days ${cls}">Inativo há ${days}d</div>
               </div>`;
@@ -595,12 +595,15 @@
 
   function renderMsg(template, contact) {
     if (!template) return '—';
-    let msg = template
-      .replace(/{{nome}}/g, contact?.name || '<span class="msg-var">{{nome}}</span>')
-      .replace(/{{empresa}}/g, contact?.company || '<span class="msg-var">{{empresa}}</span>')
-      .replace(/{{dias_inativo}}/g, contact ? Math.floor((Date.now() - new Date(contact.updatedAt)) / 86400000) : '<span class="msg-var">{{dias_inativo}}</span>')
-      .replace(/{{ultimo_negocio}}/g, contact?.deals?.[0]?.title || '<span class="msg-var">{{ultimo_negocio}}</span>')
-      .replace(/{{segmento}}/g, '<span class="msg-var">{{segmento}}</span>');
+    // template e dados do contato entram como TEXTO (escapados); só os <span> das variáveis
+    // sem contato de exemplo são HTML nosso.
+    const V = (name, value) => value == null || value === '' ? `<span class="msg-var">{{${name}}}</span>` : escHtml(value);
+    let msg = escHtml(template)
+      .replace(/{{nome}}/g, () => V('nome', contact?.name))
+      .replace(/{{empresa}}/g, () => V('empresa', contact?.company))
+      .replace(/{{dias_inativo}}/g, () => contact ? String(Math.floor((Date.now() - new Date(contact.updatedAt)) / 86400000)) : V('dias_inativo', null))
+      .replace(/{{ultimo_negocio}}/g, () => V('ultimo_negocio', contact?.deals?.[0]?.title))
+      .replace(/{{segmento}}/g, () => V('segmento', null));
     return msg.replace(/\n/g, '<br>');
   }
 
@@ -678,7 +681,7 @@
 
   function updateMsgPreview() {
     const msg = document.getElementById('m-message').value;
-    const preview = msg
+    const preview = escHtml(msg)
       .replace(/{{nome}}/g, '<span class="msg-var">Maria Clara</span>')
       .replace(/{{empresa}}/g, '<span class="msg-var">Clínica Vida Plena</span>')
       .replace(/{{dias_inativo}}/g, `<span class="msg-var">${document.getElementById('m-inactive').value}</span>`)

@@ -443,9 +443,9 @@
     const stageCls = { 'Novo lead': 'stage-lead', 'Em contato': 'stage-lead', 'Proposta': 'stage-proposta', 'Negociação': 'stage-negoc', 'Fechado': 'stage-fechado' };
     document.getElementById('dealsList').innerHTML = (deals || []).slice(0, 5).map((d, i) => `
       <div class="deal-row">
-        <div class="deal-avatar" style="background:${palColor(i)}">${initials(d.contact?.name || d.title)}</div>
-        <div class="deal-info"><div class="deal-name">${d.contact?.name || d.title}</div><div class="deal-meta">${d.title}</div></div>
-        <div class="deal-value"><div class="deal-amount">${fmtMoney(d.value)}</div><span class="deal-stage ${stageCls[d.stage?.name] || 'stage-lead'}">${d.stage?.name || '—'}</span></div>
+        <div class="deal-avatar" style="background:${palColor(i)}">${escHtml(initials(d.contact?.name || d.title))}</div>
+        <div class="deal-info"><div class="deal-name">${escHtml(d.contact?.name || d.title)}</div><div class="deal-meta">${escHtml(d.title)}</div></div>
+        <div class="deal-value"><div class="deal-amount">${fmtMoney(d.value)}</div><span class="deal-stage ${stageCls[d.stage?.name] || 'stage-lead'}">${escHtml(d.stage?.name || '—')}</span></div>
       </div>`).join('') || '<div style="padding:20px;color:#94a3b8;text-align:center">Nenhum negócio</div>';
   }
 
@@ -456,8 +456,8 @@
       const cls = t.doneAt ? 'ok' : late ? 'late' : '';
       const label = t.doneAt ? 'Concluída' : late ? 'Atrasada' : t.dueDate ? new Date(t.dueDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
       return `<div class="task-row">
-        <div class="task-check ${t.doneAt ? 'done' : ''}" onclick="toggleTask('${t.id}', this)">${t.doneAt ? '✓' : ''}</div>
-        <div class="task-body"><div class="task-name ${t.doneAt ? 'done-text' : ''}">${t.title}</div><div class="task-contact">${t.contact?.name || ''}</div></div>
+        <div class="task-check ${t.doneAt ? 'done' : ''}" onclick="toggleTask(${jsAttr(t.id)}, this)">${t.doneAt ? '✓' : ''}</div>
+        <div class="task-body"><div class="task-name ${t.doneAt ? 'done-text' : ''}">${escHtml(t.title)}</div><div class="task-contact">${escHtml(t.contact?.name || '')}</div></div>
         <div class="task-time ${cls}">${label}</div>
       </div>`;
     }).join('') || '<div style="padding:20px;color:#94a3b8;text-align:center">Sem tarefas hoje 🎉</div>';
@@ -466,13 +466,13 @@
   function renderFollowupAlerts(alerts) {
     document.getElementById('followupCount').textContent = (alerts || []).length ? alerts.length + (alerts.length > 1 ? ' contatos' : ' contato') : '';
     document.getElementById('followupList').innerHTML = (alerts || []).map(a => `
-      <div class="alert-row" data-contact="${a.contactId}">
-        <div class="alert-avatar">${initials(a.contactName)}</div>
+      <div class="alert-row" data-contact="${escHtml(a.contactId)}">
+        <div class="alert-avatar">${escHtml(initials(a.contactName))}</div>
         <div class="alert-info">
-          <div class="alert-name">${a.contactName}</div>
+          <div class="alert-name">${escHtml(a.contactName)}</div>
           <div class="alert-meta">${a.daysSince === 0 ? 'Mensagem hoje' : `Mensagem há ${a.daysSince} dia${a.daysSince > 1 ? 's' : ''}`} · sem follow-up</div>
         </div>
-        <button class="alert-btn" onclick="createFollowup('${a.contactId}', this)">+ Tarefa</button>
+        <button class="alert-btn" onclick="createFollowup(${jsAttr(a.contactId)}, this)">+ Tarefa</button>
       </div>`).join('') || '<div style="padding:20px;color:#94a3b8;text-align:center">Nenhum contato pendente 🎉</div>';
   }
 
@@ -491,10 +491,10 @@
     document.getElementById('nextActionsList').innerHTML = (actions || []).map(a => `
       <div class="action-item">
         <div class="action-top">
-          <div class="action-name"><span class="action-dot urgency-${a.urgency}"></span>${a.contactName}</div>
+          <div class="action-name"><span class="action-dot urgency-${a.urgency}"></span>${escHtml(a.contactName)}</div>
           <div class="action-value">${fmtMoney(a.value)}</div>
         </div>
-        <div class="action-text">${a.action}</div>
+        <div class="action-text">${escHtml(a.action)}</div>
       </div>`).join('') || '<div style="padding:20px;color:#94a3b8;text-align:center">Nenhuma ação urgente agora 👍</div>';
   }
 
@@ -508,14 +508,14 @@
       const len = pct / 100 * C;
       const dashoffset = -(cum / 100 * C);
       cum += pct;
-      return `<circle cx="70" cy="70" r="44" fill="none" stroke="${f.color}" stroke-width="22" stroke-dasharray="${len.toFixed(1)} ${(C - len).toFixed(1)}" stroke-dashoffset="${dashoffset.toFixed(1)}" stroke-linecap="butt" transform="rotate(-90 70 70)"/>`;
+      return `<circle cx="70" cy="70" r="44" fill="none" stroke="${escHtml(f.color)}" stroke-width="22" stroke-dasharray="${len.toFixed(1)} ${(C - len).toFixed(1)}" stroke-dashoffset="${dashoffset.toFixed(1)}" stroke-linecap="butt" transform="rotate(-90 70 70)"/>`;
     }).join('');
     const centerText = `<text x="70" y="65" text-anchor="middle" font-size="18" font-weight="800" fill="#1e293b">${total}</text><text x="70" y="81" text-anchor="middle" font-size="10" fill="#64748b">negócios</text>`;
     document.getElementById('donutSvg').innerHTML = bg + segs + centerText;
     document.getElementById('donutSub').textContent = `${activeDeals} negócio${activeDeals === 1 ? '' : 's'} ativo${activeDeals === 1 ? '' : 's'}`;
     document.getElementById('donutLegend').innerHTML = (funnel || []).map(f => {
       const pct = total ? Math.round(f.count / total * 100) : 0;
-      return `<div class="legend-row"><div class="legend-dot" style="background:${f.color}"></div><span class="legend-label">${f.name}</span><span class="legend-pct">${pct}%<span class="legend-count">(${f.count} · ${fmtMoney(f.value)})</span></span></div>`;
+      return `<div class="legend-row"><div class="legend-dot" style="background:${escHtml(f.color)}"></div><span class="legend-label">${escHtml(f.name)}</span><span class="legend-pct">${pct}%<span class="legend-count">(${f.count} · ${fmtMoney(f.value)})</span></span></div>`;
     }).join('') || '<div style="color:#94a3b8;font-size:12px">Sem negócios ainda</div>';
   }
 
@@ -568,7 +568,7 @@
       })),
     ];
     document.getElementById('notifList').innerHTML = items.length
-      ? items.map(i => `<a class="notif-item" href="${i.href}"><span class="notif-item-icon">${i.icon}</span><div><div class="notif-item-title">${i.title}</div><div class="notif-item-sub">${i.sub}</div></div></a>`).join('')
+      ? items.map(i => `<a class="notif-item" href="${i.href}"><span class="notif-item-icon">${i.icon}</span><div><div class="notif-item-title">${escHtml(i.title)}</div><div class="notif-item-sub">${escHtml(i.sub)}</div></div></a>`).join('')
       : '<div class="notif-empty">Nenhuma notificação por enquanto 🎉</div>';
   }
 

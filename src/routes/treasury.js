@@ -10,7 +10,7 @@ const expenseSchema = z.object({
   description: z.string().min(1),
   category:    z.string().optional(),
   amount:      z.number().min(0),
-  date:        z.string(),
+  date:        z.string().refine(v => !Number.isNaN(Date.parse(v)), 'Data inválida.'),
 })
 
 // GET /treasury/summary?period=month|year|all — visão geral: contribuições x despesas
@@ -24,12 +24,19 @@ router.get('/summary', async (req, res) => {
   const start = period === 'year' ? new Date(Date.UTC(now.getUTCFullYear(), 0, 1))
     : period === 'all' ? new Date(Date.UTC(2000, 0, 1))
     : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  // Fim do período (exclusivo). Antes só havia o início ("gte"), então "este mês" somava
+  // também as mensalidades e despesas dos meses FUTUROS.
+  const end = period === 'year' ? new Date(Date.UTC(now.getUTCFullYear() + 1, 0, 1))
+    : period === 'all' ? new Date(Date.UTC(2100, 0, 1))
+    : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
 
   const [contributions, expenses, memberCount, overdueCount] = await Promise.all([
-    prisma.contribution.findMany({ where: { tenantId, dueDate: { gte: start } }, select: { amount: true, status: true } }),
-    prisma.treasuryExpense.findMany({ where: { tenantId, date: { gte: start } }, select: { amount: true, category: true } }),
+    prisma.contribution.findMany({ where: { tenantId, dueDate: { gte: start, lt: end } }, select: { amount: true, status: true } }),
+    prisma.treasuryExpense.findMany({ where: { tenantId, date: { gte: start, lt: end } }, select: { amount: true, category: true } }),
     prisma.member.count({ where: { tenantId, status: 'active' } }),
-    prisma.contribution.count({ where: { tenantId, status: 'overdue' } }),
+    // Inadimplente = ainda não paga e já vencida. Ninguém marcava "overdue" (nem há rotina pra
+    // isso), então a contagem ficava sempre 0; agora é derivada da data de vencimento.
+    prisma.contribution.count({ where: { tenantId, status: { in: ['pending', 'overdue'] }, dueDate: { lt: now } } }),
   ])
 
   const received = contributions.filter(c => c.status === 'paid').reduce((s, c) => s + Number(c.amount), 0)

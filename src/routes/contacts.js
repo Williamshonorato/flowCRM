@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import prisma from '../lib/prisma.js'
+import { patchSchema } from '../lib/patchSchema.js'
 import { requireAuth } from '../middleware/auth.js'
 import { dispatchWebhook } from '../lib/webhooks.js'
 import { triggerFlows } from '../lib/automationEngine.js'
@@ -22,6 +23,12 @@ const schema = z.object({
   stageId:      z.string().optional(),
   dealValue:    z.number().min(0).optional(),
 })
+
+// assignedToId (quando informado e não-nulo) tem que ser um usuário desta empresa
+async function assigneeBelongsToTenant(tenantId, assignedToId) {
+  if (!assignedToId) return true
+  return !!(await prisma.user.findFirst({ where: { id: assignedToId, tenantId }, select: { id: true } }))
+}
 
 // GET /contacts/filters — opções e contagens reais pro painel de filtros
 router.get('/filters', async (req, res) => {
@@ -49,8 +56,11 @@ router.get('/filters', async (req, res) => {
 // GET /contacts?search=&origin=&stageId=&assignedToId=&sort=recent|name|value&page=1&limit=20
 router.get('/', async (req, res) => {
   const { tenantId } = req.user
-  const { search = '', origin, temperature, stageId, assignedToId, sort = 'recent', page = '1', limit = '20' } = req.query
-  const skip = (Number(page) - 1) * Number(limit)
+  const { search = '', origin, temperature, stageId, assignedToId, sort = 'recent' } = req.query
+  // page/limit vindos da query: limit sem teto era um DoS (limit=1000000) e valor inválido virava NaN → 500
+  const pageNum = Math.max(1, parseInt(req.query.page, 10) || 1)
+  const limitNum = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 20))
+  const skip = (pageNum - 1) * limitNum
 
   const AND = [{ tenantId }]
   if (search) AND.push({ OR: [
@@ -82,18 +92,18 @@ router.get('/', async (req, res) => {
       prisma.contact.findMany({ where, take: 1000, include: { deals: { select: { value: true, stage: { select: { name: true } } } }, ...assignedToInclude } }),
     ])
     all.sort((a, b) => b.deals.reduce((s, d) => s + Number(d.value), 0) - a.deals.reduce((s, d) => s + Number(d.value), 0))
-    const contacts = all.slice(skip, skip + Number(limit)).map(c => ({ ...c, deals: c.deals.slice(0, 1) }))
-    return res.json({ total, page: Number(page), contacts })
+    const contacts = all.slice(skip, skip + limitNum).map(c => ({ ...c, deals: c.deals.slice(0, 1) }))
+    return res.json({ total, page: pageNum, contacts })
   }
 
   const orderBy = sort === 'name' ? { name: 'asc' } : { createdAt: 'desc' }
 
   const [total, contacts] = await Promise.all([
     prisma.contact.count({ where }),
-    prisma.contact.findMany({ where, orderBy, skip, take: Number(limit), include: { ...dealsInclude, ...assignedToInclude } }),
+    prisma.contact.findMany({ where, orderBy, skip, take: limitNum, include: { ...dealsInclude, ...assignedToInclude } }),
   ])
 
-  res.json({ total, page: Number(page), contacts })
+  res.json({ total, page: pageNum, contacts })
 })
 
 // GET /contacts/:id
@@ -118,6 +128,8 @@ router.post('/', async (req, res) => {
   const parsed = schema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
 
+  if (!(await assigneeBelongsToTenant(tenantId, parsed.data.assignedToId))) return res.status(400).json({ error: 'Responsável inválido.' })
+
   // Detecta duplicata por e-mail
   if (parsed.data.email) {
     const dup = await prisma.contact.findFirst({ where: { tenantId, email: parsed.data.email } })
@@ -125,6 +137,8 @@ router.post('/', async (req, res) => {
   }
 
   const { stageId, dealValue, ...contactData } = parsed.data
+  // '' vira null: o unique [tenantId, email] tratava dois contatos com e-mail "" como duplicados
+  if (contactData.email === '') contactData.email = null
   const contact = await prisma.contact.create({ data: { tenantId, ...contactData } })
 
   await prisma.activity.create({ data: { tenantId, userId, contactId: contact.id, type: 'contact_created', content: `Contato "${contact.name}" criado.` } })
@@ -133,7 +147,7 @@ router.post('/', async (req, res) => {
     const stage = await prisma.stage.findFirst({ where: { id: stageId, tenantId } })
     if (stage) {
       await prisma.deal.create({
-        data: { tenantId, contactId: contact.id, stageId, title: contact.name, value: dealValue || 0 },
+        data: { tenantId, contactId: contact.id, stageId, title: contact.name, value: dealValue || 0, closedAt: stage.name === 'Fechado' ? new Date() : null },
       })
       await prisma.activity.create({ data: { tenantId, userId, contactId: contact.id, type: 'deal_created', content: `Negócio criado em "${stage.name}".` } })
     }
@@ -155,10 +169,16 @@ router.patch('/:id', async (req, res) => {
   const existing = await prisma.contact.findFirst({ where: { id: req.params.id, tenantId } })
   if (!existing) return res.status(404).json({ error: 'Contato não encontrado.' })
 
-  const parsed = schema.partial().safeParse(req.body)
+  const parsed = patchSchema(schema).safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
+  if (!(await assigneeBelongsToTenant(tenantId, parsed.data.assignedToId))) return res.status(400).json({ error: 'Responsável inválido.' })
 
   const { stageId, dealValue, ...contactData } = parsed.data
+  if (contactData.email === '') contactData.email = null
+  if (contactData.email && contactData.email !== existing.email) {
+    const dup = await prisma.contact.findFirst({ where: { tenantId, email: contactData.email, NOT: { id: existing.id } } })
+    if (dup) return res.status(409).json({ error: 'Já existe um contato com esse e-mail.', existing: dup })
+  }
   const contact = await prisma.contact.update({ where: { id: req.params.id }, data: contactData })
   await prisma.activity.create({ data: { tenantId, userId, contactId: contact.id, type: 'note', content: 'Dados do contato atualizados.' } })
 

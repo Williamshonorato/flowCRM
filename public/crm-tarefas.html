@@ -316,10 +316,10 @@
         ${items.map((t, i) => {
           const ts = timeStatus(t.dueDate, t.doneAt);
           return `<div class="task-card type-${t.type}${t.doneAt?' done-card':''}${(!t.doneAt&&t.dueDate&&new Date(t.dueDate)<new Date())?' late-card':''}">
-            <div class="tc-check ${t.doneAt?'checked':''}" onclick="toggleTask('${t.id}', this)">${t.doneAt?'✓':''}</div>
+            <div class="tc-check ${t.doneAt?'checked':''}" onclick="toggleTask(${jsAttr(t.id)}, this)">${t.doneAt?'✓':''}</div>
             <div class="tc-body">
-              <div class="tc-title">${t.title}</div>
-              ${t.contact ? `<div class="tc-contact"><div class="av" style="background:${palColor(i)}">${initials(t.contact.name)}</div>${t.contact.name}</div>` : ''}
+              <div class="tc-title">${escHtml(t.title)}</div>
+              ${t.contact ? `<div class="tc-contact"><div class="av" style="background:${palColor(i)}">${escHtml(initials(t.contact.name))}</div>${escHtml(t.contact.name)}</div>` : ''}
               <div class="tc-meta">
                 <span class="tc-type">${TYPE_LABEL[t.type]}</span>
                 <span class="tc-time ${ts.cls}">⏰ ${ts.label}</span>
@@ -363,7 +363,7 @@
     const data = await api('/contacts?limit=200&sort=name');
     contactsCache = data?.contacts || [];
     const sel = document.getElementById('m-contact');
-    sel.innerHTML = '<option value="">— Nenhum —</option>' + contactsCache.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    sel.innerHTML = '<option value="">— Nenhum —</option>' + contactsCache.map(c => `<option value="${escHtml(c.id)}">${escHtml(c.name)}</option>`).join('');
   }
 
   function openModal() {

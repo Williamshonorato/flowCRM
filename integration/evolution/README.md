@@ -96,6 +96,11 @@ compose up` (ou instância dentro de uma Evolution compartilhada) separado, com
   empresa mandou).
 - Se o `tenantId` na URL não existir, o FlowCRM responde 404 — a Evolution não
   consegue mandar mensagem pra uma empresa que não existe.
+- Cada empresa tem um token próprio no webhook: a URL certa é
+  `/whatsapp/webhook/SEU_TENANT_ID?token=...` (a tela de Integrações mostra ela pronta
+  pra admins, e "Conectar WhatsApp" já registra a URL com token na Evolution). Empresas
+  conectadas antes disso continuam aceitas sem token, com aviso no log, até
+  reconectarem; defina `WHATSAPP_WEBHOOK_STRICT=1` no `.env` pra exigir o token de todas.
 - Se quiser exigir autenticação extra no webhook, defina `WHATSAPP_TOKEN` no
   `.env` do FlowCRM — a Evolution precisa então mandar esse valor no header
   `x-whatsapp-token` (configurável em `WEBHOOK_GLOBAL_HEADERS` da Evolution).

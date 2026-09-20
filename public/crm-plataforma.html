@@ -383,7 +383,7 @@
     document.getElementById('planSub').textContent = `${total} empresa${total === 1 ? '' : 's'} no total`;
     document.getElementById('planLegend').innerHTML = (dist || []).map(d => {
       const pct = total ? Math.round(d.count / total * 100) : 0;
-      return `<div class="legend-row"><div class="legend-dot" style="background:${d.color}"></div><span class="legend-label">${PLAN_LABEL[d.plan] || d.plan}</span><span class="legend-pct">${pct}%<span class="legend-count">(${d.count})</span></span></div>`;
+      return `<div class="legend-row"><div class="legend-dot" style="background:${d.color}"></div><span class="legend-label">${esc(PLAN_LABEL[d.plan] || d.plan)}</span><span class="legend-pct">${pct}%<span class="legend-count">(${d.count})</span></span></div>`;
     }).join('') || '<div style="color:#94a3b8;font-size:12px">Sem empresas ainda</div>';
   }
 
@@ -415,7 +415,7 @@
       return `
       <tr>
         <td><div class="tname">${esc(t.name)}</div><div class="tmeta">${esc(t.slug)}</div></td>
-        <td>${PLAN_LABEL[t.plan] || t.plan}</td>
+        <td>${esc(PLAN_LABEL[t.plan] || t.plan)}</td>
         <td class="money-cell">
           <div class="val">${fmtMoney(t.monthlyValue)}</div>
           ${due ? `<div class="due${t.overdue ? ' late' : ''}">vence ${due}</div>` : ''}
@@ -426,10 +426,10 @@
         <td><span class="badge-status ${t.active ? 'badge-active' : 'badge-inactive'}">${t.active ? 'Ativa' : 'Suspensa'}</span></td>
         <td>
           <div class="row-actions">
-            <button class="btn-sm primary" onclick="enterAsTenant('${t.id}')">Entrar como admin</button>
-            <button class="btn-sm" onclick="openEdit('${t.id}')">Editar</button>
-            <button class="btn-sm" onclick="toggleActive('${t.id}', ${!t.active})">${t.active ? 'Suspender' : 'Reativar'}</button>
-            <button class="btn-sm danger" onclick="deleteTenant('${t.id}','${t.name.replace(/'/g, "\\'")}')">Excluir</button>
+            <button class="btn-sm primary" onclick="enterAsTenant(${jsAttr(t.id)})">Entrar como admin</button>
+            <button class="btn-sm" onclick="openEdit(${jsAttr(t.id)})">Editar</button>
+            <button class="btn-sm" onclick="toggleActive(${jsAttr(t.id)}, ${!t.active})">${t.active ? 'Suspender' : 'Reativar'}</button>
+            <button class="btn-sm danger" onclick="deleteTenant(${jsAttr(t.id)},${jsAttr(t.name)})">Excluir</button>
           </div>
         </td>
       </tr>`;
@@ -491,10 +491,10 @@
     const admins = await api('/platform/admins') || [];
     document.getElementById('adminsBody').innerHTML = admins.map(a => `
       <tr>
-        <td>${a.name}</td>
-        <td>${a.email}</td>
-        <td>${a.platformRole}</td>
-        <td>${a.id === me?.user?.id ? '' : `<button class="btn-sm danger" onclick="deleteAdmin('${a.id}')">Remover</button>`}</td>
+        <td>${esc(a.name)}</td>
+        <td>${esc(a.email)}</td>
+        <td>${esc(a.platformRole)}</td>
+        <td>${a.id === me?.user?.id ? '' : `<button class="btn-sm danger" onclick="deleteAdmin(${jsAttr(a.id)})">Remover</button>`}</td>
       </tr>
     `).join('');
   }

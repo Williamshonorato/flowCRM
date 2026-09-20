@@ -517,40 +517,13 @@
       <div class="card-sub">Comece grátis por 14 dias. Cancele quando quiser.</div>
 
       <div class="plans">
-        <div class="plan-card selected" onclick="selectPlan(this,'Starter')" id="plan-Starter">
-          <div class="plan-icon">🚀</div>
-          <div class="plan-name">Starter</div>
-          <div class="plan-price">R$ 97<span>/mês</span></div>
-          <div class="plan-desc">Até 3 usuários. Banco hospedado por nós.</div>
-          <div class="plan-features">
-            <div class="plan-feat">Pipeline kanban</div>
-            <div class="plan-feat">Campos configuráveis</div>
-            <div class="plan-feat">Histórico de contatos</div>
-            <div class="plan-feat">Tarefas e lembretes</div>
-          </div>
-        </div>
-
-        <div class="plan-card" onclick="selectPlan(this,'Profissional')" id="plan-Profissional">
-          <div class="plan-badge">POPULAR</div>
-          <div class="plan-icon">💼</div>
-          <div class="plan-name">Profissional</div>
-          <div class="plan-price">R$ 297<span>/mês</span></div>
-          <div class="plan-desc">Até 15 usuários. Banco hospedado.</div>
-          <div class="plan-features">
-            <div class="plan-feat">Tudo do Starter</div>
-            <div class="plan-feat">Relatórios avançados</div>
-            <div class="plan-feat">Integração WhatsApp</div>
-            <div class="plan-feat">IA de preenchimento</div>
-          </div>
-        </div>
-
-        <div class="plan-card" onclick="selectPlan(this,'Conectado')" id="plan-Conectado">
+        <div class="plan-card selected" onclick="selectPlan(this,'Conectado')" id="plan-Conectado">
           <div class="plan-icon">🔌</div>
           <div class="plan-name">Conectado</div>
           <div class="plan-price">R$ 397<span>/mês</span></div>
           <div class="plan-desc">Conecta ao banco que você já tem.</div>
           <div class="plan-features">
-            <div class="plan-feat">Tudo do Profissional</div>
+            <div class="plan-feat">Pipeline, relatórios e WhatsApp</div>
             <div class="plan-feat">Banco próprio do cliente</div>
             <div class="plan-feat">Setup incluso</div>
             <div class="plan-feat">Suporte prioritário</div>
@@ -571,7 +544,7 @@
         </div>
       </div>
 
-      <div class="banco-toggle" id="banco-toggle" style="display:none">
+      <div class="banco-toggle" id="banco-toggle" style="display:block">
         <label>
           <input type="checkbox" id="banco-proprio" onchange="toggleBancoInfo()" />
           Tenho banco de dados próprio e quero conectar
@@ -662,7 +635,7 @@
           <div class="sr-ico">📋</div>
           <div class="sr-body">
             <div class="sr-label">PLANO ATIVO</div>
-            <div class="sr-val" id="sum-plan">Starter — R$ 97/mês</div>
+            <div class="sr-val" id="sum-plan">Conectado — R$ 397/mês</div>
           </div>
         </div>
         <div class="summary-row">
@@ -692,7 +665,7 @@
 <script src="flowcrm-api.js"></script>
 <script>
   let currentStep = 1;
-  let selectedPlan = 'Starter';
+  let selectedPlan = 'Conectado';
   let selectedSeg  = 'Clínica / Saúde';
   let stages = ['Novo paciente','Agendado','Em atendimento','Retorno','Inativo'];
   let fields = [
@@ -736,7 +709,9 @@
   }
 
   /* ── STEP 2: PLANS ── */
-  const planPrices = { Starter:'R$ 97/mês', Profissional:'R$ 297/mês', Conectado:'R$ 397/mês', Empresarial:'R$ 1.200/mês' };
+  const planPrices = { Conectado:'R$ 397/mês', Empresarial:'R$ 1.200/mês' };
+  // O backend guarda a CHAVE do plano (connected/enterprise), não o nome de exibição
+  const planKeys = { Conectado:'connected', Empresarial:'enterprise' };
   function selectPlan(el, name) {
     document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
     el.classList.add('selected');
@@ -762,7 +737,7 @@
   function renderStages() {
     const list = document.getElementById('stages-list');
     list.innerHTML = stages.map((s, i) =>
-      `<div class="stage-tag">${s}<span class="rm" onclick="removeStage(${i})">×</span></div>`
+      `<div class="stage-tag">${escHtml(s)}<span class="rm" onclick="removeStage(${i})">×</span></div>`
     ).join('');
   }
   function addStage() {
@@ -781,8 +756,8 @@
     const list = document.getElementById('fields-list');
     list.innerHTML = fields.map((f, i) =>
       `<div class="field-row">
-        <span class="field-name">${f.name}</span>
-        <span class="field-type ${f.type}">${f.type === 'text' ? 'Texto' : f.type === 'num' ? 'Número' : 'Data'}</span>
+        <span class="field-name">${escHtml(f.name)}</span>
+        <span class="field-type ${escHtml(f.type)}">${f.type === 'text' ? 'Texto' : f.type === 'num' ? 'Número' : 'Data'}</span>
         <span class="rm-field" onclick="removeField(${i})">×</span>
       </div>`
     ).join('');
@@ -824,7 +799,7 @@
     const data = await fetch(API_BASE + '/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: nome, email, password: senha, businessName: empresa, segment: selectedSeg, plan: selectedPlan }),
+      body: JSON.stringify({ name: nome, email, password: senha, businessName: empresa, segment: selectedSeg, plan: planKeys[selectedPlan] }),
     }).then(r => r.json()).catch(() => null);
 
     btn.textContent = 'Criar meu CRM 🚀'; btn.disabled = false;

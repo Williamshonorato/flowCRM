@@ -247,7 +247,7 @@ model Message {
   body              String
   channel           String   @default("whatsapp") // whatsapp | email
   direction         String   @default("in") // in | out
-  whatsappMessageId String?  @unique
+  whatsappMessageId String?
   trackingId        String?  @unique
   openedAt          DateTime?
   readAt            DateTime?
@@ -269,6 +269,12 @@ model Message {
 
   @@index([contactId, createdAt])
   @@index([tenantId, chatJid, createdAt])
+  // Antes era @unique GLOBAL em whatsappMessageId: a mesma mensagem (mesmo id) chega em todas as
+  // empresas cujo número está no mesmo grupo, e a segunda era descartada como "duplicada". Agora a
+  // checagem de idempotência é por empresa (no webhook). Índice comum, não unique composto, de
+  // propósito: o deploy roda `prisma db push` sem --accept-data-loss, e o Prisma trata qualquer
+  // unique novo como "pode perder dados" e derrubaria o deploy.
+  @@index([tenantId, whatsappMessageId])
 }
 
 // ── DEAL (negócio no pipeline) ────────────────────────────────────────────────

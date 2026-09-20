@@ -95,9 +95,10 @@ async function finalize(broadcastId) {
   }).catch(() => {})
 }
 
-// Máximo de destinatários processados numa única chamada — bounda quanto tempo o
-// worker fica "ocupado" por vez; o resto sai nas próximas rodadas.
-const MAX_PER_CALL = 400
+// Máximo de destinatários processados por "fatia" de um disparo. É pequeno de propósito:
+// depois de cada fatia o worker passa pro PRÓXIMO disparo da fila (revezamento), então um
+// disparo de 5000 contatos de uma empresa não deixa as outras esperando horas.
+const MAX_PER_CALL = 40
 
 // Reserva atomicamente os próximos N destinatários pendentes (FOR UPDATE SKIP LOCKED
 // + RETURNING). Isso garante que, mesmo com o worker chamado em paralelo, cada
@@ -117,15 +118,22 @@ async function claimBatch(broadcastId, n) {
   return rows
 }
 
-async function processBroadcast(broadcast) {
-  // Destrava destinatários que ficaram presos em 'sending' (ex: o processo caiu
-  // no meio de um disparo). Como só roda um worker por vez, qualquer 'sending'
-  // aqui é órfão.
+// Destrava destinatários que ficaram presos em 'sending' porque o processo caiu no meio de
+// um disparo. Roda UMA vez por boot, antes do primeiro ciclo — não a cada fatia: com mais de
+// um processo/instância rodando (pm2 cluster, deploy sobreposto), resetar a cada fatia
+// devolvia pra fila destinatários que o outro worker tinha acabado de reservar, e eles
+// recebiam a mensagem em duplicidade.
+let recoveredOrphans = false
+async function recoverOrphanedRecipients() {
+  if (recoveredOrphans) return
   await prisma.broadcastRecipient.updateMany({
-    where: { broadcastId: broadcast.id, status: 'sending' },
+    where: { status: 'sending', broadcast: { status: { in: ['queued', 'sending'] } } },
     data: { status: 'pending' },
   })
+  recoveredOrphans = true
+}
 
+async function processBroadcast(broadcast) {
   const config = await getWhatsappConfig(broadcast.tenantId)
   if (!config) {
     await prisma.broadcastRecipient.updateMany({
@@ -211,15 +219,32 @@ async function processBroadcast(broadcast) {
   await finalize(broadcast.id)
 }
 
+let lastServedId = null
+const MAX_SLICES_PER_RUN = 60
+
+// Próximo disparo a atender, em revezamento: o primeiro (por data de criação) DEPOIS do
+// último atendido, voltando ao início quando chega ao fim. Só empresas ativas.
+async function pickNextBroadcast() {
+  const pending = await prisma.broadcast.findMany({
+    where: { status: { in: ['queued', 'sending'] }, tenant: { active: true } },
+    orderBy: { createdAt: 'asc' },
+  })
+  if (!pending.length) return null
+  const idx = lastServedId ? pending.findIndex(b => b.id === lastServedId) : -1
+  return pending[(idx + 1) % pending.length]
+}
+
 export async function processBroadcasts() {
   if (running) return
   running = true
   try {
-    const broadcast = await prisma.broadcast.findFirst({
-      where: { status: { in: ['queued', 'sending'] } },
-      orderBy: { createdAt: 'asc' },
-    })
-    if (broadcast) await processBroadcast(broadcast)
+    await recoverOrphanedRecipients()
+    for (let i = 0; i < MAX_SLICES_PER_RUN; i++) {
+      const broadcast = await pickNextBroadcast()
+      if (!broadcast) break
+      lastServedId = broadcast.id
+      await processBroadcast(broadcast)
+    }
   } catch (err) {
     console.error('broadcastWorker: erro', err)
   } finally {

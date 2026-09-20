@@ -8,12 +8,29 @@ import { requireAuth, requireAdmin } from '../middleware/auth.js'
 const router = Router()
 router.use(requireAuth)
 
+// Segredos guardados no `config` de uma integração (refresh_token do Gmail/Outlook/Calendar,
+// senha do banco externo, apiKey da Evolution...) NUNCA saem pela API: só uma allowlist do
+// que a interface mostra. O backend continua lendo o config completo direto do banco.
+const PUBLIC_CONFIG_KEYS = ['email', 'phone', 'provider']
+function publicIntegration(i) {
+  const config = {}
+  for (const k of PUBLIC_CONFIG_KEYS) if (i.config?.[k] !== undefined) config[k] = i.config[k]
+  return { ...i, config }
+}
+
+// A API key dá acesso total à conta — só admin enxerga (ou gera) a chave.
+function publicTenant(tenant, role) {
+  if (role === 'admin') return tenant
+  const { apiKey, ...rest } = tenant
+  return rest
+}
+
 // ── API KEY ───────────────────────────────────────────────────────────────────
 function generateApiKey() {
   return 'fcrm_live_sk_' + crypto.randomBytes(24).toString('hex')
 }
 
-router.get('/api-key', async (req, res) => {
+router.get('/api-key', requireAdmin, async (req, res) => {
   let tenant = await prisma.tenant.findUnique({ where: { id: req.user.tenantId } })
   if (!tenant.apiKey) {
     tenant = await prisma.tenant.update({ where: { id: tenant.id }, data: { apiKey: generateApiKey() } })
@@ -29,7 +46,7 @@ router.post('/api-key/regenerate', requireAdmin, async (req, res) => {
 // ── NEGÓCIO ──────────────────────────────────────────────────────────────────
 router.get('/business', async (req, res) => {
   const tenant = await prisma.tenant.findUnique({ where: { id: req.user.tenantId } })
-  res.json(tenant)
+  res.json(publicTenant(tenant, req.user.role))
 })
 
 router.patch('/business', requireAdmin, async (req, res) => {
@@ -41,7 +58,7 @@ router.patch('/business', requireAdmin, async (req, res) => {
   const parsed = schema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
   const tenant = await prisma.tenant.update({ where: { id: req.user.tenantId }, data: parsed.data })
-  res.json(tenant)
+  res.json(publicTenant(tenant, req.user.role))
 })
 
 // ── PIPELINE STAGES ───────────────────────────────────────────────────────────
@@ -131,18 +148,33 @@ router.get('/team', async (req, res) => {
   res.json(users)
 })
 
+const ROLES = ['admin', 'user', 'viewer']
+const emailOk = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)
+
 router.post('/team/invite', requireAdmin, async (req, res) => {
-  const { name, email, password = 'Mudar@123', role = 'user' } = req.body
-  if (!email) return res.status(400).json({ error: 'E-mail obrigatório.' })
-  const existing = await prisma.user.findFirst({ where: { tenantId: req.user.tenantId, email } })
-  if (existing) return res.status(409).json({ error: 'Usuário já existe.' })
+  const { name, role = 'user' } = req.body
+  const email = String(req.body.email || '').trim().toLowerCase()
+  if (!email || !emailOk(email)) return res.status(400).json({ error: 'Informe um e-mail válido.' })
+  if (!ROLES.includes(role)) return res.status(400).json({ error: 'Papel inválido.' })
+  // E-mail é único no sistema inteiro (o login não sabe de qual empresa a pessoa é)
+  const existing = await prisma.user.findFirst({ where: { email: { equals: email, mode: 'insensitive' } } })
+  if (existing) return res.status(409).json({ error: 'Esse e-mail já está cadastrado.' })
+  // Senha temporária ALEATÓRIA (antes era "Mudar@123" pra todo mundo). Vai na resposta uma
+  // única vez, pra o admin repassar; a pessoa deve trocar em Configurações → Minha conta.
+  const password = req.body.password && String(req.body.password).length >= 6 ? String(req.body.password) : crypto.randomBytes(9).toString('base64url')
   const hash = await bcrypt.hash(password, 10)
-  const user = await prisma.user.create({ data: { tenantId: req.user.tenantId, name: name || email.split('@')[0], email, password: hash, role } })
-  res.status(201).json({ id: user.id, name: user.name, email: user.email, role: user.role })
+  try {
+    const user = await prisma.user.create({ data: { tenantId: req.user.tenantId, name: name || email.split('@')[0], email, password: hash, role } })
+    res.status(201).json({ id: user.id, name: user.name, email: user.email, role: user.role, temporaryPassword: password })
+  } catch (err) {
+    if (err.code === 'P2002') return res.status(409).json({ error: 'Esse e-mail já está cadastrado.' })
+    throw err
+  }
 })
 
 router.patch('/team/:id', requireAdmin, async (req, res) => {
   const { role, active } = req.body
+  if (role !== undefined && !ROLES.includes(role)) return res.status(400).json({ error: 'Papel inválido.' })
   if (req.params.id === req.user.userId) return res.status(400).json({ error: 'Você não pode alterar seu próprio papel.' })
   const user = await prisma.user.findFirst({ where: { id: req.params.id, tenantId: req.user.tenantId } })
   if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' })
@@ -165,17 +197,22 @@ router.get('/account', async (req, res) => {
 })
 
 router.patch('/account', async (req, res) => {
-  const { name, email, currentPassword, newPassword } = req.body
+  const { name, currentPassword, newPassword } = req.body
+  const email = req.body.email ? String(req.body.email).trim().toLowerCase() : undefined
+  if (!req.user.userId) return res.status(403).json({ error: 'Essa ação exige um usuário logado (não vale com API key).' })
   const user = await prisma.user.findUnique({ where: { id: req.user.userId } })
 
   const data = {}
   if (name) data.name = name
-  if (email && email !== user.email) {
-    const dup = await prisma.user.findFirst({ where: { tenantId: req.user.tenantId, email } })
+  if (email && email !== user.email.toLowerCase()) {
+    if (!emailOk(email)) return res.status(400).json({ error: 'E-mail inválido.' })
+    // único no sistema todo (não só na empresa) — senão o unique do banco estourava com 500
+    const dup = await prisma.user.findFirst({ where: { email: { equals: email, mode: 'insensitive' }, NOT: { id: user.id } } })
     if (dup) return res.status(409).json({ error: 'E-mail já em uso.' })
     data.email = email
   }
   if (newPassword) {
+    if (String(newPassword).length < 6) return res.status(400).json({ error: 'A nova senha precisa ter pelo menos 6 caracteres.' })
     if (!currentPassword) return res.status(400).json({ error: 'Senha atual obrigatória.' })
     const valid = await bcrypt.compare(currentPassword, user.password)
     if (!valid) return res.status(401).json({ error: 'Senha atual incorreta.' })
@@ -189,7 +226,7 @@ router.patch('/account', async (req, res) => {
 // ── INTEGRAÇÕES ───────────────────────────────────────────────────────────────
 router.get('/integrations', async (req, res) => {
   const integrations = await prisma.integration.findMany({ where: { tenantId: req.user.tenantId } })
-  res.json(integrations)
+  res.json(integrations.map(publicIntegration))
 })
 
 router.post('/integrations/:type', requireAdmin, async (req, res) => {
@@ -199,7 +236,7 @@ router.post('/integrations/:type', requireAdmin, async (req, res) => {
     create: { tenantId: req.user.tenantId, type: req.params.type, status: 'connected', config },
     update: { status: 'connected', config, updatedAt: new Date() },
   })
-  res.json(integration)
+  res.json(publicIntegration(integration))
 })
 
 router.delete('/integrations/:type', requireAdmin, async (req, res) => {

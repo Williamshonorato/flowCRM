@@ -114,7 +114,7 @@ const updateTenantSchema = z.object({
   plan:          z.string().optional(),
   billingStatus: z.enum(['trial', 'active', 'canceled']).optional(),
   monthlyValue:  z.number().min(0).optional(),
-  nextDueDate:   z.string().nullable().optional(), // ISO date, ou null pra limpar
+  nextDueDate:   z.string().refine(v => !Number.isNaN(Date.parse(v)), 'Data inválida.').nullable().optional(), // ISO date, ou null pra limpar
 })
 router.patch('/tenants/:id', async (req, res) => {
   const parsed = updateTenantSchema.safeParse(req.body)
@@ -185,13 +185,13 @@ router.post('/admins', requirePlatformOwner, async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
   const { name, email, password, platformRole } = parsed.data
 
-  const existing = await prisma.user.findFirst({ where: { email } })
+  const existing = await prisma.user.findFirst({ where: { email: { equals: email.trim(), mode: 'insensitive' } } })
   if (existing) return res.status(409).json({ error: 'E-mail já cadastrado.' })
 
   const internalTenant = await getInternalTenant()
   const hash = await bcrypt.hash(password, 10)
   const admin = await prisma.user.create({
-    data: { tenantId: internalTenant.id, name, email, password: hash, role: 'admin', platformRole },
+    data: { tenantId: internalTenant.id, name, email: email.trim().toLowerCase(), password: hash, role: 'admin', platformRole },
   })
   res.status(201).json({ id: admin.id, name: admin.name, email: admin.email, platformRole: admin.platformRole })
 })

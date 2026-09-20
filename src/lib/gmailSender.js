@@ -46,8 +46,11 @@ export function buildMimeMessage({ to, subject, htmlBody }) {
 // POST /gmail/send quanto pelo motor de automação (passo send_email).
 // origin: ex. "http://localhost:3333" — usado só pra montar a URL do pixel de rastreio.
 export async function sendGmailMessage({ tenantId, userId, contact, to, subject, body, origin }) {
-  const toEmail = contact?.email || to
+  const toEmail = String(contact?.email || to || '').trim()
   if (!toEmail) throw new Error('E-mail do destinatário não informado.')
+  // O destinatário vai direto num header MIME ("To: ..."): CR/LF ali permitiria injetar
+  // outros headers (Bcc, Subject...). Aceita só um endereço simples.
+  if (!/^[^\s<>,;"']+@[^\s<>,;"']+\.[^\s<>,;"']+$/.test(toEmail)) throw new Error('E-mail do destinatário inválido.')
 
   const integration = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId, type: 'gmail' } } })
   if (!integration || integration.status !== 'connected') throw new Error('Gmail não conectado.')

@@ -258,6 +258,7 @@
     renderConvList();
     const totalUnread = conversations.reduce((s, c) => s + c.unreadCount, 0);
     const badge = document.getElementById('sbUnread');
+    if (!badge) return;
     if (totalUnread > 0) { badge.style.display = 'inline-block'; badge.textContent = totalUnread; }
     else badge.style.display = 'none';
   }
@@ -275,8 +276,8 @@
       const key = convKey(c);
       const snippet = c.lastMessage ? (c.lastMessage.direction === 'out' ? 'Você: ' : '') + c.lastMessage.body : '';
       return `
-      <div class="conv-item ${currentConv === key ? 'active' : ''}" onclick='openConversation(${JSON.stringify(key)})'>
-        <div class="conv-avatar" style="background:${c.isGroup ? '#8b5cf6' : palColor(i)}">${c.isGroup ? '👥' : initials(c.name)}</div>
+      <div class="conv-item ${currentConv === key ? 'active' : ''}" onclick="openConversation(${jsAttr(key)})">
+        <div class="conv-avatar" style="background:${c.isGroup ? '#8b5cf6' : palColor(i)}">${c.isGroup ? '👥' : escapeHtml(initials(c.name))}</div>
         <div class="conv-body">
           <div class="conv-top"><div class="conv-name">${escapeHtml(c.name)}${c.isGroup ? '<span class="conv-tag">GRUPO</span>' : ''}</div><div class="conv-time">${c.lastMessage ? fmtTime(c.lastMessage.createdAt) : ''}</div></div>
           <div class="conv-preview">
@@ -367,10 +368,10 @@
     if (!box) return;
     box.innerHTML = messages.map(m => {
       let inner = '';
-      if (m.mediaUrl && m.mediaType === 'image') inner += `<div class="msg-media"><img src="${m.mediaUrl}" onclick="window.open('${m.mediaUrl}')"/></div>`;
-      else if (m.mediaUrl && m.mediaType === 'audio') inner += `<div class="msg-media"><audio controls src="${m.mediaUrl}"></audio></div>`;
-      else if (m.mediaUrl && m.mediaType === 'video') inner += `<div class="msg-media"><video controls src="${m.mediaUrl}" style="max-width:240px;border-radius:10px"></video></div>`;
-      else if (m.mediaUrl) inner += `<div class="msg-media"><a href="${m.mediaUrl}" target="_blank">📄 Abrir arquivo</a></div>`;
+      if (m.mediaUrl && m.mediaType === 'image') inner += `<div class="msg-media"><img src="${escapeHtml(m.mediaUrl)}" onclick="window.open(${jsAttr(m.mediaUrl)})"/></div>`;
+      else if (m.mediaUrl && m.mediaType === 'audio') inner += `<div class="msg-media"><audio controls src="${escapeHtml(m.mediaUrl)}"></audio></div>`;
+      else if (m.mediaUrl && m.mediaType === 'video') inner += `<div class="msg-media"><video controls src="${escapeHtml(m.mediaUrl)}" style="max-width:240px;border-radius:10px"></video></div>`;
+      else if (m.mediaUrl) inner += `<div class="msg-media"><a href="${escapeHtml(m.mediaUrl)}" target="_blank" rel="noopener">📄 Abrir arquivo</a></div>`;
       const showCaption = m.body && !(m.mediaType && /^\[.+\]$/.test(m.body));
       if (showCaption || !m.mediaUrl) inner += escapeHtml(m.body);
       const sender = (isGroup && m.direction === 'in') ? `<div class="msg-sender">${escapeHtml(m.senderName || m.senderPhone || '')}</div>` : '';

@@ -27,7 +27,7 @@
     { href: 'crm-dashboard.html',      ico: '📊', label: 'Dashboard' },
     { href: 'crm-pipeline.html',       ico: '🗂️', label: 'Pipeline' },
     { href: 'crm-contatos.html',       ico: '👥', label: 'Contatos' },
-    { href: 'crm-conversas.html',      ico: '💬', label: 'Conversas' },
+    { href: 'crm-conversas.html',      ico: '💬', label: 'Conversas', unread: true },
     { href: 'crm-disparos.html',       ico: '📣', label: 'Disparos' },
     { href: 'crm-tarefas.html',        ico: '✅', label: 'Tarefas', badge: true },
     { section: 'Sistema' },
@@ -52,7 +52,10 @@
     nav.innerHTML = NAV.map((it) => {
       if (it.section) return `<div class="sb-section">${it.section}</div>`;
       const active = it.href.toLowerCase() === here ? ' active' : '';
-      const badge = it.badge ? '<span class="badge" data-fc="tasks-badge" style="display:none"></span>' : '';
+      // O menu inteiro é reconstruído aqui, então o badge de não lidas (#sbUnread, preenchido pela
+      // tela de Conversas) precisa nascer junto — senão ele sumia e a tela dava erro de JS.
+      const badge = it.badge ? '<span class="badge" data-fc="tasks-badge" style="display:none"></span>'
+        : it.unread ? '<span class="badge" id="sbUnread" style="display:none">0</span>' : '';
       return `<a class="nav-item${active}" href="${it.href}"><span class="ico">${it.ico}</span>${it.label}${badge}</a>`;
     }).join('');
   }

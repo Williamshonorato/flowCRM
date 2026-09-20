@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import jwt from 'jsonwebtoken'
 import prisma from '../lib/prisma.js'
-import { requireAuth } from '../middleware/auth.js'
+import { requireAuth, verifyConnectToken } from '../middleware/auth.js'
 import { sendError } from '../lib/errorPage.js'
 
 const router = Router()
@@ -22,12 +22,12 @@ router.get('/connect', (req, res) => {
 
   let payload
   try {
-    payload = jwt.verify(req.query.token, process.env.JWT_SECRET)
+    payload = verifyConnectToken(req.query.token)
   } catch {
     return res.status(401).json({ error: 'Token inválido ou expirado.' })
   }
 
-  const state = jwt.sign({ tenantId: payload.tenantId }, process.env.JWT_SECRET, { expiresIn: '10m' })
+  const state = jwt.sign({ tenantId: payload.tenantId, purpose: 'oauth-state', provider: 'calendar' }, process.env.JWT_SECRET, { expiresIn: '10m' })
 
   const url = new URL(GOOGLE_AUTH_URL)
   url.searchParams.set('client_id', GOOGLE_CLIENT_ID)
@@ -48,6 +48,8 @@ router.get('/callback', async (req, res) => {
   let statePayload
   try {
     statePayload = jwt.verify(state, process.env.JWT_SECRET)
+    // o state tem que ser DESTE fluxo: um token qualquer assinado pelo app (sessão, login...) não serve
+    if (statePayload.purpose !== 'oauth-state' || statePayload.provider !== 'calendar') throw new Error('state inválido')
   } catch {
     return res.redirect('/app/crm-integracoes.html?calendar=error')
   }
@@ -78,6 +80,11 @@ router.get('/callback', async (req, res) => {
       email = (await profileRes.json()).email || null
     } catch {}
 
+    // Reautorizar nem sempre devolve refresh_token novo; o update REGRAVA o config inteiro, então
+    // sem carregar o antigo a conexão perdia o refresh_token e deixava de renovar sozinha.
+    const prevIntegration = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId: statePayload.tenantId, type: 'google_calendar' } } })
+    const existingConfig = prevIntegration?.config || {}
+
     await prisma.integration.upsert({
       where: { tenantId_type: { tenantId: statePayload.tenantId, type: 'google_calendar' } },
       create: {
@@ -90,7 +97,7 @@ router.get('/callback', async (req, res) => {
       update: {
         status: 'connected',
         lastSync: new Date(),
-        config: { email, access_token: tokens.access_token, refresh_token: tokens.refresh_token || undefined, expires_at: Date.now() + tokens.expires_in * 1000 },
+        config: { email, access_token: tokens.access_token, refresh_token: tokens.refresh_token || existingConfig.refresh_token, expires_at: Date.now() + tokens.expires_in * 1000 },
       },
     })
 

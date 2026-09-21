@@ -455,7 +455,7 @@
     <!-- STEP 1 -->
     <div class="step-panel active" id="step1">
       <div class="card-title">Criar sua conta</div>
-      <div class="card-sub">Grátis por 14 dias, sem cartão de crédito.</div>
+      <div class="card-sub">Preencha os dados para criar sua conta.</div>
 
       <div class="row-2">
         <div class="input-group">
@@ -520,7 +520,7 @@
     <!-- STEP 2 -->
     <div class="step-panel" id="step2">
       <div class="card-title">Escolha seu plano</div>
-      <div class="card-sub">Comece grátis por 14 dias. Cancele quando quiser.</div>
+      <div class="card-sub">Escolha o plano e a forma de pagamento. Cancele quando quiser.</div>
 
       <div class="cycle-toggle" role="group" aria-label="Ciclo de pagamento">
         <button type="button" class="cycle-btn active" id="cycle-monthly" onclick="setCycle('monthly')">Mensal</button>
@@ -656,13 +656,6 @@
           <div class="sr-body">
             <div class="sr-label">SEGMENTO</div>
             <div class="sr-val" id="sum-seg">Clínica / Saúde</div>
-          </div>
-        </div>
-        <div class="summary-row">
-          <div class="sr-ico">🔑</div>
-          <div class="sr-body">
-            <div class="sr-label">TRIAL GRATUITO ATÉ</div>
-            <div class="sr-val" id="sum-trial"></div>
           </div>
         </div>
 
@@ -882,9 +875,6 @@
   function buildSuccess() {
     document.getElementById('sum-plan').textContent = planSummary();
     document.getElementById('sum-seg').textContent  = selectedSeg;
-    const d = new Date(); d.setDate(d.getDate() + 14);
-    document.getElementById('sum-trial').textContent =
-      d.toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
   }
 
   // init

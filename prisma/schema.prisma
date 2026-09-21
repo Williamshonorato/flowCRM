@@ -28,6 +28,7 @@ model Tenant {
   // integrado ainda). "active" com nextDueDate no passado = inadimplente; a data é
   // a fonte da verdade, ninguém marca "atrasado" manualmente.
   billingStatus String    @default("trial") // trial | active | canceled
+  billingCycle  String    @default("monthly") // monthly | annual (anual = 12 meses de uma vez, com desconto)
   monthlyValue  Decimal   @default(0) @db.Decimal(10, 2)
   nextDueDate   DateTime?
 

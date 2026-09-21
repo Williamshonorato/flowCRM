@@ -252,6 +252,15 @@
       <div class="inp-g"><label>Mensalidade (R$)</label><input type="number" id="e-value" min="0" step="0.01" placeholder="0,00"/></div>
     </div>
     <div class="row2">
+      <div class="inp-g"><label>Ciclo de pagamento</label>
+        <select id="e-cycle">
+          <option value="monthly">Mensal</option>
+          <option value="annual">Anual (12 meses, 10% off)</option>
+        </select>
+      </div>
+      <div class="inp-g"><label style="visibility:hidden">.</label><div style="font-size:11.5px;color:#64748b;padding-top:6px">A mensalidade é o valor <b>mensal equivalente</b> (no anual: total do ano ÷ 12).</div></div>
+    </div>
+    <div class="row2">
       <div class="inp-g"><label>Status de cobrança</label>
         <select id="e-billing">
           <option value="trial">Trial</option>
@@ -417,7 +426,7 @@
         <td><div class="tname">${esc(t.name)}</div><div class="tmeta">${esc(t.slug)}</div></td>
         <td>${esc(PLAN_LABEL[t.plan] || t.plan)}</td>
         <td class="money-cell">
-          <div class="val">${fmtMoney(t.monthlyValue)}</div>
+          <div class="val">${fmtMoney(t.monthlyValue)}${t.billingCycle === 'annual' ? ' <span style="font-size:10.5px;font-weight:700;color:#8e44ad">· anual</span>' : ''}</div>
           ${due ? `<div class="due${t.overdue ? ' late' : ''}">vence ${due}</div>` : ''}
         </td>
         <td>${billingBadge(t)}</td>
@@ -446,6 +455,7 @@
     document.getElementById('e-plan').value = t.plan || 'starter';
     document.getElementById('e-value').value = Number(t.monthlyValue || 0);
     document.getElementById('e-billing').value = t.billingStatus || 'trial';
+    document.getElementById('e-cycle').value = t.billingCycle || 'monthly';
     document.getElementById('e-due').value = t.nextDueDate ? t.nextDueDate.slice(0, 10) : '';
     document.getElementById('e-active').checked = !!t.active;
     document.getElementById('editOverlay').classList.add('open');
@@ -461,6 +471,7 @@
       plan: document.getElementById('e-plan').value,
       monthlyValue: Number(document.getElementById('e-value').value) || 0,
       billingStatus: document.getElementById('e-billing').value,
+      billingCycle: document.getElementById('e-cycle').value,
       nextDueDate: document.getElementById('e-due').value || null,
       active: document.getElementById('e-active').checked,
     };

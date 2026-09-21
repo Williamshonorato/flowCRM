@@ -5,6 +5,7 @@ import { z } from 'zod'
 import prisma from '../lib/prisma.js'
 import { sendError } from '../lib/errorPage.js'
 import { requireAuth, requireAdmin } from '../middleware/auth.js'
+import { PLANS, ANNUAL_DISCOUNT, priceFor } from '../lib/plans.js'
 
 const router = Router()
 
@@ -40,6 +41,7 @@ const registerSchema = z.object({
   // Starter/Profissional seguem existindo pra contas antigas e o painel da plataforma ainda
   // consegue atribuí-los; o cadastro público só oferece estes dois.
   plan:         z.enum(['connected', 'enterprise']).default('connected'),
+  billingCycle: z.enum(['monthly', 'annual']).default('monthly'),
 })
 
 const loginSchema = z.object({
@@ -47,12 +49,22 @@ const loginSchema = z.object({
   password: z.string().min(1),
 })
 
+// GET /auth/plans — planos e preços do cadastro (público). A tela lê daqui pra nunca
+// divergir do valor que o servidor grava.
+router.get('/plans', (req, res) => {
+  res.json({
+    annualDiscount: ANNUAL_DISCOUNT,
+    plans: Object.fromEntries(Object.entries(PLANS).map(([key, p]) => [p.name, { key, monthly: p.monthly }])),
+  })
+})
+
 // POST /auth/register — cria tenant + admin
 router.post('/register', async (req, res) => {
   const parsed = registerSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
 
-  const { name, email, password, businessName, segment, plan } = parsed.data
+  const { name, email, password, businessName, segment, plan, billingCycle } = parsed.data
+  const price = priceFor(plan, billingCycle)
 
   const existingUser = await prisma.user.findFirst({ where: byEmail(email) })
   if (existingUser) return res.status(409).json({ error: 'E-mail já cadastrado.' })
@@ -76,6 +88,8 @@ router.post('/register', async (req, res) => {
         slug,
         segment,
         plan,
+        billingCycle: price.cycle,
+        monthlyValue: price.monthlyValue,
         users: { create: { name, email: email.trim().toLowerCase(), password: hash, role: 'admin' } },
         stages: { create: DEFAULT_STAGES },
       },

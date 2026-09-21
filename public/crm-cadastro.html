@@ -224,6 +224,12 @@
     .plan-name { font-size: 15px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
     .plan-price { font-size: 22px; font-weight: 800; color: var(--green); line-height: 1; }
     .plan-price span { font-size: 12px; font-weight: 500; color: var(--muted); }
+    .plan-price s { font-size: 13px; font-weight: 500; color: var(--muted); margin-right: 6px; }
+    .plan-note { font-size: 11.5px; color: var(--green); font-weight: 700; margin-top: 6px; min-height: 15px; }
+    .cycle-toggle { display: inline-flex; background: #f1f5f9; border-radius: 12px; padding: 4px; margin: 4px 0 18px; gap: 4px; }
+    .cycle-btn { border: none; background: transparent; padding: 8px 18px; border-radius: 9px; font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; font-family: inherit; }
+    .cycle-btn.active { background: #fff; color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+    .cycle-off { background: var(--amber); color: #fff; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 20px; margin-left: 6px; letter-spacing: .3px; }
     .plan-desc { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
     .plan-features { margin-top: 12px; display: flex; flex-direction: column; gap: 5px; }
     .plan-feat {
@@ -516,11 +522,17 @@
       <div class="card-title">Escolha seu plano</div>
       <div class="card-sub">Comece grátis por 14 dias. Cancele quando quiser.</div>
 
+      <div class="cycle-toggle" role="group" aria-label="Ciclo de pagamento">
+        <button type="button" class="cycle-btn active" id="cycle-monthly" onclick="setCycle('monthly')">Mensal</button>
+        <button type="button" class="cycle-btn" id="cycle-annual" onclick="setCycle('annual')">Anual <span class="cycle-off" id="cycle-off">-10%</span></button>
+      </div>
+
       <div class="plans">
         <div class="plan-card selected" onclick="selectPlan(this,'Conectado')" id="plan-Conectado">
           <div class="plan-icon">🔌</div>
           <div class="plan-name">Conectado</div>
-          <div class="plan-price">R$ 397<span>/mês</span></div>
+          <div class="plan-price" id="price-Conectado">R$ 500<span>/mês</span></div>
+          <div class="plan-note" id="note-Conectado"></div>
           <div class="plan-desc">Conecta ao banco que você já tem.</div>
           <div class="plan-features">
             <div class="plan-feat">Pipeline, relatórios e WhatsApp</div>
@@ -533,7 +545,8 @@
         <div class="plan-card" onclick="selectPlan(this,'Empresarial')" id="plan-Empresarial">
           <div class="plan-icon">🏢</div>
           <div class="plan-name">Empresarial</div>
-          <div class="plan-price">R$ 1.200<span>/mês</span></div>
+          <div class="plan-price" id="price-Empresarial">R$ 1.200<span>/mês</span></div>
+          <div class="plan-note" id="note-Empresarial"></div>
           <div class="plan-desc">Franquias e redes. +30 usuários.</div>
           <div class="plan-features">
             <div class="plan-feat">Multi-empresa</div>
@@ -635,7 +648,7 @@
           <div class="sr-ico">📋</div>
           <div class="sr-body">
             <div class="sr-label">PLANO ATIVO</div>
-            <div class="sr-val" id="sum-plan">Conectado — R$ 397/mês</div>
+            <div class="sr-val" id="sum-plan">Conectado — R$ 500/mês</div>
           </div>
         </div>
         <div class="summary-row">
@@ -709,9 +722,46 @@
   }
 
   /* ── STEP 2: PLANS ── */
-  const planPrices = { Conectado:'R$ 397/mês', Empresarial:'R$ 1.200/mês' };
-  // O backend guarda a CHAVE do plano (connected/enterprise), não o nome de exibição
-  const planKeys = { Conectado:'connected', Empresarial:'enterprise' };
+  // Preços vêm do servidor (GET /auth/plans) — o servidor é quem grava o valor da empresa, então a
+  // tela nunca decide preço. Os números abaixo só valem se o servidor não responder.
+  // O backend guarda a CHAVE do plano (connected/enterprise), não o nome de exibição.
+  let PLANS = { Conectado: { key: 'connected', monthly: 500 }, Empresarial: { key: 'enterprise', monthly: 1200 } };
+  let ANNUAL_DISCOUNT = 0.10;
+  let billingCycle = 'monthly'; // monthly | annual
+
+  const round2 = n => Math.round(n * 100) / 100;
+  const brl = n => 'R$ ' + Number(n).toLocaleString('pt-BR', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 });
+  function planCost(name) {
+    const m = PLANS[name].monthly;
+    const yearFull = m * 12, yearTotal = round2(yearFull * (1 - ANNUAL_DISCOUNT));
+    return { monthly: m, perMonthAnnual: round2(yearTotal / 12), yearTotal, saving: round2(yearFull - yearTotal) };
+  }
+  function renderPrices() {
+    const pct = Math.round(ANNUAL_DISCOUNT * 100);
+    document.getElementById('cycle-off').textContent = '-' + pct + '%';
+    Object.keys(PLANS).forEach(name => {
+      const c = planCost(name), annual = billingCycle === 'annual';
+      document.getElementById('price-' + name).innerHTML = annual
+        ? '<s>' + brl(c.monthly) + '</s>' + brl(c.perMonthAnnual) + '<span>/mês</span>'
+        : brl(c.monthly) + '<span>/mês</span>';
+      document.getElementById('note-' + name).textContent = annual
+        ? 'Cobrado ' + brl(c.yearTotal) + ' por ano · economize ' + brl(c.saving)
+        : '';
+    });
+    document.getElementById('cycle-monthly').classList.toggle('active', billingCycle === 'monthly');
+    document.getElementById('cycle-annual').classList.toggle('active', billingCycle === 'annual');
+  }
+  function setCycle(cycle) { billingCycle = cycle; renderPrices(); }
+  function planSummary() {
+    const c = planCost(selectedPlan);
+    return billingCycle === 'annual'
+      ? selectedPlan + ' (anual) — ' + brl(c.yearTotal) + '/ano · ' + Math.round(ANNUAL_DISCOUNT * 100) + '% de desconto'
+      : selectedPlan + ' — ' + brl(c.monthly) + '/mês';
+  }
+  fetch(API_BASE + '/auth/plans').then(r => r.ok ? r.json() : null).then(d => {
+    if (d && d.plans && Object.keys(d.plans).length) { PLANS = d.plans; ANNUAL_DISCOUNT = d.annualDiscount; }
+    renderPrices();
+  }).catch(() => renderPrices());
   function selectPlan(el, name) {
     document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
     el.classList.add('selected');
@@ -799,7 +849,7 @@
     const data = await fetch(API_BASE + '/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: nome, email, password: senha, businessName: empresa, segment: selectedSeg, plan: planKeys[selectedPlan] }),
+      body: JSON.stringify({ name: nome, email, password: senha, businessName: empresa, segment: selectedSeg, plan: PLANS[selectedPlan].key, billingCycle }),
     }).then(r => r.json()).catch(() => null);
 
     btn.textContent = 'Criar meu CRM 🚀'; btn.disabled = false;
@@ -830,7 +880,7 @@
 
   /* ── SUCCESS ── */
   function buildSuccess() {
-    document.getElementById('sum-plan').textContent = selectedPlan + ' — ' + planPrices[selectedPlan];
+    document.getElementById('sum-plan').textContent = planSummary();
     document.getElementById('sum-seg').textContent  = selectedSeg;
     const d = new Date(); d.setDate(d.getDate() + 14);
     document.getElementById('sum-trial').textContent =

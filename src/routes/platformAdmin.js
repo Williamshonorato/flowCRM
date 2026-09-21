@@ -113,6 +113,7 @@ const updateTenantSchema = z.object({
   active:        z.boolean().optional(),
   plan:          z.string().optional(),
   billingStatus: z.enum(['trial', 'active', 'canceled']).optional(),
+  billingCycle:  z.enum(['monthly', 'annual']).optional(),
   monthlyValue:  z.number().min(0).optional(),
   nextDueDate:   z.string().refine(v => !Number.isNaN(Date.parse(v)), 'Data inválida.').nullable().optional(), // ISO date, ou null pra limpar
 })

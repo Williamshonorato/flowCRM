@@ -225,11 +225,23 @@
     .plan-price { font-size: 22px; font-weight: 800; color: var(--green); line-height: 1; }
     .plan-price span { font-size: 12px; font-weight: 500; color: var(--muted); }
     .plan-price s { font-size: 13px; font-weight: 500; color: var(--muted); margin-right: 6px; }
-    .plan-note { font-size: 11.5px; color: var(--green); font-weight: 700; margin-top: 6px; min-height: 15px; }
-    .cycle-toggle { display: inline-flex; background: #f1f5f9; border-radius: 12px; padding: 4px; margin: 4px 0 18px; gap: 4px; }
-    .cycle-btn { border: none; background: transparent; padding: 8px 18px; border-radius: 9px; font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; font-family: inherit; }
-    .cycle-btn.active { background: #fff; color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
-    .cycle-off { background: var(--amber); color: #fff; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 20px; margin-left: 6px; letter-spacing: .3px; }
+    .price-opts { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+    .price-opt { display: flex; gap: 10px; align-items: flex-start; border: 1.5px solid var(--border); border-radius: 10px; padding: 10px 12px; background: #fff; transition: all .15s; }
+    .price-opt:hover { border-color: #94a3b8; }
+    .price-opt.sel { border-color: var(--green); background: #fff; box-shadow: 0 0 0 2px rgba(39,174,96,.14); }
+    .price-opt.best { background: #fffbeb; }
+    .price-opt.best.sel { background: #f0fdf4; }
+    .po-radio { width: 15px; height: 15px; border-radius: 50%; border: 2px solid #cbd5e1; flex-shrink: 0; margin-top: 2px; background: #fff; }
+    .price-opt.sel .po-radio { border-color: var(--green); background: radial-gradient(var(--green) 45%, #fff 50%); }
+    .po-body { flex: 1; min-width: 0; }
+    .po-label { font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; display: flex; align-items: center; gap: 6px; }
+    .po-off { background: var(--amber); color: #fff; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 20px; letter-spacing: .3px; text-transform: none; }
+    .po-price { font-size: 20px; font-weight: 800; color: var(--text); line-height: 1.2; margin-top: 2px; white-space: nowrap; }
+    .price-opt.sel .po-price { color: var(--green); }
+    .po-price span { font-size: 12px; font-weight: 500; color: var(--muted); }
+    .po-was { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+    .po-was s { color: #94a3b8; }
+    .po-note { font-size: 11.5px; color: #b45309; font-weight: 700; margin-top: 3px; line-height: 1.4; }
     .plan-desc { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
     .plan-features { margin-top: 12px; display: flex; flex-direction: column; gap: 5px; }
     .plan-feat {
@@ -522,17 +534,11 @@
       <div class="card-title">Escolha seu plano</div>
       <div class="card-sub">Escolha o plano e a forma de pagamento. Cancele quando quiser.</div>
 
-      <div class="cycle-toggle" role="group" aria-label="Ciclo de pagamento">
-        <button type="button" class="cycle-btn active" id="cycle-monthly" onclick="setCycle('monthly')">Mensal</button>
-        <button type="button" class="cycle-btn" id="cycle-annual" onclick="setCycle('annual')">Anual <span class="cycle-off" id="cycle-off">-10%</span></button>
-      </div>
-
       <div class="plans">
         <div class="plan-card selected" onclick="selectPlan(this,'Conectado')" id="plan-Conectado">
           <div class="plan-icon">🔌</div>
           <div class="plan-name">Conectado</div>
-          <div class="plan-price" id="price-Conectado">R$ 500<span>/mês</span></div>
-          <div class="plan-note" id="note-Conectado"></div>
+          <div class="price-opts" id="opts-Conectado"></div>
           <div class="plan-desc">Conecta ao banco que você já tem.</div>
           <div class="plan-features">
             <div class="plan-feat">Pipeline, relatórios e WhatsApp</div>
@@ -545,8 +551,7 @@
         <div class="plan-card" onclick="selectPlan(this,'Empresarial')" id="plan-Empresarial">
           <div class="plan-icon">🏢</div>
           <div class="plan-name">Empresarial</div>
-          <div class="plan-price" id="price-Empresarial">R$ 1.200<span>/mês</span></div>
-          <div class="plan-note" id="note-Empresarial"></div>
+          <div class="price-opts" id="opts-Empresarial"></div>
           <div class="plan-desc">Franquias e redes. +30 usuários.</div>
           <div class="plan-features">
             <div class="plan-feat">Multi-empresa</div>
@@ -723,34 +728,48 @@
   let billingCycle = 'monthly'; // monthly | annual
 
   const round2 = n => Math.round(n * 100) / 100;
-  const brl = n => 'R$ ' + Number(n).toLocaleString('pt-BR', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 });
+  // espaço inseparável entre "R$" e o número: o valor nunca quebra de linha no meio
+  const brl = n => 'R$\u00a0' + Number(n).toLocaleString('pt-BR', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 });
   function planCost(name) {
     const m = PLANS[name].monthly;
     const yearFull = m * 12, yearTotal = round2(yearFull * (1 - ANNUAL_DISCOUNT));
     return { monthly: m, perMonthAnnual: round2(yearTotal / 12), yearTotal, saving: round2(yearFull - yearTotal) };
   }
+  // Cada plano mostra os DOIS preços ao mesmo tempo (mensal e anual, com desconto e economia),
+  // pra a pessoa comparar de cara; clicar numa opção escolhe plano + ciclo.
   function renderPrices() {
     const pct = Math.round(ANNUAL_DISCOUNT * 100);
-    document.getElementById('cycle-off').textContent = '-' + pct + '%';
     Object.keys(PLANS).forEach(name => {
-      const c = planCost(name), annual = billingCycle === 'annual';
-      document.getElementById('price-' + name).innerHTML = annual
-        ? '<s>' + brl(c.monthly) + '</s>' + brl(c.perMonthAnnual) + '<span>/mês</span>'
-        : brl(c.monthly) + '<span>/mês</span>';
-      document.getElementById('note-' + name).textContent = annual
-        ? 'Cobrado ' + brl(c.yearTotal) + ' por ano · economize ' + brl(c.saving)
-        : '';
+      const c = planCost(name), picked = name === selectedPlan;
+      const mSel = picked && billingCycle === 'monthly', aSel = picked && billingCycle === 'annual';
+      document.getElementById('opts-' + name).innerHTML =
+        '<div class="price-opt' + (mSel ? ' sel' : '') + '" onclick="pickOption(event, \'' + name + '\', \'monthly\')">' +
+          '<div class="po-radio"></div><div class="po-body">' +
+          '<div class="po-label">Mensal</div>' +
+          '<div class="po-price">' + brl(c.monthly) + '<span>/mês</span></div>' +
+        '</div></div>' +
+        '<div class="price-opt best' + (aSel ? ' sel' : '') + '" onclick="pickOption(event, \'' + name + '\', \'annual\')">' +
+          '<div class="po-radio"></div><div class="po-body">' +
+          '<div class="po-label">Anual <span class="po-off">-' + pct + '%</span></div>' +
+          '<div class="po-price">' + brl(c.perMonthAnnual) + '<span>/mês</span></div>' +
+          '<div class="po-was"><s>' + brl(c.monthly) + '/mês</s> no mensal</div>' +
+          '<div class="po-note">Pague ' + brl(c.yearTotal) + ' por ano e economize ' + brl(c.saving) + '</div>' +
+        '</div></div>';
     });
-    document.getElementById('cycle-monthly').classList.toggle('active', billingCycle === 'monthly');
-    document.getElementById('cycle-annual').classList.toggle('active', billingCycle === 'annual');
   }
   function setCycle(cycle) { billingCycle = cycle; renderPrices(); }
+  function pickOption(ev, name, cycle) {
+    ev.stopPropagation();                       // não deixa o clique do card refazer a seleção
+    selectPlan(document.getElementById('plan-' + name), name);
+    setCycle(cycle);
+  }
   function planSummary() {
     const c = planCost(selectedPlan);
     return billingCycle === 'annual'
       ? selectedPlan + ' (anual) — ' + brl(c.yearTotal) + '/ano · ' + Math.round(ANNUAL_DISCOUNT * 100) + '% de desconto'
       : selectedPlan + ' — ' + brl(c.monthly) + '/mês';
   }
+  renderPrices(); // já com os valores padrão; o fetch abaixo só corrige se o servidor tiver outros
   fetch(API_BASE + '/auth/plans').then(r => r.ok ? r.json() : null).then(d => {
     if (d && d.plans && Object.keys(d.plans).length) { PLANS = d.plans; ANNUAL_DISCOUNT = d.annualDiscount; }
     renderPrices();
@@ -759,6 +778,7 @@
     document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
     el.classList.add('selected');
     selectedPlan = name;
+    renderPrices();
     const toggle = document.getElementById('banco-toggle');
     toggle.style.display = (name === 'Conectado') ? 'block' : 'none';
   }

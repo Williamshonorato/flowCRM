@@ -278,6 +278,23 @@
   </div>
 </div>
 
+<!-- EDITAR ADMIN -->
+<div class="overlay" id="adminEditOverlay" onclick="if(event.target===this)closeAdminEdit()">
+  <div class="modal">
+    <h3>✏️ Editar admin</h3>
+    <div class="inp-g"><label>Nome</label><input type="text" id="ea-name"/></div>
+    <div class="inp-g"><label>E-mail</label><input type="email" id="ea-email"/></div>
+    <div class="inp-g"><label>Nova senha</label><input type="password" id="ea-pass" placeholder="Deixe em branco pra manter a atual" autocomplete="new-password"/></div>
+    <div class="inp-g" style="margin-bottom:0"><label>Papel</label>
+      <select id="ea-role"><option value="superadmin">superadmin</option><option value="owner">owner</option></select>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeAdminEdit()">Cancelar</button>
+      <button class="modal-save" onclick="saveAdminEdit()">Salvar alterações</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script src="flowcrm-api.js"></script>
@@ -496,16 +513,20 @@
     loadTenants();
   }
 
+  let admins = [];
   async function loadAdmins() {
     const me = await mePromise;
     if (me?.user?.platformRole !== 'owner') return;
-    const admins = await api('/platform/admins') || [];
+    admins = await api('/platform/admins') || [];
     document.getElementById('adminsBody').innerHTML = admins.map(a => `
       <tr>
         <td>${esc(a.name)}</td>
         <td>${esc(a.email)}</td>
         <td>${esc(a.platformRole)}</td>
-        <td>${a.id === me?.user?.id ? '' : `<button class="btn-sm danger" onclick="deleteAdmin(${jsAttr(a.id)})">Remover</button>`}</td>
+        <td><div class="row-actions">
+          <button class="btn-sm" onclick="openAdminEdit(${jsAttr(a.id)})">Editar</button>
+          ${a.id === me?.user?.id ? '' : `<button class="btn-sm danger" onclick="deleteAdmin(${jsAttr(a.id)})">Remover</button>`}
+        </div></td>
       </tr>
     `).join('');
   }
@@ -524,6 +545,37 @@
       document.getElementById('na-pass').value = '';
       loadAdmins();
     }
+  }
+
+  // ── EDITAR ADMIN ─────────────────────────────────────────────────────────────
+  let editingAdminId = null;
+  async function openAdminEdit(id) {
+    const a = admins.find(x => x.id === id);
+    if (!a) return;
+    const me = await mePromise;
+    editingAdminId = id;
+    document.getElementById('ea-name').value = a.name || '';
+    document.getElementById('ea-email').value = a.email || '';
+    document.getElementById('ea-pass').value = '';
+    document.getElementById('ea-role').value = a.platformRole;
+    document.getElementById('ea-role').disabled = id === me?.user?.id; // não dá pra mudar o próprio papel
+    document.getElementById('adminEditOverlay').classList.add('open');
+  }
+  function closeAdminEdit() { document.getElementById('adminEditOverlay').classList.remove('open'); editingAdminId = null; }
+
+  async function saveAdminEdit() {
+    if (!editingAdminId) return;
+    const name = document.getElementById('ea-name').value.trim();
+    const email = document.getElementById('ea-email').value.trim();
+    const password = document.getElementById('ea-pass').value;
+    if (!name || !email) { showToast('Informe nome e e-mail.'); return; }
+    if (password && password.length < 6) { showToast('A senha nova precisa ter pelo menos 6 caracteres.'); return; }
+    const body = { name, email };
+    if (password) body.password = password;
+    const roleSel = document.getElementById('ea-role');
+    if (!roleSel.disabled) body.platformRole = roleSel.value;
+    const result = await api('/platform/admins/' + editingAdminId, { method: 'PATCH', body: JSON.stringify(body) });
+    if (result) { showToast(password ? 'Admin atualizado e senha trocada.' : 'Admin atualizado.'); closeAdminEdit(); loadAdmins(); }
   }
 
   async function deleteAdmin(id) {

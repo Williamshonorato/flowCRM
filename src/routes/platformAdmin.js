@@ -197,6 +197,41 @@ router.post('/admins', requirePlatformOwner, async (req, res) => {
   res.status(201).json({ id: admin.id, name: admin.name, email: admin.email, platformRole: admin.platformRole })
 })
 
+// PATCH /platform/admins/:id — editar nome, e-mail, papel e/ou trocar a senha de um admin.
+// Senha em branco/ausente mantém a atual (a gente nunca tem como mostrar a antiga: é bcrypt).
+const updateAdminSchema = z.object({
+  name:     z.string().min(2).optional(),
+  email:    z.string().email().optional(),
+  password: z.string().min(6).optional(),
+  platformRole: z.enum(['owner', 'superadmin']).optional(),
+})
+router.patch('/admins/:id', requirePlatformOwner, async (req, res) => {
+  const parsed = updateAdminSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
+  const { name, email, password, platformRole } = parsed.data
+
+  const existing = await prisma.user.findUnique({ where: { id: req.params.id } })
+  if (!existing || !existing.platformRole) return res.status(404).json({ error: 'Admin não encontrado.' })
+  // Rebaixar a si mesmo tiraria o próprio acesso a esta tela sem ninguém pra desfazer.
+  if (req.params.id === req.user.userId && platformRole && platformRole !== existing.platformRole) {
+    return res.status(400).json({ error: 'Você não pode mudar o seu próprio papel.' })
+  }
+
+  const data = {}
+  if (name) data.name = name
+  if (platformRole) data.platformRole = platformRole
+  if (email) {
+    const normalized = email.trim().toLowerCase()
+    const taken = await prisma.user.findFirst({ where: { email: { equals: normalized, mode: 'insensitive' }, id: { not: existing.id } } })
+    if (taken) return res.status(409).json({ error: 'E-mail já cadastrado.' })
+    data.email = normalized
+  }
+  if (password) data.password = await bcrypt.hash(password, 10)
+
+  const admin = await prisma.user.update({ where: { id: existing.id }, data })
+  res.json({ id: admin.id, name: admin.name, email: admin.email, platformRole: admin.platformRole })
+})
+
 router.delete('/admins/:id', requirePlatformOwner, async (req, res) => {
   if (req.params.id === req.user.userId) return res.status(400).json({ error: 'Você não pode remover seu próprio acesso.' })
   const existing = await prisma.user.findUnique({ where: { id: req.params.id } })

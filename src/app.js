@@ -81,11 +81,22 @@ function bustSharedScripts(html) {
 // Serve todo .html do public/ (e a raiz "/", que aponta pro login) reescrevendo
 // os dois <script src> compartilhados; qualquer outro caminho (imagens, o
 // próprio flowcrm-api.js, uploads...) passa direto pro express.static de sempre.
+//
+// As páginas aparecem sem ".html" na barra de endereço (/crm-plataforma): o caminho
+// sem extensão é servido a partir do .html correspondente, e quem chega pela URL
+// antiga com ".html" (favoritos, links salvos) é redirecionado pra versão limpa.
 function serveHtmlWithCacheBust(req, res, next) {
   if (req.method !== 'GET' && req.method !== 'HEAD') return next()
-  const reqPath = req.path === '/' ? '/crm-login.html' : req.path
-  if (!reqPath.endsWith('.html')) return next()
-  if (reqPath.startsWith('/uploads/')) return next() // conteúdo de usuário nunca passa como página do app
+  // Só nomes de página do app (/crm-xxx): não encosta em /uploads, nas rotas da API
+  // nem em caminhos tipo "//outro-site.com/x.html", que virariam redirect pra fora.
+  const page = req.path === '/' ? ['', 'crm-login', ''] : req.path.match(/^\/(crm-[a-z-]+)(\.html)?$/)
+  if (!page) return next()
+  if (page[2]) {
+    const qIdx = req.originalUrl.indexOf('?')
+    const query = qIdx === -1 ? '' : req.originalUrl.slice(qIdx)
+    return res.redirect(301, `${req.baseUrl}/${page[1]}${query}`)
+  }
+  const reqPath = `/${page[1]}.html`
 
   const filePath = normalize(join(PUBLIC_DIR, reqPath))
   if (!filePath.startsWith(PUBLIC_DIR + sep)) return next() // fora de public/ — deixa 404 seguir o rito normal
@@ -152,7 +163,7 @@ const PORT = process.env.PORT || 3333
 app.listen(PORT, () => {
   console.log(`\n⚡ FlowCRM API rodando em http://localhost:${PORT}`)
   console.log(`   Health: http://localhost:${PORT}/health`)
-  console.log(`   Frontend: http://localhost:${PORT}/app/crm-login.html\n`)
+  console.log(`   Frontend: http://localhost:${PORT}/app/crm-login\n`)
 })
 
 // Retoma passos de automação em espera (ex: "wait") — checa a cada 30s

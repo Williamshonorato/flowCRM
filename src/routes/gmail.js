@@ -47,7 +47,7 @@ router.get('/connect', (req, res) => {
 // GET /gmail/callback — o Google volta pra cá com ?code=...&state=...
 router.get('/callback', async (req, res) => {
   const { code, state, error } = req.query
-  if (error) return res.redirect('/app/crm-integracoes.html?gmail=error')
+  if (error) return res.redirect('/crm-integracoes?gmail=error')
 
   let statePayload
   try {
@@ -55,7 +55,7 @@ router.get('/callback', async (req, res) => {
     // o state tem que ser DESTE fluxo: um token qualquer assinado pelo app (sessão, login...) não serve
     if (statePayload.purpose !== 'oauth-state' || statePayload.provider !== 'gmail') throw new Error('state inválido')
   } catch {
-    return res.redirect('/app/crm-integracoes.html?gmail=error')
+    return res.redirect('/crm-integracoes?gmail=error')
   }
 
   try {
@@ -73,7 +73,7 @@ router.get('/callback', async (req, res) => {
     const tokens = await tokenRes.json()
     if (!tokenRes.ok) {
       console.error('gmail token exchange error', tokens)
-      return res.redirect('/app/crm-integracoes.html?gmail=error')
+      return res.redirect('/crm-integracoes?gmail=error')
     }
 
     // busca o e-mail conectado, só pra exibir na tela quem está sincronizado
@@ -119,10 +119,10 @@ router.get('/callback', async (req, res) => {
       },
     })
 
-    res.redirect('/app/crm-integracoes.html?gmail=connected')
+    res.redirect('/crm-integracoes?gmail=connected')
   } catch (err) {
     console.error('gmail callback error', err)
-    res.redirect('/app/crm-integracoes.html?gmail=error')
+    res.redirect('/crm-integracoes?gmail=error')
   }
 })
 

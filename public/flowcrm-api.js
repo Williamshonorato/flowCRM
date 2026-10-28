@@ -9,15 +9,15 @@ function setToken(t) { localStorage.setItem('flowcrm_token', t); }
 function clearToken(){ localStorage.removeItem('flowcrm_token'); }
 
 function authGuard() {
-  if (!getToken()) { window.location.href = 'crm-login.html'; return false; }
+  if (!getToken()) { window.location.href = 'crm-login'; return false; }
   // Admin da plataforma "puro" (não impersonando um cliente) não deve cair nas
   // telas normais do CRM — a área dele é o painel da plataforma. Só vê o CRM de
-  // verdade quando entra num cliente ("Entrar como admin" em crm-plataforma.html),
+  // verdade quando entra num cliente ("Entrar como admin" em crm-plataforma),
   // que troca o token e ativa flowcrm_impersonating.
-  const here = (location.pathname.split('/').pop() || '').toLowerCase();
+  const here = (location.pathname.split('/').pop() || '').toLowerCase().replace(/\.html$/, '');
   const isImpersonating = !!localStorage.getItem('flowcrm_impersonating');
-  if (here !== 'crm-plataforma.html' && !isImpersonating && getPlatformRole()) {
-    window.location.href = 'crm-plataforma.html';
+  if (here !== 'crm-plataforma' && !isImpersonating && getPlatformRole()) {
+    window.location.href = 'crm-plataforma';
     return false;
   }
   return true;
@@ -26,7 +26,7 @@ function authGuard() {
 function logout() {
   clearToken();
   localStorage.removeItem('flowcrm_impersonating');
-  window.location.href = 'crm-login.html';
+  window.location.href = 'crm-login';
 }
 
 // ── Painel da plataforma (superadmin/owner) ──────────────────────────────────
@@ -54,11 +54,11 @@ function getPlatformRole() {
 }
 
 // Troca a sessão atual pela do admin de outra empresa, guardando o token de volta
-// pra dar pra "sair da visualização" depois. Chamado a partir de crm-plataforma.html.
+// pra dar pra "sair da visualização" depois. Chamado a partir de crm-plataforma.
 function startImpersonation(impersonateToken, tenantName) {
   localStorage.setItem('flowcrm_impersonating', JSON.stringify({ backupToken: getToken(), tenantName }));
   setToken(impersonateToken);
-  window.location.href = 'crm-dashboard.html';
+  window.location.href = 'crm-dashboard';
 }
 
 function stopImpersonation() {
@@ -68,7 +68,7 @@ function stopImpersonation() {
     if (data.backupToken) setToken(data.backupToken);
   }
   localStorage.removeItem('flowcrm_impersonating');
-  window.location.href = 'crm-plataforma.html';
+  window.location.href = 'crm-plataforma';
 }
 
 // Aviso fixo no topo enquanto está vendo o sistema como admin de outra empresa —
@@ -134,7 +134,7 @@ function injectUserMenu() {
     menu.id = 'fcrm-user-menu';
     menu.style.cssText = `position:fixed;left:${rect.left}px;bottom:${window.innerHeight - rect.top + 8}px;background:#1e293b;border:1px solid #334155;border-radius:10px;padding:6px;min-width:180px;box-shadow:0 8px 24px rgba(0,0,0,.35);z-index:9999;font-family:inherit`;
     menu.innerHTML = `
-      <a href="crm-configuracoes.html" style="display:block;padding:8px 12px;color:#cbd5e1;text-decoration:none;font-size:13px;border-radius:7px">⚙️ Configurações</a>
+      <a href="crm-configuracoes" style="display:block;padding:8px 12px;color:#cbd5e1;text-decoration:none;font-size:13px;border-radius:7px">⚙️ Configurações</a>
       <div style="height:1px;background:#334155;margin:4px 0"></div>
       <a href="#" onclick="logout();return false;" style="display:block;padding:8px 12px;color:#f87171;text-decoration:none;font-size:13px;border-radius:7px">🚪 Sair</a>
     `;
@@ -168,7 +168,7 @@ async function injectAccountUI() {
     const a = document.createElement('a');
     a.id = 'navPlatformLink';
     a.className = 'nav-item';
-    a.href = 'crm-plataforma.html';
+    a.href = 'crm-plataforma';
     a.innerHTML = '<span class="ico">🛡️</span>Plataforma';
     nav.appendChild(a);
   }
@@ -221,7 +221,7 @@ async function api(path, opts = {}) {
     clearTimeout(timeoutId);
   }
 
-  if (res.status === 401) { clearToken(); window.location.href = 'crm-login.html'; return null; }
+  if (res.status === 401) { clearToken(); window.location.href = 'crm-login'; return null; }
   if (res.status === 204) return null;
 
   let body = null;

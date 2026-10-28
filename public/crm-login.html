@@ -492,7 +492,7 @@
   <div class="right">
     <div class="form-box">
       <h2>Bem-vindo de volta 👋</h2>
-      <p class="sub">Ainda não tem conta? <a href="crm-cadastro.html">Criar gratuitamente</a></p>
+      <p class="sub">Ainda não tem conta? <a href="crm-cadastro">Criar gratuitamente</a></p>
 
       <div id="loginError" style="display:none;background:#fee2e2;color:#b91c1c;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px"></div>
 
@@ -530,7 +530,7 @@
       </button>
 
       <div class="register-link">
-        Novo por aqui? <a href="crm-cadastro.html">Criar conta</a>
+        Novo por aqui? <a href="crm-cadastro">Criar conta</a>
       </div>
 
       <div class="trust-row">
@@ -544,7 +544,7 @@
 <script src="flowcrm-api.js"></script>
 <script>
   // Se já autenticado, vai direto ao dashboard — admin da plataforma vai pro painel dele
-  if (getToken()) window.location.href = getPlatformRole() ? 'crm-plataforma.html' : 'crm-dashboard.html';
+  if (getToken()) window.location.href = getPlatformRole() ? 'crm-plataforma' : 'crm-dashboard';
 
   document.getElementById('passwordInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') doLogin();
@@ -585,7 +585,7 @@
       errEl.style.display = 'block';
     } else {
       setToken(data.token);
-      window.location.href = getPlatformRole() ? 'crm-plataforma.html' : 'crm-dashboard.html';
+      window.location.href = getPlatformRole() ? 'crm-plataforma' : 'crm-dashboard';
     }
   }
 </script>

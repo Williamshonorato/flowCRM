@@ -157,7 +157,7 @@ router.get('/', async (req, res) => {
     opportunityInsight = {
       icon: '🤖', title: 'IA · Oportunidade',
       text: `${agg.count} lead${agg.count > 1 ? 's' : ''} ${agg.count > 1 ? 'estão parados' : 'está parado'} há mais de ${stuckDays} dias na etapa "${stage?.name ?? '—'}". Um follow-up agora pode recuperar ${fmtBRL(agg.value)} em negócios.`,
-      actionLabel: 'Ver leads →', actionUrl: `crm-pipeline.html?stageId=${stageId}`,
+      actionLabel: 'Ver leads →', actionUrl: `crm-pipeline?stageId=${stageId}`,
     }
   } else {
     opportunityInsight = {

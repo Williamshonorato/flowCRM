@@ -522,9 +522,9 @@
       <tr>
         <td>${esc(a.name)}</td>
         <td>${esc(a.email)}</td>
-        <td>${esc(a.platformRole)}</td>
+        <td>${a.platformRole ? esc(a.platformRole) : '<span style="color:var(--muted)">sem acesso</span>'}</td>
         <td><div class="row-actions">
-          <button class="btn-sm" onclick="openAdminEdit(${jsAttr(a.id)})">Editar</button>
+          ${a.platformRole ? `<button class="btn-sm" onclick="openAdminEdit(${jsAttr(a.id)})">Editar</button>` : ''}
           ${a.id === me?.user?.id ? '' : `<button class="btn-sm danger" onclick="deleteAdmin(${jsAttr(a.id)})">Remover</button>`}
         </div></td>
       </tr>
@@ -579,9 +579,9 @@
   }
 
   async function deleteAdmin(id) {
-    if (!confirm('Remover o acesso desse admin à plataforma?')) return;
+    if (!confirm('Remover esse admin? A conta dele é excluída e ele não consegue mais fazer login.')) return;
     await api('/platform/admins/' + id, { method: 'DELETE' });
-    showToast('Acesso removido.');
+    showToast('Admin removido.');
     loadAdmins();
   }
 

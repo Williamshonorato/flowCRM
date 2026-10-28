@@ -306,7 +306,7 @@
     const me = await mePromise;
     if (!me?.user?.platformRole) {
       apiToast('Essa área é restrita ao painel da plataforma.');
-      window.location.href = 'crm-dashboard.html';
+      window.location.href = 'crm-dashboard';
       return;
     }
     isOwner = me.user.platformRole === 'owner';

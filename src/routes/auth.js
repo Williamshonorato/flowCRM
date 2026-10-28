@@ -168,13 +168,13 @@ router.get('/google', (req, res) => {
 // GET /auth/google/callback — o Google volta pra cá com ?code=...&state=...
 router.get('/google/callback', async (req, res) => {
   const { code, state, error } = req.query
-  if (error) return res.redirect('/app/crm-login.html?google=error')
+  if (error) return res.redirect('/crm-login?google=error')
 
   try {
     const st = jwt.verify(state, process.env.JWT_SECRET)
     if (st.purpose !== 'login') throw new Error('state inválido') // só o state deste fluxo vale
   } catch {
-    return res.redirect('/app/crm-login.html?google=error')
+    return res.redirect('/crm-login?google=error')
   }
 
   try {
@@ -192,20 +192,20 @@ router.get('/google/callback', async (req, res) => {
     const tokens = await tokenRes.json()
     if (!tokenRes.ok) {
       console.error('google login token exchange error', tokens)
-      return res.redirect('/app/crm-login.html?google=error')
+      return res.redirect('/crm-login?google=error')
     }
 
     const profileRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
       headers: { Authorization: `Bearer ${tokens.access_token}` },
     })
     const profile = await profileRes.json()
-    if (!profile.email) return res.redirect('/app/crm-login.html?google=error')
+    if (!profile.email) return res.redirect('/crm-login?google=error')
 
     // Só loga quem já tem conta — "Entrar com Google" não cria empresa nova
     // (isso pede nome da empresa/segmento, que o Google não manda).
     const user = await prisma.user.findFirst({ where: byEmail(profile.email), include: { tenant: true } })
-    if (!user || !user.active) return res.redirect('/app/crm-login.html?google=no_account')
-    if (!user.tenant.active) return res.redirect('/app/crm-login.html?google=suspended')
+    if (!user || !user.active) return res.redirect('/crm-login?google=no_account')
+    if (!user.tenant.active) return res.redirect('/crm-login?google=suspended')
 
     const loginToken = jwt.sign(
       { userId: user.id, tenantId: user.tenantId, role: user.role, email: user.email, platformRole: user.platformRole || undefined },
@@ -213,10 +213,10 @@ router.get('/google/callback', async (req, res) => {
       { expiresIn: process.env.JWT_EXPIRES_IN }
     )
     // token no FRAGMENTO (#), não na query: fragmento não vai pra servidor, logs nem Referer
-    res.redirect(`/app/crm-google-callback.html#token=${loginToken}`)
+    res.redirect(`/crm-google-callback#token=${loginToken}`)
   } catch (err) {
     console.error('google login callback error', err)
-    res.redirect('/app/crm-login.html?google=error')
+    res.redirect('/crm-login?google=error')
   }
 })
 

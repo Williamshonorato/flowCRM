@@ -18,9 +18,9 @@
   history.replaceState(null, '', location.pathname);
   if (token) {
     localStorage.setItem('flowcrm_token', token);
-    window.location.href = 'crm-dashboard.html';
+    window.location.href = 'crm-dashboard';
   } else {
-    window.location.href = 'crm-login.html?google=error';
+    window.location.href = 'crm-login?google=error';
   }
 </script>
 </body>

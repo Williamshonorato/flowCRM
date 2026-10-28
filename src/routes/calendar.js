@@ -43,7 +43,7 @@ router.get('/connect', (req, res) => {
 
 router.get('/callback', async (req, res) => {
   const { code, state, error } = req.query
-  if (error) return res.redirect('/app/crm-integracoes.html?calendar=error')
+  if (error) return res.redirect('/crm-integracoes?calendar=error')
 
   let statePayload
   try {
@@ -51,7 +51,7 @@ router.get('/callback', async (req, res) => {
     // o state tem que ser DESTE fluxo: um token qualquer assinado pelo app (sessão, login...) não serve
     if (statePayload.purpose !== 'oauth-state' || statePayload.provider !== 'calendar') throw new Error('state inválido')
   } catch {
-    return res.redirect('/app/crm-integracoes.html?calendar=error')
+    return res.redirect('/crm-integracoes?calendar=error')
   }
 
   try {
@@ -69,7 +69,7 @@ router.get('/callback', async (req, res) => {
     const tokens = await tokenRes.json()
     if (!tokenRes.ok) {
       console.error('calendar token exchange error', tokens)
-      return res.redirect('/app/crm-integracoes.html?calendar=error')
+      return res.redirect('/crm-integracoes?calendar=error')
     }
 
     let email = null
@@ -101,10 +101,10 @@ router.get('/callback', async (req, res) => {
       },
     })
 
-    res.redirect('/app/crm-integracoes.html?calendar=connected')
+    res.redirect('/crm-integracoes?calendar=connected')
   } catch (err) {
     console.error('calendar callback error', err)
-    res.redirect('/app/crm-integracoes.html?calendar=error')
+    res.redirect('/crm-integracoes?calendar=error')
   }
 })
 

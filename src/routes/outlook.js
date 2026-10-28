@@ -43,7 +43,7 @@ router.get('/connect', (req, res) => {
 
 router.get('/callback', async (req, res) => {
   const { code, state, error } = req.query
-  if (error) return res.redirect('/app/crm-integracoes.html?outlook=error')
+  if (error) return res.redirect('/crm-integracoes?outlook=error')
 
   let statePayload
   try {
@@ -51,7 +51,7 @@ router.get('/callback', async (req, res) => {
     // o state tem que ser DESTE fluxo: um token qualquer assinado pelo app (sessão, login...) não serve
     if (statePayload.purpose !== 'oauth-state' || statePayload.provider !== 'outlook') throw new Error('state inválido')
   } catch {
-    return res.redirect('/app/crm-integracoes.html?outlook=error')
+    return res.redirect('/crm-integracoes?outlook=error')
   }
 
   try {
@@ -70,7 +70,7 @@ router.get('/callback', async (req, res) => {
     const tokens = await tokenRes.json()
     if (!tokenRes.ok) {
       console.error('outlook token exchange error', tokens)
-      return res.redirect('/app/crm-integracoes.html?outlook=error')
+      return res.redirect('/crm-integracoes?outlook=error')
     }
 
     let email = null
@@ -103,10 +103,10 @@ router.get('/callback', async (req, res) => {
       },
     })
 
-    res.redirect('/app/crm-integracoes.html?outlook=connected')
+    res.redirect('/crm-integracoes?outlook=connected')
   } catch (err) {
     console.error('outlook callback error', err)
-    res.redirect('/app/crm-integracoes.html?outlook=error')
+    res.redirect('/crm-integracoes?outlook=error')
   }
 })
 

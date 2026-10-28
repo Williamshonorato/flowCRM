@@ -12,7 +12,7 @@
       if (!token || localStorage.getItem('flowcrm_impersonating')) return;
       var b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
       var payload = JSON.parse(decodeURIComponent(atob(b64).split('').map(function (c) { return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2); }).join('')));
-      if (payload.platformRole) location.replace('crm-plataforma.html');
+      if (payload.platformRole) location.replace('crm-plataforma');
     } catch (e) {}
   })();
 </script>
@@ -168,16 +168,16 @@
   </div>
   <nav class="sb-nav">
     <div class="sb-section">Principal</div>
-    <a class="nav-item" href="crm-dashboard.html"><span class="ico">📊</span>Dashboard</a>
-    <a class="nav-item" href="crm-pipeline.html"><span class="ico">🗂️</span>Pipeline</a>
-    <a class="nav-item active" href="crm-contatos.html"><span class="ico">👥</span>Contatos</a>
-    <a class="nav-item" href="crm-conversas.html"><span class="ico">💬</span>Conversas</a>
-    <a class="nav-item" href="crm-tarefas.html"><span class="ico">✅</span>Tarefas<span class="badge" data-fc="tasks-badge" style="display:none"></span></a>
+    <a class="nav-item" href="crm-dashboard"><span class="ico">📊</span>Dashboard</a>
+    <a class="nav-item" href="crm-pipeline"><span class="ico">🗂️</span>Pipeline</a>
+    <a class="nav-item active" href="crm-contatos"><span class="ico">👥</span>Contatos</a>
+    <a class="nav-item" href="crm-conversas"><span class="ico">💬</span>Conversas</a>
+    <a class="nav-item" href="crm-tarefas"><span class="ico">✅</span>Tarefas<span class="badge" data-fc="tasks-badge" style="display:none"></span></a>
     <div class="sb-section">Sistema</div>
-    <a class="nav-item" href="crm-relatorios.html"><span class="ico">📈</span>Relatórios</a>
-    <a class="nav-item" href="crm-automacoes.html"><span class="ico">🤖</span>Automações</a>
-    <a class="nav-item" href="crm-integracoes.html"><span class="ico">🔌</span>Integrações</a>
-    <a class="nav-item" href="crm-configuracoes.html"><span class="ico">⚙️</span>Configurações</a>
+    <a class="nav-item" href="crm-relatorios"><span class="ico">📈</span>Relatórios</a>
+    <a class="nav-item" href="crm-automacoes"><span class="ico">🤖</span>Automações</a>
+    <a class="nav-item" href="crm-integracoes"><span class="ico">🔌</span>Integrações</a>
+    <a class="nav-item" href="crm-configuracoes"><span class="ico">⚙️</span>Configurações</a>
   </nav>
   <div class="sb-bottom">
     <div class="user-row">
@@ -269,7 +269,7 @@
       </div>
 
       <div class="dp-actions">
-        <button class="dp-btn dp-btn-primary" onclick="window.location.href='crm-pipeline.html'">🗂️ Pipeline</button>
+        <button class="dp-btn dp-btn-primary" onclick="window.location.href='crm-pipeline'">🗂️ Pipeline</button>
         <button class="dp-btn dp-btn-sec" id="dp-wpp-btn" onclick="openWhatsapp()">💬 WhatsApp</button>
         <button class="dp-btn dp-btn-sec" id="dp-email-btn" onclick="openEmail()">✉️ E-mail</button>
       </div>
@@ -459,7 +459,7 @@
         <div class="ct-cell muted" style="font-size:12px">${new Date(c.createdAt).toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})}</div>
         <div class="ct-actions">
           <button class="act-btn" title="WhatsApp" onclick="event.stopPropagation();quickWhatsapp(${jsAttr(c.phone || '')},${jsAttr(c.id)},${jsAttr(c.name)})">💬</button>
-          <button class="act-btn" title="Pipeline" onclick="event.stopPropagation();window.location.href='crm-pipeline.html'">🗂️</button>
+          <button class="act-btn" title="Pipeline" onclick="event.stopPropagation();window.location.href='crm-pipeline'">🗂️</button>
         </div>
       </div>`;
     }).join('') || '<div style="padding:30px;text-align:center;color:#94a3b8">Nenhum contato encontrado.</div>';

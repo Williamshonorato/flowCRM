@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken'
 import { z } from 'zod'
 import prisma from '../lib/prisma.js'
 import { requireAuth, requirePlatformRole, requirePlatformOwner } from '../middleware/auth.js'
+import { createTenantWithAdmin, trialExpired } from '../lib/tenantSetup.js'
 
 const router = Router()
 
@@ -34,7 +35,74 @@ router.get('/tenants', async (req, res) => {
   res.json(tenants.map(t => ({
     ...t,
     overdue: t.billingStatus === 'active' && !!t.nextDueDate && new Date(t.nextDueDate) < now,
+    // cadastro do site esperando a gente aprovar (= confirmar o Pix)
+    pendingApproval: t.billingStatus === 'trial' && !!t.trialEndsAt && t.active,
+    trialExpired: trialExpired(t),
   })))
+})
+
+// POST /platform/tenants — cliente cadastrado por nós (venda direta): já nasce aprovado,
+// sem período de teste.
+const createTenantSchema = z.object({
+  businessName:  z.string().min(2),
+  segment:       z.string().default('other'),
+  plan:          z.string().default('connected'),
+  billingCycle:  z.enum(['monthly', 'annual']).default('monthly'),
+  billingStatus: z.enum(['trial', 'active', 'canceled']).default('active'),
+  monthlyValue:  z.number().min(0).default(0),
+  nextDueDate:   z.string().refine(v => !Number.isNaN(Date.parse(v)), 'Data inválida.').nullable().optional(),
+  adminName:     z.string().min(2),
+  adminEmail:    z.string().email(),
+  adminPassword: z.string().min(6),
+})
+router.post('/tenants', async (req, res) => {
+  const parsed = createTenantSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
+  const { adminName, adminEmail, adminPassword, nextDueDate, ...rest } = parsed.data
+
+  const existing = await prisma.user.findFirst({ where: { email: { equals: adminEmail.trim(), mode: 'insensitive' } } })
+  if (existing) return res.status(409).json({ error: 'E-mail já cadastrado.' })
+
+  try {
+    const tenant = await createTenantWithAdmin({
+      ...rest,
+      nextDueDate: nextDueDate ? new Date(nextDueDate) : null,
+      admin: { name: adminName, email: adminEmail, password: adminPassword },
+    })
+    console.log(`[platform] ${req.user.email} criou a empresa "${tenant.name}"`)
+    res.status(201).json({ id: tenant.id, name: tenant.name })
+  } catch (err) {
+    if (err.code === 'P2002') return res.status(409).json({ error: 'E-mail já cadastrado.' })
+    throw err
+  }
+})
+
+// POST /platform/tenants/:id/approve — Pix confirmado: libera o acesso de vez e marca o
+// primeiro vencimento (1 mês, ou 12 no plano anual) a partir de hoje.
+router.post('/tenants/:id/approve', async (req, res) => {
+  const existing = await prisma.tenant.findUnique({ where: { id: req.params.id } })
+  if (!existing) return res.status(404).json({ error: 'Empresa não encontrada.' })
+  const due = new Date()
+  due.setMonth(due.getMonth() + (existing.billingCycle === 'annual' ? 12 : 1))
+  const tenant = await prisma.tenant.update({
+    where: { id: existing.id },
+    data: { billingStatus: 'active', trialEndsAt: null, active: true, nextDueDate: due },
+  })
+  console.log(`[platform] ${req.user.email} aprovou a empresa "${tenant.name}"`)
+  res.json(tenant)
+})
+
+// POST /platform/tenants/:id/reject — cadastro recusado: suspende (não apaga — se a pessoa
+// pagar depois, dá pra aprovar/reativar sem perder o que ela já tinha montado).
+router.post('/tenants/:id/reject', async (req, res) => {
+  const existing = await prisma.tenant.findUnique({ where: { id: req.params.id } })
+  if (!existing) return res.status(404).json({ error: 'Empresa não encontrada.' })
+  const tenant = await prisma.tenant.update({
+    where: { id: existing.id },
+    data: { billingStatus: 'canceled', active: false },
+  })
+  console.log(`[platform] ${req.user.email} recusou a empresa "${tenant.name}"`)
+  res.json(tenant)
 })
 
 // GET /platform/stats — visão agregada de negócio: crescimento, planos, cobrança
@@ -158,7 +226,7 @@ router.post('/tenants/:id/impersonate', async (req, res) => {
   console.log(`[platform] ${req.user.email} entrou como admin de "${tenant.name}" (${admin.email})`)
 
   const token = jwt.sign(
-    { userId: admin.id, tenantId: tenant.id, role: admin.role, email: admin.email },
+    { userId: admin.id, tenantId: tenant.id, role: admin.role, email: admin.email, impersonatedBy: req.user.userId },
     process.env.JWT_SECRET,
     { expiresIn: '2h' } // sessão de impersonação é curta de propósito
   )

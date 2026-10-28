@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken'
 import prisma from '../lib/prisma.js'
+import { trialExpired } from '../lib/tenantSetup.js'
 
 export async function requireAuth(req, res, next) {
   // Ferramentas externas (Zapier, Make, scripts) autenticam com a API key do tenant
@@ -8,6 +9,7 @@ export async function requireAuth(req, res, next) {
     const tenant = await prisma.tenant.findUnique({ where: { apiKey } })
     if (!tenant) return res.status(401).json({ error: 'API key inválida.' })
     if (!tenant.active) return res.status(403).json({ error: 'Essa empresa está com o acesso suspenso.' })
+    if (trialExpired(tenant)) return res.status(402).json({ error: 'O período de teste dessa empresa terminou.', code: 'PAYMENT_REQUIRED' })
     req.user = { tenantId: tenant.id, userId: null, role: 'api', email: null }
     return next()
   }
@@ -27,10 +29,13 @@ export async function requireAuth(req, res, next) {
     // platformRole revogado continuariam valendo até o token expirar sozinho.
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
-      select: { active: true, role: true, email: true, platformRole: true, tenantId: true, tenant: { select: { active: true } } },
+      select: { active: true, role: true, email: true, platformRole: true, tenantId: true, tenant: { select: { active: true, billingStatus: true, trialEndsAt: true } } },
     })
     if (!user || !user.active || user.tenantId !== payload.tenantId) return res.status(401).json({ error: 'Token inválido ou expirado.' })
     if (!user.tenant?.active) return res.status(403).json({ error: 'Essa empresa está com o acesso suspenso.' })
+    // Teste grátis vencido sem aprovação: bloqueia tudo (o front manda pra tela de pagamento).
+    // Admin da plataforma entrando como a empresa (impersonatedBy) continua vendo pra dar suporte.
+    if (trialExpired(user.tenant) && !payload.impersonatedBy) return res.status(402).json({ error: 'Seu período de teste terminou.', code: 'PAYMENT_REQUIRED' })
     // "Visualizador" é somente leitura: antes o papel existia na tela de equipe mas nenhuma rota
     // o respeitava (um viewer apagava contatos e disparava mensagens em massa). A única
     // escrita liberada é a da própria conta (nome/senha).

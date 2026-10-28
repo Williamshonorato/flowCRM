@@ -580,6 +580,7 @@
       body: JSON.stringify({ email, password: pass }),
     }).then(r => r.json()).catch(() => null);
     btn.textContent = 'Entrar no FlowCRM →'; btn.disabled = false;
+    if (data?.code === 'PAYMENT_REQUIRED') { window.location.href = 'crm-pagamento'; return; }
     if (!data || data.error) {
       errEl.textContent = data?.error || 'Erro ao conectar. Verifique se o servidor está rodando.';
       errEl.style.display = 'block';

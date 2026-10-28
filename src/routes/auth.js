@@ -6,6 +6,7 @@ import prisma from '../lib/prisma.js'
 import { sendError } from '../lib/errorPage.js'
 import { requireAuth, requireAdmin } from '../middleware/auth.js'
 import { PLANS, ANNUAL_DISCOUNT, priceFor } from '../lib/plans.js'
+import { createTenantWithAdmin, trialExpired, paymentInfo, TRIAL_DAYS } from '../lib/tenantSetup.js'
 
 const router = Router()
 
@@ -58,6 +59,10 @@ router.get('/plans', (req, res) => {
   })
 })
 
+// GET /auth/payment-info — chave Pix da tela de pagamento (pública: quem está bloqueado
+// pelo fim do teste não tem sessão válida pra chamar rota autenticada).
+router.get('/payment-info', (req, res) => res.json(paymentInfo()))
+
 // POST /auth/register — cria tenant + admin
 router.post('/register', async (req, res) => {
   const parsed = registerSchema.safeParse(req.body)
@@ -69,31 +74,19 @@ router.post('/register', async (req, res) => {
   const existingUser = await prisma.user.findFirst({ where: byEmail(email) })
   if (existingUser) return res.status(409).json({ error: 'E-mail já cadastrado.' })
 
-  const slug = businessName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') + '-' + Date.now()
-  const hash = await bcrypt.hash(password, 10)
-
-  const DEFAULT_STAGES = [
-    { name: 'Novo lead', color: '#f39c12', order: 0 },
-    { name: 'Em contato', color: '#2980b9', order: 1 },
-    { name: 'Proposta', color: '#8e44ad', order: 2 },
-    { name: 'Negociação', color: '#16a085', order: 3 },
-    { name: 'Fechado', color: '#27ae60', order: 4 },
-  ]
-
+  // Entra direto e usa de graça por TRIAL_DAYS; depois disso só com a nossa aprovação
+  // (pagamento via Pix) — ver trialExpired e o painel da plataforma.
   let tenant
   try {
-    tenant = await prisma.tenant.create({
-      data: {
-        name: businessName,
-        slug,
-        segment,
-        plan,
-        billingCycle: price.cycle,
-        monthlyValue: price.monthlyValue,
-        users: { create: { name, email: email.trim().toLowerCase(), password: hash, role: 'admin' } },
-        stages: { create: DEFAULT_STAGES },
-      },
-      include: { users: true },
+    tenant = await createTenantWithAdmin({
+      businessName,
+      segment,
+      plan,
+      billingCycle: price.cycle,
+      monthlyValue: price.monthlyValue,
+      billingStatus: 'trial',
+      trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000),
+      admin: { name, email, password },
     })
   } catch (err) {
     // dois cadastros simultâneos com o mesmo e-mail: o unique do banco barra o segundo
@@ -128,6 +121,7 @@ router.post('/login', async (req, res) => {
   // suspensão só é revelada a quem provou saber a senha (antes qualquer um descobria que o e-mail existia)
   if (!user.tenant.active) return res.status(403).json({ error: 'Essa empresa está com o acesso suspenso. Fale com o suporte.' })
   loginFails.delete(emailKey)
+  if (trialExpired(user.tenant)) return res.status(402).json({ error: 'Seu período de teste terminou.', code: 'PAYMENT_REQUIRED' })
 
   const token = jwt.sign(
     { userId: user.id, tenantId: user.tenantId, role: user.role, email: user.email, platformRole: user.platformRole || undefined },
@@ -206,6 +200,7 @@ router.get('/google/callback', async (req, res) => {
     const user = await prisma.user.findFirst({ where: byEmail(profile.email), include: { tenant: true } })
     if (!user || !user.active) return res.redirect('/crm-login?google=no_account')
     if (!user.tenant.active) return res.redirect('/crm-login?google=suspended')
+    if (trialExpired(user.tenant)) return res.redirect('/crm-pagamento')
 
     const loginToken = jwt.sign(
       { userId: user.id, tenantId: user.tenantId, role: user.role, email: user.email, platformRole: user.platformRole || undefined },
@@ -238,7 +233,9 @@ router.get('/me', async (req, res) => {
     // mesmas regras do requireAuth: conta desativada / empresa suspensa não valem mais
     if (!user.active) return res.status(401).json({ error: 'Token inválido.' })
     if (!user.tenant.active) return res.status(403).json({ error: 'Essa empresa está com o acesso suspenso.' })
-    res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, platformRole: user.platformRole }, tenant: { id: user.tenant.id, name: user.tenant.name, plan: user.tenant.plan, segment: user.tenant.segment } })
+    if (trialExpired(user.tenant) && !payload.impersonatedBy) return res.status(402).json({ error: 'Seu período de teste terminou.', code: 'PAYMENT_REQUIRED' })
+    const t = user.tenant
+    res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, platformRole: user.platformRole }, tenant: { id: t.id, name: t.name, plan: t.plan, segment: t.segment, trialEndsAt: t.billingStatus === 'trial' ? t.trialEndsAt : null } })
   } catch {
     res.status(401).json({ error: 'Token inválido.' })
   }

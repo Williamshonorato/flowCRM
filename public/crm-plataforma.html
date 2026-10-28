@@ -114,6 +114,11 @@
   .money-cell .due.late{color:var(--red);font-weight:700}
   .badge-billing{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap}
   .billing-trial{background:#eff6ff;color:#1d4ed8}
+  .billing-pending{background:#fef3c7;color:#92400e}
+  .billing-expired{background:#fee2e2;color:#991b1b}
+  tr.row-pending td{background:#fffbeb}
+  .section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:24px 0 12px}
+  .section-head .section-title{margin:0}
   .billing-ok{background:#dcfce7;color:#166534}
   .billing-late{background:#fee2e2;color:#991b1b}
   .billing-canceled{background:#f1f5f9;color:#64748b}
@@ -207,7 +212,10 @@
 
     <!-- CLIENTES -->
     <div class="view-panel" id="view-clientes">
-      <div class="section-title">Empresas cadastradas</div>
+      <div class="section-head">
+        <div class="section-title">Empresas cadastradas</div>
+        <button class="btn-purple" onclick="openNewTenant()">+ Novo cliente</button>
+      </div>
       <table>
         <thead>
           <tr><th>Empresa</th><th>Plano</th><th>Mensalidade</th><th>Cobrança</th><th>Usuários</th><th>Contatos</th><th>Status</th><th></th></tr>
@@ -232,6 +240,53 @@
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- NOVO CLIENTE -->
+<div class="overlay" id="newTenantOverlay" onclick="if(event.target===this)closeNewTenant()">
+  <div class="modal">
+    <h3>➕ Novo cliente</h3>
+    <div class="inp-g"><label>Nome do negócio</label><input type="text" id="nt-business"/></div>
+    <div class="inp-g"><label>Segmento</label>
+      <select id="nt-segment">
+        <option>Clínica / Saúde</option>
+        <option>Imobiliária</option>
+        <option>Agência / Marketing</option>
+        <option>Loja / Varejo</option>
+        <option>Consultoria</option>
+        <option>Outro</option>
+      </select>
+    </div>
+    <div class="row2">
+      <div class="inp-g"><label>Plano</label>
+        <select id="nt-plan">
+          <option value="connected">Connected</option>
+          <option value="enterprise">Enterprise</option>
+          <option value="starter">Starter</option>
+          <option value="professional">Profissional</option>
+        </select>
+      </div>
+      <div class="inp-g"><label>Mensalidade (R$)</label><input type="number" id="nt-value" min="0" step="0.01"/></div>
+    </div>
+    <div class="row2">
+      <div class="inp-g"><label>Ciclo de pagamento</label>
+        <select id="nt-cycle"><option value="monthly">Mensal</option><option value="annual">Anual</option></select>
+      </div>
+      <div class="inp-g"><label>Status de cobrança</label>
+        <select id="nt-billing"><option value="active">Ativa (cobrando)</option><option value="trial">Trial</option></select>
+      </div>
+    </div>
+    <div class="inp-g"><label>Próximo vencimento</label><input type="date" id="nt-due"/></div>
+    <div class="inp-g"><label>Nome do responsável (login de admin)</label><input type="text" id="nt-admin-name"/></div>
+    <div class="row2">
+      <div class="inp-g"><label>E-mail de acesso</label><input type="email" id="nt-admin-email"/></div>
+      <div class="inp-g"><label>Senha (mín. 6)</label><input type="password" id="nt-admin-pass" autocomplete="new-password"/></div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeNewTenant()">Cancelar</button>
+      <button class="modal-save" onclick="saveNewTenant()">Criar cliente</button>
+    </div>
   </div>
 </div>
 
@@ -347,11 +402,13 @@
     const active = tenants.filter(t => t.active).length;
     const mrr = tenants.filter(t => t.billingStatus === 'active').reduce((s, t) => s + Number(t.monthlyValue || 0), 0);
     const overdue = tenants.filter(t => t.overdue).length;
+    const pending = tenants.filter(t => t.pendingApproval).length;
     document.getElementById('statsRow').innerHTML = `
       <div class="stat-card c-purple"><span class="ico">🏢</span><div class="num">${tenants.length}</div><div class="lbl">Empresas cadastradas</div></div>
       <div class="stat-card c-green"><span class="ico">✅</span><div class="num">${active}</div><div class="lbl">Ativas</div></div>
       <div class="stat-card c-green accent"><span class="ico">💰</span><div class="num">${fmtMoney(mrr)}</div><div class="lbl">Receita mensal (MRR)</div></div>
       <div class="stat-card c-red${overdue ? ' warn' : ''}"><span class="ico">🔴</span><div class="num">${overdue}</div><div class="lbl">Em atraso</div></div>
+      <div class="stat-card c-amber${pending ? ' warn' : ''}"><span class="ico">⏳</span><div class="num">${pending}</div><div class="lbl">Aguardando aprovação</div></div>
       <div class="stat-card c-blue"><span class="ico">👤</span><div class="num">${totalUsers}</div><div class="lbl">Usuários no total</div></div>
       <div class="stat-card c-blue"><span class="ico">👥</span><div class="num">${totalContacts}</div><div class="lbl">Contatos no total</div></div>
     `;
@@ -428,6 +485,12 @@
   }
 
   function billingBadge(t) {
+    if (t.pendingApproval) {
+      const end = new Date(t.trialEndsAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+      return t.trialExpired
+        ? `<span class="badge-billing billing-expired">Teste acabou · aguardando Pix</span>`
+        : `<span class="badge-billing billing-pending">Aguardando aprovação</span><div class="tmeta" style="margin-top:4px">teste grátis até ${esc(end)}</div>`;
+    }
     if (t.billingStatus === 'trial') return `<span class="badge-billing billing-trial">Trial</span>`;
     if (t.billingStatus === 'canceled') return `<span class="badge-billing billing-canceled">Cancelada</span>`;
     return t.overdue ? `<span class="badge-billing billing-late">Atrasado</span>` : `<span class="badge-billing billing-ok">Em dia</span>`;
@@ -436,10 +499,11 @@
   function renderTenants() {
     const box = document.getElementById('tenantsBody');
     if (!tenants.length) { box.innerHTML = `<tr><td colspan="8"><div class="empty">Nenhuma empresa cadastrada ainda.</div></td></tr>`; return; }
-    box.innerHTML = tenants.map(t => {
+    const sorted = [...tenants].sort((a, b) => (b.pendingApproval ? 1 : 0) - (a.pendingApproval ? 1 : 0));
+    box.innerHTML = sorted.map(t => {
       const due = t.nextDueDate ? new Date(t.nextDueDate).toLocaleDateString('pt-BR') : null;
       return `
-      <tr>
+      <tr class="${t.pendingApproval ? 'row-pending' : ''}">
         <td><div class="tname">${esc(t.name)}</div><div class="tmeta">${esc(t.slug)}</div></td>
         <td>${esc(PLAN_LABEL[t.plan] || t.plan)}</td>
         <td class="money-cell">
@@ -452,6 +516,9 @@
         <td><span class="badge-status ${t.active ? 'badge-active' : 'badge-inactive'}">${t.active ? 'Ativa' : 'Suspensa'}</span></td>
         <td>
           <div class="row-actions">
+            ${t.pendingApproval ? `
+            <button class="btn-sm primary" onclick="approveTenant(${jsAttr(t.id)},${jsAttr(t.name)})">✓ Aprovar</button>
+            <button class="btn-sm danger" onclick="rejectTenant(${jsAttr(t.id)},${jsAttr(t.name)})">Recusar</button>` : ''}
             <button class="btn-sm primary" onclick="enterAsTenant(${jsAttr(t.id)})">Entrar como admin</button>
             <button class="btn-sm" onclick="openEdit(${jsAttr(t.id)})">Editar</button>
             <button class="btn-sm" onclick="toggleActive(${jsAttr(t.id)}, ${!t.active})">${t.active ? 'Suspender' : 'Reativar'}</button>
@@ -494,6 +561,48 @@
     };
     const result = await api('/platform/tenants/' + editingId, { method: 'PATCH', body: JSON.stringify(body) });
     if (result) { showToast('Empresa atualizada.'); closeEdit(); loadTenants(); }
+  }
+
+  // ── APROVAR / RECUSAR CADASTRO DO SITE ───────────────────────────────────────
+  async function approveTenant(id, name) {
+    if (!confirm(`Aprovar "${name}"? Confirme antes que o Pix foi recebido — o acesso é liberado de vez.`)) return;
+    const result = await api('/platform/tenants/' + id + '/approve', { method: 'POST' });
+    if (result) { showToast('Cadastro aprovado.'); loadTenants(); }
+  }
+  async function rejectTenant(id, name) {
+    if (!confirm(`Recusar "${name}"? A empresa fica suspensa (os dados não são apagados).`)) return;
+    const result = await api('/platform/tenants/' + id + '/reject', { method: 'POST' });
+    if (result) { showToast('Cadastro recusado.'); loadTenants(); }
+  }
+
+  // ── NOVO CLIENTE (cadastrado por nós, já aprovado) ──────────────────────────
+  function openNewTenant() {
+    for (const id of ['nt-business', 'nt-admin-name', 'nt-admin-email', 'nt-admin-pass', 'nt-due']) document.getElementById(id).value = '';
+    document.getElementById('nt-plan').value = 'connected';
+    document.getElementById('nt-cycle').value = 'monthly';
+    document.getElementById('nt-billing').value = 'active';
+    document.getElementById('nt-value').value = 500;
+    document.getElementById('newTenantOverlay').classList.add('open');
+  }
+  function closeNewTenant() { document.getElementById('newTenantOverlay').classList.remove('open'); }
+
+  async function saveNewTenant() {
+    const body = {
+      businessName: document.getElementById('nt-business').value.trim(),
+      segment: document.getElementById('nt-segment').value,
+      plan: document.getElementById('nt-plan').value,
+      billingCycle: document.getElementById('nt-cycle').value,
+      billingStatus: document.getElementById('nt-billing').value,
+      monthlyValue: Number(document.getElementById('nt-value').value) || 0,
+      nextDueDate: document.getElementById('nt-due').value || null,
+      adminName: document.getElementById('nt-admin-name').value.trim(),
+      adminEmail: document.getElementById('nt-admin-email').value.trim(),
+      adminPassword: document.getElementById('nt-admin-pass').value,
+    };
+    if (!body.businessName || !body.adminName || !body.adminEmail) { showToast('Preencha empresa, nome e e-mail do responsável.'); return; }
+    if (body.adminPassword.length < 6) { showToast('A senha precisa ter pelo menos 6 caracteres.'); return; }
+    const result = await api('/platform/tenants', { method: 'POST', body: JSON.stringify(body) });
+    if (result) { showToast('Cliente criado.'); closeNewTenant(); loadTenants(); loadStats(); }
   }
 
   async function enterAsTenant(id) {

@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken'
 import { z } from 'zod'
 import prisma from '../lib/prisma.js'
 import { requireAuth, requirePlatformRole, requirePlatformOwner } from '../middleware/auth.js'
-import { createTenantWithAdmin, trialExpired } from '../lib/tenantSetup.js'
+import { createTenantWithAdmin, trialExpired, formatDocument } from '../lib/tenantSetup.js'
 
 const router = Router()
 
@@ -21,6 +21,11 @@ async function getInternalTenant() {
 }
 
 router.use(requireAuth, requirePlatformRole)
+
+// CPF ou CNPJ do cliente (vai no campo Tenant.cnpj). Vazio limpa; ausente não mexe.
+const documentField = z.string().trim().nullable().optional()
+  .refine(v => !v || !!formatDocument(v), 'CPF ou CNPJ inválido.')
+  .transform(v => v === undefined ? undefined : (v ? formatDocument(v) : null))
 
 // GET /platform/tenants — lista todas as empresas cadastradas, com contagens básicas
 router.get('/tenants', async (req, res) => {
@@ -45,6 +50,7 @@ router.get('/tenants', async (req, res) => {
 // sem período de teste.
 const createTenantSchema = z.object({
   businessName:  z.string().min(2),
+  cnpj:          documentField,
   segment:       z.string().default('other'),
   plan:          z.string().default('connected'),
   billingCycle:  z.enum(['monthly', 'annual']).default('monthly'),
@@ -178,6 +184,7 @@ router.get('/tenants/:id', async (req, res) => {
 // PATCH /platform/tenants/:id — editar empresa: ativar/desativar, plano, cobrança
 const updateTenantSchema = z.object({
   name:          z.string().min(1).optional(),
+  cnpj:          documentField,
   active:        z.boolean().optional(),
   plan:          z.string().optional(),
   billingStatus: z.enum(['trial', 'active', 'canceled']).optional(),

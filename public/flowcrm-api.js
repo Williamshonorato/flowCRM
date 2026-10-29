@@ -61,6 +61,14 @@ function startImpersonation(impersonateToken, tenantName) {
   window.location.href = 'crm-dashboard';
 }
 
+// Abre o CRM com a própria conta do admin (tenant interno, que funciona como conta de
+// teste) pra ver exatamente as telas que um cliente vê. Reaproveita o modo de
+// impersonação: mesmo banner e mesmo "Sair da visualização" de volta pro painel.
+async function previewAsClient() {
+  const ok = await api('/platform/preview', { method: 'POST' });
+  if (ok) startImpersonation(getToken(), 'uma conta de teste (como cliente)');
+}
+
 function stopImpersonation() {
   const raw = localStorage.getItem('flowcrm_impersonating');
   if (raw) {
@@ -163,13 +171,24 @@ async function injectAccountUI() {
   const me = await getMe();
   if (!me) return;
 
+  // No painel da plataforma o link abre o CRM como um cliente vê ("Ver como cliente").
+  // Nas telas do CRM ele volta pro painel — exceto durante a visualização, em que a
+  // saída é pelo banner roxo do topo.
   const nav = document.querySelector('.sb-nav');
-  if (me.user.platformRole && nav && !document.getElementById('navPlatformLink')) {
+  const onPlatformPage = (location.pathname.split('/').pop() || '').replace(/\.html$/, '') === 'crm-plataforma';
+  const isPreviewing = !!localStorage.getItem('flowcrm_impersonating');
+  if (me.user.platformRole && nav && !document.getElementById('navPlatformLink') && (onPlatformPage || !isPreviewing)) {
     const a = document.createElement('a');
     a.id = 'navPlatformLink';
     a.className = 'nav-item';
-    a.href = 'crm-plataforma';
-    a.innerHTML = '<span class="ico">🛡️</span>Plataforma';
+    if (onPlatformPage) {
+      a.href = '#';
+      a.onclick = (e) => { e.preventDefault(); previewAsClient(); };
+      a.innerHTML = '<span class="ico">👁️</span>Ver como cliente';
+    } else {
+      a.href = 'crm-plataforma';
+      a.innerHTML = '<span class="ico">🛡️</span>Plataforma';
+    }
     nav.appendChild(a);
   }
 

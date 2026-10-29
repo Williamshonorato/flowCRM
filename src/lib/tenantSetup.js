@@ -4,7 +4,7 @@ import prisma from './prisma.js'
 // Quantos dias quem se cadastra pelo site usa de graça antes de precisar pagar.
 export const TRIAL_DAYS = 2
 
-const DEFAULT_STAGES = [
+export const DEFAULT_STAGES = [
   { name: 'Novo lead', color: '#f39c12', order: 0 },
   { name: 'Em contato', color: '#2980b9', order: 1 },
   { name: 'Proposta', color: '#8e44ad', order: 2 },

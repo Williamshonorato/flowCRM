@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken'
 import { z } from 'zod'
 import prisma from '../lib/prisma.js'
 import { requireAuth, requirePlatformRole, requirePlatformOwner } from '../middleware/auth.js'
-import { createTenantWithAdmin, trialExpired, formatDocument } from '../lib/tenantSetup.js'
+import { createTenantWithAdmin, trialExpired, formatDocument, DEFAULT_STAGES } from '../lib/tenantSetup.js'
 
 const router = Router()
 
@@ -238,6 +238,16 @@ router.post('/tenants/:id/impersonate', async (req, res) => {
     { expiresIn: '2h' } // sessão de impersonação é curta de propósito
   )
   res.json({ token, tenant: { id: tenant.id, name: tenant.name } })
+})
+
+// POST /platform/preview — "Ver como cliente": o admin abre o CRM com a própria conta,
+// que mora no tenant interno. Garante que esse tenant tenha o pipeline padrão, senão a
+// visualização mostraria um CRM vazio diferente do que um cliente novo recebe.
+router.post('/preview', async (req, res) => {
+  const tenant = await prisma.tenant.findUnique({ where: { id: req.user.tenantId }, include: { _count: { select: { stages: true } } } })
+  if (!tenant || tenant.slug !== INTERNAL_TENANT_SLUG) return res.status(400).json({ error: 'Só disponível pra contas da plataforma.' })
+  if (!tenant._count.stages) await prisma.stage.createMany({ data: DEFAULT_STAGES.map(s => ({ ...s, tenantId: tenant.id })) })
+  res.json({ ok: true })
 })
 
 // ── Gerenciar quem mais tem acesso ao painel da plataforma — só o owner ──────

@@ -166,9 +166,11 @@ router.post('/tenants/:id/impersonate', async (req, res) => {
 })
 
 // ── Gerenciar quem mais tem acesso ao painel da plataforma — só o owner ──────
+// Lista também contas do tenant interno que ficaram sem platformRole (sobras do antigo
+// "Remover", que só tirava o papel e deixava a conta ativa) — assim dá pra excluí-las.
 router.get('/admins', requirePlatformOwner, async (req, res) => {
   const admins = await prisma.user.findMany({
-    where: { platformRole: { not: null } },
+    where: { OR: [{ platformRole: { not: null } }, { tenant: { slug: INTERNAL_TENANT_SLUG } }] },
     select: { id: true, name: true, email: true, platformRole: true, createdAt: true },
     orderBy: { createdAt: 'asc' },
   })
@@ -234,9 +236,15 @@ router.patch('/admins/:id', requirePlatformOwner, async (req, res) => {
 
 router.delete('/admins/:id', requirePlatformOwner, async (req, res) => {
   if (req.params.id === req.user.userId) return res.status(400).json({ error: 'Você não pode remover seu próprio acesso.' })
-  const existing = await prisma.user.findUnique({ where: { id: req.params.id } })
-  if (!existing || !existing.platformRole) return res.status(404).json({ error: 'Admin não encontrado.' })
-  await prisma.user.update({ where: { id: req.params.id }, data: { platformRole: null } })
+  const existing = await prisma.user.findUnique({ where: { id: req.params.id }, include: { tenant: { select: { slug: true } } } })
+  const isInternal = existing?.tenant.slug === INTERNAL_TENANT_SLUG
+  if (!existing || (!existing.platformRole && !isInternal)) return res.status(404).json({ error: 'Admin não encontrado.' })
+  // Conta criada só pra administrar a plataforma (tenant interno): exclui de verdade —
+  // antes só tirava o platformRole e a pessoa continuava conseguindo fazer login.
+  // Se for usuário de uma empresa cliente que também era admin, só revoga o acesso ao
+  // painel; a conta dele na empresa continua (excluir lá é pela tela de equipe).
+  if (isInternal) await prisma.user.delete({ where: { id: existing.id } })
+  else await prisma.user.update({ where: { id: existing.id }, data: { platformRole: null } })
   res.status(204).send()
 })
 

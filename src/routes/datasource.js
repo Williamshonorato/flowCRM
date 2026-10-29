@@ -3,11 +3,12 @@ import { Client as PgClient } from 'pg'
 import mysql from 'mysql2/promise'
 import prisma from '../lib/prisma.js'
 import { requireAuth, requireAdmin } from '../middleware/auth.js'
+import { requireIntegration } from '../lib/planGuard.js'
 import { importMemberRows } from '../lib/memberImport.js'
 import { assertPublicHost } from '../lib/ssrf.js'
 
 const router = Router()
-router.use(requireAuth)
+router.use(requireAuth, requireIntegration('datasource'))
 
 const IDENTIFIER_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/
 

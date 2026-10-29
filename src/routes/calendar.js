@@ -2,6 +2,8 @@ import { Router } from 'express'
 import jwt from 'jsonwebtoken'
 import prisma from '../lib/prisma.js'
 import { requireAuth, verifyConnectToken } from '../middleware/auth.js'
+import { integrationAllowed } from '../lib/plans.js'
+import { tenantPlan, requireIntegration } from '../lib/planGuard.js'
 import { sendError } from '../lib/errorPage.js'
 
 const router = Router()
@@ -16,7 +18,7 @@ function redirectUri(req) {
 
 // Usa as mesmas credenciais OAuth do Gmail (mesmo projeto no Google Cloud) — só o escopo muda.
 // Requer a Calendar API habilitada no mesmo projeto além da Gmail API.
-router.get('/connect', (req, res) => {
+router.get('/connect', async (req, res) => {
   const { GOOGLE_CLIENT_ID } = process.env
   if (!GOOGLE_CLIENT_ID) return sendError(req, res, 500, 'A integração com Google Calendar ainda não está disponível por aqui.')
 
@@ -26,6 +28,7 @@ router.get('/connect', (req, res) => {
   } catch {
     return res.status(401).json({ error: 'Token inválido ou expirado.' })
   }
+  if (!integrationAllowed(await tenantPlan(payload.tenantId), 'google_calendar')) return res.redirect('/crm-integracoes?calendar=plan')
 
   const state = jwt.sign({ tenantId: payload.tenantId, purpose: 'oauth-state', provider: 'calendar' }, process.env.JWT_SECRET, { expiresIn: '10m' })
 
@@ -132,7 +135,7 @@ async function getValidAccessToken(integration) {
 }
 
 // GET /calendar/events — próximos eventos, prova de sincronização real
-router.get('/events', requireAuth, async (req, res) => {
+router.get('/events', requireAuth, requireIntegration('google_calendar'), async (req, res) => {
   const integration = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId: req.user.tenantId, type: 'google_calendar' } } })
   if (!integration || integration.status !== 'connected') return res.status(400).json({ error: 'Google Calendar não conectado.' })
 
@@ -151,7 +154,7 @@ router.get('/events', requireAuth, async (req, res) => {
 })
 
 // POST /calendar/events — cria um evento (usado quando um negócio agenda reunião no CRM)
-router.post('/events', requireAuth, async (req, res) => {
+router.post('/events', requireAuth, requireIntegration('google_calendar'), async (req, res) => {
   const { summary, description, startDateTime, endDateTime } = req.body
   if (!summary || !startDateTime || !endDateTime) return res.status(400).json({ error: 'summary, startDateTime e endDateTime são obrigatórios.' })
 

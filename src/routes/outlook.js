@@ -2,6 +2,8 @@ import { Router } from 'express'
 import jwt from 'jsonwebtoken'
 import prisma from '../lib/prisma.js'
 import { requireAuth, verifyConnectToken } from '../middleware/auth.js'
+import { integrationAllowed } from '../lib/plans.js'
+import { tenantPlan, requireIntegration } from '../lib/planGuard.js'
 import { sendError } from '../lib/errorPage.js'
 
 const router = Router()
@@ -17,7 +19,7 @@ function redirectUri(req) {
 
 // GET /outlook/connect?token=<jwt> — criar o app em https://entra.microsoft.com
 // (App registrations → New registration → Web → redirect URI abaixo → Certificates & secrets → New client secret)
-router.get('/connect', (req, res) => {
+router.get('/connect', async (req, res) => {
   const { MICROSOFT_CLIENT_ID } = process.env
   if (!MICROSOFT_CLIENT_ID) return sendError(req, res, 500, 'A integração com Outlook ainda não está disponível por aqui.')
 
@@ -27,6 +29,7 @@ router.get('/connect', (req, res) => {
   } catch {
     return res.status(401).json({ error: 'Token inválido ou expirado.' })
   }
+  if (!integrationAllowed(await tenantPlan(payload.tenantId), 'outlook')) return res.redirect('/crm-integracoes?outlook=plan')
 
   const state = jwt.sign({ tenantId: payload.tenantId, purpose: 'oauth-state', provider: 'outlook' }, process.env.JWT_SECRET, { expiresIn: '10m' })
 
@@ -135,7 +138,7 @@ async function getValidAccessToken(integration) {
 }
 
 // GET /outlook/messages — e-mails recentes, prova de sincronização real
-router.get('/messages', requireAuth, async (req, res) => {
+router.get('/messages', requireAuth, requireIntegration('outlook'), async (req, res) => {
   const integration = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId: req.user.tenantId, type: 'outlook' } } })
   if (!integration || integration.status !== 'connected') return res.status(400).json({ error: 'Outlook não conectado.' })
 

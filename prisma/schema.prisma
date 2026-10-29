@@ -31,6 +31,10 @@ model Tenant {
   billingCycle  String    @default("monthly") // monthly | annual (anual = 12 meses de uma vez, com desconto)
   monthlyValue  Decimal   @default(0) @db.Decimal(10, 2)
   nextDueDate   DateTime?
+  // Cadastro feito pelo site: usa de graça até essa data enquanto espera a gente aprovar
+  // (aprovação = pagamento via Pix confirmado). Passou a data ainda em "trial" = acesso
+  // bloqueado na tela de pagamento. null = sem prazo (contas antigas e criadas pelo painel).
+  trialEndsAt   DateTime?
 
   users        User[]
   contacts     Contact[]

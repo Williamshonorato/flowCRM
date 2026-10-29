@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FlowCRM — Pagamento</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root { --green: #27ae60; --dark: #0f172a; --text: #1e293b; --muted: #64748b; --border: #e2e8f0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1a2744 60%, #0d2137 100%);
+      min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px;
+    }
+    .card { background: #fff; border-radius: 18px; padding: 36px 32px; width: 100%; max-width: 460px; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+    .logo { font-size: 20px; font-weight: 800; color: var(--text); margin-bottom: 22px; }
+    .logo span { color: var(--green); }
+    h1 { font-size: 22px; font-weight: 800; color: var(--text); margin-bottom: 10px; }
+    p { font-size: 14px; color: var(--muted); line-height: 1.55; }
+    .pix { margin: 22px 0; border: 1.5px solid var(--border); border-radius: 12px; padding: 16px; }
+    .pix-label { font-size: 11.5px; font-weight: 700; letter-spacing: .04em; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
+    .pix-key { font-size: 16px; font-weight: 700; color: var(--text); word-break: break-all; }
+    .pix-name { font-size: 13px; color: var(--muted); margin-top: 4px; }
+    .btn { display: block; width: 100%; padding: 12px; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; text-align: center; text-decoration: none; }
+    .btn-copy { background: var(--green); color: #fff; margin-top: 14px; }
+    .btn-out { background: #fff; color: var(--muted); border: 1.5px solid var(--border); margin-top: 18px; }
+    .steps { margin-top: 4px; padding-left: 18px; font-size: 13.5px; color: var(--text); line-height: 1.7; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">Flow<span>CRM</span></div>
+    <h1>Libere seu acesso ao FlowCRM</h1>
+    <p>Pra continuar usando o FlowCRM depois do período de teste grátis, faça o pagamento do seu plano via Pix. Assim que a gente confirmar, seu acesso é liberado e tudo o que você já cadastrou continua lá.</p>
+
+    <div class="pix" id="pixBox">
+      <div class="pix-label">Chave Pix</div>
+      <div class="pix-key" id="pixKey">Carregando...</div>
+      <div class="pix-name" id="pixName"></div>
+      <button class="btn btn-copy" id="copyBtn" style="display:none" onclick="copyKey()">Copiar chave Pix</button>
+    </div>
+
+    <ol class="steps">
+      <li>Pague o valor do plano escolhido no cadastro.</li>
+      <li>Envie o comprovante pra nossa equipe.</li>
+      <li>Liberamos seu acesso assim que o pagamento for confirmado.</li>
+    </ol>
+
+    <a class="btn btn-out" href="#" onclick="logout();return false;">Sair</a>
+  </div>
+
+  <script src="flowcrm-api.js"></script>
+  <script>
+    (async function loadPix() {
+      const info = await fetch(API_BASE + '/auth/payment-info').then(r => r.json()).catch(() => null);
+      const keyEl = document.getElementById('pixKey');
+      if (!info?.pixKey) {
+        keyEl.textContent = 'Fale com a nossa equipe pra receber os dados de pagamento.';
+        keyEl.style.fontSize = '14px';
+        return;
+      }
+      keyEl.textContent = info.pixKey;
+      if (info.pixName) document.getElementById('pixName').textContent = 'Recebedor: ' + info.pixName;
+      document.getElementById('copyBtn').style.display = '';
+    })();
+
+    async function copyKey() {
+      const btn = document.getElementById('copyBtn');
+      try {
+        await navigator.clipboard.writeText(document.getElementById('pixKey').textContent);
+        btn.textContent = 'Chave copiada ✓';
+      } catch {
+        btn.textContent = 'Selecione e copie a chave acima';
+      }
+      setTimeout(() => { btn.textContent = 'Copiar chave Pix'; }, 2500);
+    }
+  </script>
+</body>
+</html>

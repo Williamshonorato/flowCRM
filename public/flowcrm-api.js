@@ -183,6 +183,22 @@ async function injectAccountUI() {
     if (planEl) planEl.textContent = platformLabels[me.user.platformRole] || PLAN_LABELS[me.tenant.plan] || me.tenant.plan;
     if (avatarEl) avatarEl.textContent = initials(me.user.name);
   }
+
+  injectTrialNotice(me.tenant.trialEndsAt);
+}
+
+// Selo no canto enquanto a empresa está no teste grátis (cadastro pelo site ainda não
+// aprovado), com o prazo e o caminho pro pagamento. Fixo no canto pra não mexer no layout.
+function injectTrialNotice(trialEndsAt) {
+  if (!trialEndsAt || localStorage.getItem('flowcrm_impersonating') || document.getElementById('fcrm-trial-notice')) return;
+  const end = new Date(trialEndsAt);
+  const when = end.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' às ' + end.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const el = document.createElement('a');
+  el.id = 'fcrm-trial-notice';
+  el.href = 'crm-pagamento';
+  el.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:9000;background:#1e293b;color:#fff;padding:10px 14px;border-radius:10px;font-size:12.5px;font-weight:600;text-decoration:none;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:calc(100vw - 32px)';
+  el.innerHTML = `🎁 Teste grátis até <b>${escHtml(when)}</b> · <span style="color:#4ade80">Pagar via Pix →</span>`;
+  document.body.appendChild(el);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -222,6 +238,11 @@ async function api(path, opts = {}) {
   }
 
   if (res.status === 401) { clearToken(); window.location.href = 'crm-login'; return null; }
+  // Teste grátis acabou sem aprovação: tudo fica bloqueado até o pagamento via Pix.
+  if (res.status === 402) {
+    if (!location.pathname.replace(/\.html$/, '').endsWith('/crm-pagamento')) window.location.href = 'crm-pagamento';
+    return null;
+  }
   if (res.status === 204) return null;
 
   let body = null;

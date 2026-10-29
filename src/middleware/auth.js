@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken'
 import prisma from '../lib/prisma.js'
 import { trialExpired } from '../lib/tenantSetup.js'
+import { integrationAllowed } from '../lib/plans.js'
 
 export async function requireAuth(req, res, next) {
   // Ferramentas externas (Zapier, Make, scripts) autenticam com a API key do tenant
@@ -10,6 +11,7 @@ export async function requireAuth(req, res, next) {
     if (!tenant) return res.status(401).json({ error: 'API key inválida.' })
     if (!tenant.active) return res.status(403).json({ error: 'Essa empresa está com o acesso suspenso.' })
     if (trialExpired(tenant)) return res.status(402).json({ error: 'O período de teste dessa empresa terminou.', code: 'PAYMENT_REQUIRED' })
+    if (!integrationAllowed(tenant.plan, 'api')) return res.status(403).json({ error: 'A API não está disponível no plano dessa empresa.', code: 'PLAN_LIMIT' })
     req.user = { tenantId: tenant.id, userId: null, role: 'api', email: null }
     return next()
   }

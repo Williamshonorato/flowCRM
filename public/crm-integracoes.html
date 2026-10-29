@@ -546,12 +546,42 @@
     for (const [key, label] of Object.entries(msgs)) {
       if (params.get(key) === 'connected') showToast(`${label} conectado com sucesso.`);
       if (params.get(key) === 'error') showToast(`Não foi possível conectar o ${label}. Tente novamente.`);
+      if (params.get(key) === 'plan') showToast(`${label} não está disponível no seu plano.`);
     }
     if ([...params.keys()].some(k => k in msgs)) window.history.replaceState({}, '', location.pathname);
   }
 
+  // Plano com integrações restritas (ex.: Starter só tem WhatsApp): some com o resto da
+  // tela em vez de mostrar botões que o servidor vai recusar.
+  async function applyPlanLimits() {
+    const me = await getMe();
+    const allowed = me?.tenant?.limits?.integrations;
+    if (!allowed) return true;
+    const ok = (type) => allowed.includes(type);
+    document.querySelectorAll('.int-card').forEach(card => {
+      if (!ok(card.dataset.int || 'api')) card.style.display = 'none';
+    });
+    if (!ok('datasource')) document.querySelector('.db-card').style.display = 'none';
+    if (!ok('api')) document.getElementById('apiSection').style.display = 'none';
+    document.querySelectorAll('.section-title').forEach(title => {
+      const block = title.nextElementSibling;
+      if (!block || block.id === 'apiSection') return;
+      const visible = block.classList.contains('int-grid')
+        ? [...block.querySelectorAll('.int-card')].filter(c => c.style.display !== 'none').length
+        : (block.style.display === 'none' ? 0 : 1);
+      if (!visible) { title.style.display = 'none'; block.style.display = 'none'; return; }
+      const counter = title.querySelector('span');
+      if (counter && block.classList.contains('int-grid')) counter.textContent = `${visible} disponíve${visible === 1 ? 'l' : 'is'}`;
+    });
+    const note = document.createElement('div');
+    note.style.cssText = 'background:#eff6ff;color:#1e40af;border-radius:12px;padding:12px 16px;font-size:13px;margin-bottom:20px';
+    note.innerHTML = `Seu plano inclui a integração com <b>WhatsApp</b>. Pra liberar outras integrações (e-mail, agenda, automações externas, API), fale com a gente.`;
+    document.getElementById('statusBanner').after(note);
+    return ok('api');
+  }
+
   handleOAuthRedirects();
-  loadApiKey();
+  applyPlanLimits().then(apiAllowed => { if (apiAllowed) loadApiKey(); });
   loadIntegrations();
 </script>
 </body>

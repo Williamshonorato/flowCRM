@@ -4,6 +4,8 @@ import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import prisma from '../lib/prisma.js'
 import { requireAuth, requireAdmin } from '../middleware/auth.js'
+import { integrationAllowed } from '../lib/plans.js'
+import { tenantPlan, requireIntegration, PLAN_BLOCKED_ERROR } from '../lib/planGuard.js'
 
 const router = Router()
 router.use(requireAuth)
@@ -30,7 +32,7 @@ function generateApiKey() {
   return 'fcrm_live_sk_' + crypto.randomBytes(24).toString('hex')
 }
 
-router.get('/api-key', requireAdmin, async (req, res) => {
+router.get('/api-key', requireAdmin, requireIntegration('api'), async (req, res) => {
   let tenant = await prisma.tenant.findUnique({ where: { id: req.user.tenantId } })
   if (!tenant.apiKey) {
     tenant = await prisma.tenant.update({ where: { id: tenant.id }, data: { apiKey: generateApiKey() } })
@@ -38,7 +40,7 @@ router.get('/api-key', requireAdmin, async (req, res) => {
   res.json({ apiKey: tenant.apiKey })
 })
 
-router.post('/api-key/regenerate', requireAdmin, async (req, res) => {
+router.post('/api-key/regenerate', requireAdmin, requireIntegration('api'), async (req, res) => {
   const tenant = await prisma.tenant.update({ where: { id: req.user.tenantId }, data: { apiKey: generateApiKey() } })
   res.json({ apiKey: tenant.apiKey })
 })
@@ -230,6 +232,7 @@ router.get('/integrations', async (req, res) => {
 })
 
 router.post('/integrations/:type', requireAdmin, async (req, res) => {
+  if (!integrationAllowed(await tenantPlan(req.user.tenantId), req.params.type)) return res.status(403).json({ error: PLAN_BLOCKED_ERROR, code: 'PLAN_LIMIT' })
   const { config = {} } = req.body
   const integration = await prisma.integration.upsert({
     where: { tenantId_type: { tenantId: req.user.tenantId, type: req.params.type } },

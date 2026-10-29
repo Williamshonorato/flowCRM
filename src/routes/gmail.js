@@ -3,6 +3,8 @@ import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
 import prisma from '../lib/prisma.js'
 import { requireAuth, verifyConnectToken } from '../middleware/auth.js'
+import { integrationAllowed } from '../lib/plans.js'
+import { tenantPlan, requireIntegration } from '../lib/planGuard.js'
 import { getValidAccessToken, sendGmailMessage } from '../lib/gmailSender.js'
 import { sendError } from '../lib/errorPage.js'
 
@@ -18,7 +20,7 @@ function redirectUri(req) {
 
 // GET /gmail/connect?token=<jwt> — inicia o fluxo OAuth. Recebe o token via query
 // porque o navegador vai ser redirecionado pro Google (não dá pra mandar header Authorization num redirect).
-router.get('/connect', (req, res) => {
+router.get('/connect', async (req, res) => {
   const { GOOGLE_CLIENT_ID } = process.env
   if (!GOOGLE_CLIENT_ID) return sendError(req, res, 500, 'A integração com Gmail ainda não está disponível por aqui.')
 
@@ -28,6 +30,7 @@ router.get('/connect', (req, res) => {
   } catch {
     return res.status(401).json({ error: 'Token inválido ou expirado.' })
   }
+  if (!integrationAllowed(await tenantPlan(payload.tenantId), 'gmail')) return res.redirect('/crm-integracoes?gmail=plan')
 
   // state carrega o tenantId assinado, pra sabermos de quem é a conexão quando o Google chamar o callback
   const state = jwt.sign({ tenantId: payload.tenantId, purpose: 'oauth-state', provider: 'gmail' }, process.env.JWT_SECRET, { expiresIn: '10m' })
@@ -127,7 +130,7 @@ router.get('/callback', async (req, res) => {
 })
 
 // POST /gmail/send — manda e-mail de verdade pelo Gmail da empresa, com pixel de rastreio de abertura
-router.post('/send', requireAuth, async (req, res) => {
+router.post('/send', requireAuth, requireIntegration('gmail'), async (req, res) => {
   const { tenantId, userId } = req.user
   const { contactId, to, subject, body } = req.body
   if (!subject || !body) return res.status(400).json({ error: 'Assunto e corpo são obrigatórios.' })
@@ -159,7 +162,7 @@ router.get('/track/:trackingId.png', (req, res) => {
 })
 
 // GET /gmail/messages — lista os e-mails recentes, prova de que a sincronização funciona de verdade
-router.get('/messages', requireAuth, async (req, res) => {
+router.get('/messages', requireAuth, requireIntegration('gmail'), async (req, res) => {
   const integration = await prisma.integration.findUnique({
     where: { tenantId_type: { tenantId: req.user.tenantId, type: 'gmail' } },
   })

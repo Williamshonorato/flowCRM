@@ -19,3 +19,22 @@ export function priceFor(plan, cycle) {
   }
   return { cycle: 'monthly', monthlyValue: monthly, total: monthly }
 }
+
+// O que cada plano pode usar. null = sem limite. Planos fora da lista (connected,
+// enterprise, professional, internal) não têm restrição.
+export const PLAN_LIMITS = {
+  starter: {
+    integrations: ['whatsapp'],        // só WhatsApp; Gmail, Outlook, Agenda, Zapier, Make, banco próprio e API ficam de fora
+    broadcastRecipientsPerMonth: 100,  // pessoas que podem receber Disparos (envio em massa) por mês
+  },
+}
+const NO_LIMITS = { integrations: null, broadcastRecipientsPerMonth: null }
+
+export function planLimits(plan) {
+  return PLAN_LIMITS[plan] || NO_LIMITS
+}
+
+export function integrationAllowed(plan, type) {
+  const allowed = planLimits(plan).integrations
+  return !allowed || allowed.includes(type)
+}

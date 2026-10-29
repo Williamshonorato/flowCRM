@@ -8,6 +8,8 @@ import { randomUUID } from 'crypto'
 import prisma from '../lib/prisma.js'
 import { requireAuth } from '../middleware/auth.js'
 import { kickBroadcastWorker } from '../lib/broadcastWorker.js'
+import { planLimits } from '../lib/plans.js'
+import { tenantPlan } from '../lib/planGuard.js'
 
 const router = Router()
 router.use(requireAuth)
@@ -97,6 +99,12 @@ router.get('/', async (req, res) => {
   res.json(broadcasts)
 })
 
+// (antes de /:id, senão "quota" seria tratado como id)
+// GET /broadcasts/quota — quanto do limite mensal já foi usado (limit null = sem limite)
+router.get('/quota', async (req, res) => {
+  res.json(await monthlyQuota(req.user.tenantId))
+})
+
 // GET /broadcasts/:id — status + resumo dos destinatários
 router.get('/:id', async (req, res) => {
   const { tenantId } = req.user
@@ -121,6 +129,20 @@ const createSchema = audienceSchema.extend({
   imageUrl: z.string().optional().nullable(),
 })
 
+// Cota mensal de Disparos do plano (ex.: Starter = 100 pessoas/mês). Conta quem já recebeu
+// ou ainda vai receber neste mês; falhas de envio e o que foi cancelado antes de sair
+// (status failed/skipped) não gastam cota.
+async function monthlyQuota(tenantId) {
+  const limit = planLimits(await tenantPlan(tenantId)).broadcastRecipientsPerMonth
+  if (limit == null) return { limit: null, used: null, remaining: null }
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const used = await prisma.broadcastRecipient.count({
+    where: { broadcast: { tenantId, createdAt: { gte: monthStart } }, status: { notIn: ['failed', 'skipped'] } },
+  })
+  return { limit, used, remaining: Math.max(0, limit - used) }
+}
+
 // POST /broadcasts — cria o disparo e enfileira; o worker manda em segundo plano
 router.post('/', async (req, res) => {
   const { tenantId, userId } = req.user
@@ -139,6 +161,16 @@ router.post('/', async (req, res) => {
 
   const recipients = await resolveRecipients(tenantId, audience)
   if (!recipients.length) return res.status(400).json({ error: 'Nenhum contato com telefone válido nessa seleção.' })
+
+  const quota = await monthlyQuota(tenantId)
+  if (quota.limit != null && recipients.length > quota.remaining) {
+    return res.status(400).json({
+      error: quota.remaining
+        ? `Seu plano permite disparar pra ${quota.limit} pessoas por mês e restam ${quota.remaining}. Diminua a seleção pra ${quota.remaining} contato(s) ou fale com a gente pra fazer upgrade.`
+        : `Você já usou os ${quota.limit} disparos do seu plano este mês. A cota renova no dia 1º — ou fale com a gente pra fazer upgrade.`,
+      code: 'PLAN_LIMIT',
+    })
+  }
 
   const broadcast = await prisma.broadcast.create({
     data: {

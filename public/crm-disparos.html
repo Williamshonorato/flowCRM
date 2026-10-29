@@ -178,6 +178,7 @@
     <!-- REVISAR + DISPARAR -->
     <div class="panel full">
       <h2>3. Revisar e disparar</h2>
+      <div class="review" id="quotaInfo" style="display:none;margin-bottom:8px"></div>
       <div class="review" id="review">Selecione a audiência pra ver quantos contatos vão receber.</div>
       <div style="display:flex;gap:10px">
         <button class="btn btn-ghost" onclick="doPreview()">Revisar seleção</button>
@@ -294,6 +295,17 @@
     };
   }
 
+  // Plano com cota mensal (ex.: Starter = 100 pessoas/mês): mostra quanto ainda dá pra disparar
+  let quotaRemaining = null;
+  async function loadQuota(){
+    const q = await api('/broadcasts/quota');
+    const el = document.getElementById('quotaInfo');
+    if (!q || q.limit == null) { quotaRemaining = null; el.style.display = 'none'; return; }
+    quotaRemaining = q.remaining;
+    el.style.display = '';
+    el.innerHTML = `📊 Seu plano: <b>${q.limit}</b> pessoas por mês · já usadas <b>${q.used}</b> · restam <b>${q.remaining}</b>`;
+  }
+
   async function doPreview(){
     const r = await api('/broadcasts/preview', { method:'POST', body: JSON.stringify(audiencePayload()) });
     if (!r) return;
@@ -302,7 +314,9 @@
     document.getElementById('review').innerHTML = r.count
       ? `Vai enviar para <b>${r.count}</b> contato(s).${sample ? ' Ex: ' + sample.replace(/</g,'&lt;') : ''}`
       : 'Nenhum contato com telefone válido nessa seleção.';
-    document.getElementById('fireBtn').disabled = r.count === 0;
+    const overQuota = quotaRemaining != null && r.count > quotaRemaining;
+    if (overQuota) document.getElementById('review').innerHTML += `<br><b style="color:#b91c1c">Passa da sua cota: restam ${quotaRemaining} disparo(s) este mês.</b>`;
+    document.getElementById('fireBtn').disabled = r.count === 0 || overQuota;
   }
 
   async function fire(){
@@ -318,6 +332,7 @@
     document.getElementById('review').textContent = 'Selecione a audiência pra ver quantos contatos vão receber.';
     document.getElementById('fireBtn').disabled = true;
     loadHistory();
+    loadQuota();
   }
 
   const ST_LABEL = { queued:'Na fila', sending:'Enviando', done:'Concluído', canceled:'Cancelado' };
@@ -354,6 +369,7 @@
   checkWpp();
   loadFilters();
   loadHistory();
+  loadQuota();
 </script>
 </body>
 </html>

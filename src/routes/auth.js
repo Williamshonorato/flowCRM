@@ -5,7 +5,7 @@ import { z } from 'zod'
 import prisma from '../lib/prisma.js'
 import { sendError } from '../lib/errorPage.js'
 import { requireAuth, requireAdmin } from '../middleware/auth.js'
-import { PLANS, ANNUAL_DISCOUNT, priceFor } from '../lib/plans.js'
+import { PLANS, ANNUAL_DISCOUNT, priceFor, planLimits } from '../lib/plans.js'
 import { captchaSiteKey, verifyCaptcha } from '../lib/captcha.js'
 import { createTenantWithAdmin, trialExpired, paymentInfo, TRIAL_DAYS } from '../lib/tenantSetup.js'
 
@@ -244,7 +244,7 @@ router.get('/me', async (req, res) => {
     if (!user.tenant.active) return res.status(403).json({ error: 'Essa empresa está com o acesso suspenso.' })
     if (trialExpired(user.tenant) && !payload.impersonatedBy) return res.status(402).json({ error: 'Seu período de teste terminou.', code: 'PAYMENT_REQUIRED' })
     const t = user.tenant
-    res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, platformRole: user.platformRole }, tenant: { id: t.id, name: t.name, plan: t.plan, segment: t.segment, trialEndsAt: t.billingStatus === 'trial' ? t.trialEndsAt : null } })
+    res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, platformRole: user.platformRole }, tenant: { id: t.id, name: t.name, plan: t.plan, segment: t.segment, trialEndsAt: t.billingStatus === 'trial' ? t.trialEndsAt : null, limits: planLimits(t.plan) } })
   } catch {
     res.status(401).json({ error: 'Token inválido.' })
   }

@@ -633,6 +633,7 @@
         <button onclick="addField()">+ Campo</button>
       </div>
 
+      <div id="captchaBox" style="display:flex;justify-content:center;margin:18px 0 12px"></div>
       <div id="register-error" style="display:none;color:#e74c3c;font-size:13px;margin-bottom:12px"></div>
       <div class="actions">
         <button class="btn-back" onclick="goTo(2)">← Voltar</button>
@@ -844,6 +845,8 @@
     errEl.style.display = 'block';
   }
 
+  mountCaptcha('captchaBox');
+
   async function finishRegister() {
     const nome    = document.getElementById('nome').value.trim();
     const email   = document.getElementById('email').value.trim();
@@ -855,6 +858,8 @@
     if (!email)   return showRegError('Informe um e-mail válido.');
     if (!senha || senha.length < 6) return showRegError('A senha deve ter no mínimo 6 caracteres.');
     if (!empresa) return showRegError('Informe o nome do seu negócio.');
+    const captcha = captchaToken();
+    if (captcha === '') return showRegError('Marque "Não sou um robô" antes de criar sua conta.');
 
     const btn = document.getElementById('btn-criar');
     btn.textContent = 'Criando...'; btn.disabled = true;
@@ -862,8 +867,9 @@
     const data = await fetch(API_BASE + '/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: nome, email, password: senha, businessName: empresa, segment: selectedSeg, plan: PLANS[selectedPlan].key, billingCycle }),
+      body: JSON.stringify({ name: nome, email, password: senha, businessName: empresa, segment: selectedSeg, plan: PLANS[selectedPlan].key, billingCycle, captchaToken: captcha }),
     }).then(r => r.json()).catch(() => null);
+    resetCaptcha();
 
     btn.textContent = 'Criar meu CRM 🚀'; btn.disabled = false;
 

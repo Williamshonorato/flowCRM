@@ -118,11 +118,14 @@ function injectImpersonationBanner() {
   document.body.style.flexDirection = 'column';
   document.body.style.minHeight = '100vh';
 
-  // A sidebar de cada tela usa min-height:100vh pra cobrir a tela toda sozinha; aqui
-  // ela divide a altura com o banner, então troca por 0 — o align-items:stretch
-  // padrão do wrapper já estica ela (e o .main) até a base de verdade.
+  // A sidebar de cada tela é fixa (sticky) com a altura da tela inteira; aqui ela divide
+  // a tela com o banner, então desconta a altura dele — senão o rodapé do menu (Sair)
+  // ficaria escondido embaixo da dobra.
   const sidebarEl = wrapper.querySelector('.sidebar');
-  if (sidebarEl) sidebarEl.style.minHeight = '0';
+  if (sidebarEl) {
+    sidebarEl.style.minHeight = '0';
+    sidebarEl.style.height = `calc(100vh - ${banner.offsetHeight}px)`;
+  }
 }
 
 // O bloco "Williams · Plano Profissional" no rodapé do menu lateral existe em toda

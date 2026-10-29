@@ -248,6 +248,7 @@
   <div class="modal">
     <h3>➕ Novo cliente</h3>
     <div class="inp-g"><label>Nome do negócio</label><input type="text" id="nt-business"/></div>
+    <div class="inp-g"><label>CPF ou CNPJ</label><input type="text" id="nt-doc" inputmode="numeric" placeholder="000.000.000-00 ou 00.000.000/0001-00" oninput="maskDocument(this)"/></div>
     <div class="inp-g"><label>Segmento</label>
       <select id="nt-segment">
         <option>Clínica / Saúde</option>
@@ -255,6 +256,7 @@
         <option>Agência / Marketing</option>
         <option>Loja / Varejo</option>
         <option>Consultoria</option>
+        <option>Sindicato</option>
         <option>Outro</option>
       </select>
     </div>
@@ -277,7 +279,8 @@
         <select id="nt-billing"><option value="active">Ativa (cobrando)</option><option value="trial">Trial</option></select>
       </div>
     </div>
-    <div class="inp-g"><label>Próximo vencimento</label><input type="date" id="nt-due"/></div>
+    <div class="inp-g"><label>Próximo vencimento</label><input type="date" id="nt-due"/>
+        <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-weight:500;cursor:pointer"><input type="checkbox" id="nt-nodue" style="width:auto" onchange="toggleNoDue('nt')"/> Sem vencimento (não vence)</label></div>
     <div class="inp-g"><label>Nome do responsável (login de admin)</label><input type="text" id="nt-admin-name"/></div>
     <div class="row2">
       <div class="inp-g"><label>E-mail de acesso</label><input type="email" id="nt-admin-email"/></div>
@@ -295,6 +298,7 @@
   <div class="modal">
     <h3>✏️ Editar empresa</h3>
     <div class="inp-g"><label>Nome do negócio</label><input type="text" id="e-name"/></div>
+    <div class="inp-g"><label>CPF ou CNPJ</label><input type="text" id="e-doc" inputmode="numeric" placeholder="000.000.000-00 ou 00.000.000/0001-00" oninput="maskDocument(this)"/></div>
     <div class="row2">
       <div class="inp-g"><label>Plano</label>
         <select id="e-plan">
@@ -323,7 +327,8 @@
           <option value="canceled">Cancelada</option>
         </select>
       </div>
-      <div class="inp-g"><label>Próximo vencimento</label><input type="date" id="e-due"/></div>
+      <div class="inp-g"><label>Próximo vencimento</label><input type="date" id="e-due"/>
+        <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-weight:500;cursor:pointer"><input type="checkbox" id="e-nodue" style="width:auto" onchange="toggleNoDue('e')"/> Sem vencimento (não vence)</label></div>
     </div>
     <div class="inp-g" style="margin-bottom:0"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="e-active" style="width:auto"/> Empresa ativa (login liberado)</label></div>
     <div class="modal-actions">
@@ -504,11 +509,11 @@
       const due = t.nextDueDate ? new Date(t.nextDueDate).toLocaleDateString('pt-BR') : null;
       return `
       <tr class="${t.pendingApproval ? 'row-pending' : ''}">
-        <td><div class="tname">${esc(t.name)}</div><div class="tmeta">${esc(t.slug)}</div></td>
+        <td><div class="tname">${esc(t.name)}</div><div class="tmeta">${esc(t.cnpj || t.slug)}</div></td>
         <td>${esc(PLAN_LABEL[t.plan] || t.plan)}</td>
         <td class="money-cell">
           <div class="val">${fmtMoney(t.monthlyValue)}${t.billingCycle === 'annual' ? ' <span style="font-size:10.5px;font-weight:700;color:#8e44ad">· anual</span>' : ''}</div>
-          ${due ? `<div class="due${t.overdue ? ' late' : ''}">vence ${due}</div>` : ''}
+          ${due ? `<div class="due${t.overdue ? ' late' : ''}">vence ${due}</div>` : (t.billingStatus === 'active' ? `<div class="due">não vence</div>` : '')}
         </td>
         <td>${billingBadge(t)}</td>
         <td>${t._count.users}</td>
@@ -540,7 +545,10 @@
     document.getElementById('e-value').value = Number(t.monthlyValue || 0);
     document.getElementById('e-billing').value = t.billingStatus || 'trial';
     document.getElementById('e-cycle').value = t.billingCycle || 'monthly';
+    document.getElementById('e-doc').value = t.cnpj || '';
     document.getElementById('e-due').value = t.nextDueDate ? t.nextDueDate.slice(0, 10) : '';
+    document.getElementById('e-nodue').checked = !t.nextDueDate;
+    toggleNoDue('e');
     document.getElementById('e-active').checked = !!t.active;
     document.getElementById('editOverlay').classList.add('open');
   }
@@ -550,13 +558,16 @@
     if (!editingId) return;
     const name = document.getElementById('e-name').value.trim();
     if (!name) { showToast('Informe o nome da empresa.'); return; }
+    const doc = document.getElementById('e-doc').value.trim();
+    if (doc && !validDocument(doc)) { showToast('CPF ou CNPJ inválido.'); return; }
     const body = {
       name,
+      cnpj: doc || null,
       plan: document.getElementById('e-plan').value,
       monthlyValue: Number(document.getElementById('e-value').value) || 0,
       billingStatus: document.getElementById('e-billing').value,
       billingCycle: document.getElementById('e-cycle').value,
-      nextDueDate: document.getElementById('e-due').value || null,
+      nextDueDate: dueValue('e'),
       active: document.getElementById('e-active').checked,
     };
     const result = await api('/platform/tenants/' + editingId, { method: 'PATCH', body: JSON.stringify(body) });
@@ -576,8 +587,31 @@
   }
 
   // ── NOVO CLIENTE (cadastrado por nós, já aprovado) ──────────────────────────
+  // CPF (11 dígitos) ou CNPJ (14): formata enquanto digita; o servidor valida de novo.
+  function maskDocument(el) {
+    const d = el.value.replace(/\D/g, '').slice(0, 14);
+    el.value = d.length <= 11
+      ? d.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+      : d.replace(/(\d{2})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1/$2').replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+  }
+  function validDocument(v) { const n = v.replace(/\D/g, '').length; return n === 11 || n === 14; }
+
+  // "Sem vencimento": desliga a data e manda null (cliente que não vence nunca).
+  function toggleNoDue(prefix) {
+    const off = document.getElementById(prefix + '-nodue').checked;
+    const date = document.getElementById(prefix + '-due');
+    date.disabled = off;
+    if (off) date.value = '';
+  }
+  function dueValue(prefix) {
+    if (document.getElementById(prefix + '-nodue').checked) return null;
+    return document.getElementById(prefix + '-due').value || null;
+  }
+
   function openNewTenant() {
-    for (const id of ['nt-business', 'nt-admin-name', 'nt-admin-email', 'nt-admin-pass', 'nt-due']) document.getElementById(id).value = '';
+    for (const id of ['nt-business', 'nt-doc', 'nt-admin-name', 'nt-admin-email', 'nt-admin-pass', 'nt-due']) document.getElementById(id).value = '';
+    document.getElementById('nt-nodue').checked = false;
+    toggleNoDue('nt');
     document.getElementById('nt-plan').value = 'connected';
     document.getElementById('nt-cycle').value = 'monthly';
     document.getElementById('nt-billing').value = 'active';
@@ -589,17 +623,19 @@
   async function saveNewTenant() {
     const body = {
       businessName: document.getElementById('nt-business').value.trim(),
+      cnpj: document.getElementById('nt-doc').value.trim() || null,
       segment: document.getElementById('nt-segment').value,
       plan: document.getElementById('nt-plan').value,
       billingCycle: document.getElementById('nt-cycle').value,
       billingStatus: document.getElementById('nt-billing').value,
       monthlyValue: Number(document.getElementById('nt-value').value) || 0,
-      nextDueDate: document.getElementById('nt-due').value || null,
+      nextDueDate: dueValue('nt'),
       adminName: document.getElementById('nt-admin-name').value.trim(),
       adminEmail: document.getElementById('nt-admin-email').value.trim(),
       adminPassword: document.getElementById('nt-admin-pass').value,
     };
     if (!body.businessName || !body.adminName || !body.adminEmail) { showToast('Preencha empresa, nome e e-mail do responsável.'); return; }
+    if (body.cnpj && !validDocument(body.cnpj)) { showToast('CPF ou CNPJ inválido.'); return; }
     if (body.adminPassword.length < 6) { showToast('A senha precisa ter pelo menos 6 caracteres.'); return; }
     const result = await api('/platform/tenants', { method: 'POST', body: JSON.stringify(body) });
     if (result) { showToast('Cliente criado.'); closeNewTenant(); loadTenants(); loadStats(); }

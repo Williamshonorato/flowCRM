@@ -520,6 +520,7 @@
         <a class="forgot" href="#">Esqueci a senha</a>
       </div>
 
+      <div id="captchaBox" style="display:flex;justify-content:center;margin-bottom:14px"></div>
       <button id="loginBtn" class="btn-primary" onclick="doLogin()">Entrar no FlowCRM →</button>
 
       <div class="divider"><span>ou continue com</span></div>
@@ -567,19 +568,24 @@
     errEl.style.display = 'block';
   })();
 
+  mountCaptcha('captchaBox');
+
   async function doLogin() {
     const email = document.getElementById('emailInput').value.trim();
     const pass  = document.getElementById('passwordInput').value;
     const errEl = document.getElementById('loginError');
     const btn   = document.getElementById('loginBtn');
     if (!email || !pass) { errEl.textContent = 'Preencha e-mail e senha.'; errEl.style.display = 'block'; return; }
+    const captcha = captchaToken();
+    if (captcha === '') { errEl.textContent = 'Marque "Não sou um robô" antes de entrar.'; errEl.style.display = 'block'; return; }
     btn.textContent = 'Entrando...'; btn.disabled = true;
     const data = await fetch(API_BASE + '/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password: pass }),
+      body: JSON.stringify({ email, password: pass, captchaToken: captcha }),
     }).then(r => r.json()).catch(() => null);
     btn.textContent = 'Entrar no FlowCRM →'; btn.disabled = false;
+    resetCaptcha();
     if (data?.code === 'PAYMENT_REQUIRED') { window.location.href = 'crm-pagamento'; return; }
     if (!data || data.error) {
       errEl.textContent = data?.error || 'Erro ao conectar. Verifique se o servidor está rodando.';

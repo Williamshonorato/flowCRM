@@ -207,6 +207,33 @@ document.addEventListener('DOMContentLoaded', () => {
   injectAccountUI();
 });
 
+// ── reCAPTCHA v2 ("Não sou um robô") — login e cadastro ──────────────────────
+// Monta o quadro dentro de #containerId se o servidor tiver as chaves configuradas;
+// senão não faz nada e o formulário segue sem captcha.
+let _fcrmCaptchaWidget = null;
+async function mountCaptcha(containerId) {
+  const cfg = await fetch(API_BASE + '/auth/captcha-config').then(r => r.json()).catch(() => null);
+  if (!cfg?.siteKey) return;
+  await new Promise((resolve, reject) => {
+    window.__fcrmCaptchaReady = resolve;
+    const s = document.createElement('script');
+    s.src = 'https://www.google.com/recaptcha/api.js?onload=__fcrmCaptchaReady&render=explicit&hl=pt-BR';
+    s.async = true;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  }).catch(() => null);
+  if (!window.grecaptcha?.render) return;
+  _fcrmCaptchaWidget = window.grecaptcha.render(containerId, { sitekey: cfg.siteKey });
+}
+// '' = quadro na tela mas não marcado; undefined = captcha desligado
+function captchaToken() {
+  return _fcrmCaptchaWidget === null ? undefined : window.grecaptcha.getResponse(_fcrmCaptchaWidget);
+}
+// O token vale uma tentativa só — depois de qualquer resposta do servidor, pede de novo.
+function resetCaptcha() {
+  if (_fcrmCaptchaWidget !== null) window.grecaptcha.reset(_fcrmCaptchaWidget);
+}
+
 async function api(path, opts = {}) {
   const token = getToken();
   let res;

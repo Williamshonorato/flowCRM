@@ -6,6 +6,7 @@ import prisma from '../lib/prisma.js'
 import { sendError } from '../lib/errorPage.js'
 import { requireAuth, requireAdmin } from '../middleware/auth.js'
 import { PLANS, ANNUAL_DISCOUNT, priceFor } from '../lib/plans.js'
+import { captchaSiteKey, verifyCaptcha } from '../lib/captcha.js'
 import { createTenantWithAdmin, trialExpired, paymentInfo, TRIAL_DAYS } from '../lib/tenantSetup.js'
 
 const router = Router()
@@ -63,12 +64,19 @@ router.get('/plans', (req, res) => {
 // pelo fim do teste não tem sessão válida pra chamar rota autenticada).
 router.get('/payment-info', (req, res) => res.json(paymentInfo()))
 
+// GET /auth/captcha-config — chave pública do reCAPTCHA pras telas de login e cadastro
+// (null = captcha desligado, a tela não mostra o quadro).
+router.get('/captcha-config', (req, res) => res.json({ siteKey: captchaSiteKey() }))
+
+const CAPTCHA_ERROR = { error: 'Confirme que você não é um robô.', code: 'CAPTCHA' }
+
 // POST /auth/register — cria tenant + admin
 router.post('/register', async (req, res) => {
   const parsed = registerSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() })
 
   const { name, email, password, businessName, segment, plan, billingCycle } = parsed.data
+  if (!(await verifyCaptcha(req.body.captchaToken))) return res.status(400).json(CAPTCHA_ERROR)
   const price = priceFor(plan, billingCycle)
 
   const existingUser = await prisma.user.findFirst({ where: byEmail(email) })
@@ -112,6 +120,7 @@ router.post('/login', async (req, res) => {
   const { email, password } = parsed.data
   const emailKey = email.trim().toLowerCase()
   if (loginBlocked(emailKey)) return res.status(429).json({ error: 'Muitas tentativas de login. Aguarde alguns minutos e tente de novo.' })
+  if (!(await verifyCaptcha(req.body.captchaToken))) return res.status(400).json(CAPTCHA_ERROR)
 
   const user = await prisma.user.findFirst({ where: byEmail(email), include: { tenant: true } })
 

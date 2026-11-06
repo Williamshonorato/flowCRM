@@ -17,6 +17,7 @@
   const token = params.get('token');
   history.replaceState(null, '', location.pathname);
   if (token) {
+    localStorage.removeItem('flowcrm_impersonating');
     localStorage.setItem('flowcrm_token', token);
     window.location.href = 'crm-dashboard';
   } else {

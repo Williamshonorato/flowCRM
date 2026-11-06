@@ -8,6 +8,14 @@ function getToken()  { return localStorage.getItem('flowcrm_token'); }
 function setToken(t) { localStorage.setItem('flowcrm_token', t); }
 function clearToken(){ localStorage.removeItem('flowcrm_token'); }
 
+// Login novo (senha, cadastro, Google) sempre começa sessão limpa: se sobrou a marca de
+// "visualizando como cliente" de uma sessão que expirou, ela traria de volta a faixa roxa
+// e um token de volta já vencido.
+function startSession(t) {
+  localStorage.removeItem('flowcrm_impersonating');
+  setToken(t);
+}
+
 function authGuard() {
   if (!getToken()) { window.location.href = 'crm-login'; return false; }
   // Admin da plataforma "puro" (não impersonando um cliente) não deve cair nas
@@ -84,6 +92,8 @@ function stopImpersonation() {
 function injectImpersonationBanner() {
   const raw = localStorage.getItem('flowcrm_impersonating');
   if (!raw) return;
+  // Sem login (ex: sessão expirou e caiu no login) não existe visualização em andamento.
+  if (!getToken()) { localStorage.removeItem('flowcrm_impersonating'); return; }
   let data;
   try { data = JSON.parse(raw) } catch { return }
   if (document.getElementById('fcrm-impersonation-banner')) return;
@@ -286,7 +296,7 @@ async function api(path, opts = {}) {
     clearTimeout(timeoutId);
   }
 
-  if (res.status === 401) { clearToken(); window.location.href = 'crm-login'; return null; }
+  if (res.status === 401) { clearToken(); localStorage.removeItem('flowcrm_impersonating'); window.location.href = 'crm-login'; return null; }
   // Teste grátis acabou sem aprovação: tudo fica bloqueado até o pagamento via Pix.
   if (res.status === 402) {
     if (!location.pathname.replace(/\.html$/, '').endsWith('/crm-pagamento')) window.location.href = 'crm-pagamento';

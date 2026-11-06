@@ -878,7 +878,7 @@
       return;
     }
 
-    setToken(data.token);
+    startSession(data.token);
     await syncPipelineConfig();
     goTo(4);
   }

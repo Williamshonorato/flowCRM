@@ -443,8 +443,13 @@ export async function resolveMenuReply(tenantId, contactId, messageBody) {
       if (log[i].stepId === menuStep.id && log[i].type === 'menu_invalid_reply') missStreak++
       else break
     }
+    // Errou de novo: em vez de passar pra um atendente (que pode não estar disponível),
+    // volta pro menu inicial. O atendente só entra quando a pessoa escolhe essa opção no menu.
     if (missStreak >= 1) {
-      await handoffToHuman(tenantId, contact, run.id, log, 'menu_escalated', { reply: messageBody, reason: 'duas respostas seguidas não reconhecidas' })
+      log.push({ stepId: menuStep.id, type: 'menu_restart', at: new Date().toISOString(), result: { reply: messageBody, reason: 'duas respostas seguidas não reconhecidas' } })
+      if (contact) await sendWhatsappText(tenantId, contact, 'Não consegui entender 😅 Vamos recomeçar do início:')
+      await prisma.automationFlowRun.update({ where: { id: run.id }, data: { status: 'running', currentSteps: flowSteps, stepIndex: 0, log } })
+      await advanceRun(run.id)
       return true
     }
 

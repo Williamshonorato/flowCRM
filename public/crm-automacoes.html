@@ -320,6 +320,24 @@
           </div>
           <div class="inp-g" id="triggerConfigWrap"></div>
         </div>
+        <div id="timeoutWrap" style="display:none;margin-top:6px;padding-top:14px;border-top:1px solid var(--border)">
+          <div class="ed-title" style="margin-bottom:6px">⏱️ Tempo de espera</div>
+          <div class="fm-sub" style="margin:0 0 12px">Passado o prazo, a próxima mensagem da pessoa recomeça pelo menu inicial.</div>
+          <div class="row2">
+            <div class="inp-g"><label>Se a pessoa não responder o menu em</label>
+              <select id="f-menu-timeout">
+                <option value="5">5 minutos</option><option value="10">10 minutos</option><option value="15">15 minutos</option>
+                <option value="30">30 minutos</option><option value="60">1 hora</option><option value="120">2 horas</option>
+                <option value="360">6 horas</option><option value="720">12 horas</option><option value="1440">24 horas</option>
+              </select></div>
+            <div class="inp-g"><label>Depois de passar pra equipe, se ninguém responder em</label>
+              <select id="f-human-timeout">
+                <option value="15">15 minutos</option><option value="30">30 minutos</option><option value="60">1 hora</option>
+                <option value="120">2 horas</option><option value="240">4 horas</option><option value="480">8 horas</option>
+                <option value="1440">24 horas</option>
+              </select></div>
+          </div>
+        </div>
       </div>
 
       <div class="ed-card">
@@ -429,6 +447,7 @@
     ]},
     create_task:    { label: '✅ Criar tarefa', fields: [
       { key: 'title', label: 'Título', type: 'text', full: true },
+      { key: 'message', label: 'Mensagem pra pessoa no WhatsApp (opcional — ex: aguarde, já vamos te atender)', type: 'textarea', full: true },
       { key: 'taskType', label: 'Tipo', type: 'select', options: [['call','Ligação'],['follow','Follow-up'],['meet','Reunião'],['email','E-mail'],['note','Anotação']] },
       { key: 'priority', label: 'Prioridade', type: 'select', options: [['high','Alta'],['mid','Média'],['low','Baixa']] },
       { key: 'dueInDays', label: 'Vencer em (dias)', type: 'number' },
@@ -795,11 +814,13 @@
       if (!(c.options || []).length) out.push('menu sem opções');
     }
     if (s.type === 'create_task' && !String(c.title || '').trim()) out.push('tarefa sem título');
+    if (s.type === 'create_task' && !String(c.message || '').trim() && document.getElementById('f-trigger')?.value === 'whatsapp_message_received') out.push('sem mensagem de aguarde');
     return out;
   }
   function warnHtml(list) { return list.map(w => `<span class="fm-warn">⚠️ ${escHtml(w)}</span>`).join(''); }
 
   // ---------- Editor em árvore: edita direto no "mapa" ----------
+  const HANDOFF_DEFAULT_MSG = '⏳ Aguarde um momento! Em breve um de nossos atendentes vai falar com você. 🙋';
   let treeOpen = new Set();   // opções com submenu que estão abertas
   let editKey = null;         // 'opt:<id>' ou 'step:<id>' — só um formulário aberto por vez
   let newOptId = null;        // opção recém-criada (cancelar = remover)
@@ -889,12 +910,13 @@
     const c = s.config || {};
     if (editing) return `<div class="ft-kind">${s.type === 'create_task' ? '🙋 Passar pra equipe' : '💬 Resposta do bot'}</div>`;
     if (s.type === 'send_whatsapp') return `<div class="ft-kind">💬 Resposta do bot</div><div class="ft-msg clamp">${escHtml(c.message || '(vazia)')}</div>${c.imagePath ? '<div class="ft-msg">🖼️ com imagem</div>' : ''}`;
-    if (s.type === 'create_task') return `<div class="ft-kind">🙋 Passa pra equipe</div><div class="ft-msg">Cria a tarefa “${escHtml(c.title || '')}” para um atendente responder.</div>`;
+    if (s.type === 'create_task') return `<div class="ft-kind">🙋 Passa pra equipe</div>${c.message ? `<div class="ft-msg clamp">${escHtml(c.message)}</div>` : '<div class="ft-msg" style="color:#92400e">Sem mensagem de “aguarde” para a pessoa.</div>'}<div class="ft-msg" style="color:var(--muted);font-size:12px">+ cria a tarefa “${escHtml(c.title || '')}” para um atendente responder.</div>`;
     return `<div class="ft-msg">${escHtml(stepShort(s))}</div>`;
   }
   function treeStepForm(s) {
     const c = s.config || {};
-    if (s.type === 'create_task') return `<div class="ft-form"><label>Título da tarefa que a equipe vai ver</label><input id="te-task" value="${escHtml(c.title || '')}" placeholder="Ex: Associado quer falar com atendente"/></div>`;
+    if (s.type === 'create_task') return `<div class="ft-form"><label>Mensagem que a pessoa recebe no WhatsApp</label><textarea id="te-msg" placeholder="Ex: ⏳ Aguarde um momento! Em breve um de nossos atendentes vai falar com você.">${escHtml(c.message || '')}</textarea>
+      <label>Título da tarefa que a equipe vai ver</label><input id="te-task" value="${escHtml(c.title || '')}" placeholder="Ex: Associado quer falar com atendente"/></div>`;
     const img = c.imageUrl ? `<div class="wz-img-preview"><img src="${escHtml(c.imageUrl)}"/><button class="step-btn danger" type="button" title="Remover imagem" onclick="treeKeepText();classicRemoveImage(${jsAttr(s.id)})">✕</button></div>`
       : (c.imagePath ? '<div class="ft-msg">🖼️ com imagem</div>' : `<label class="wz-img-upload">📷 Anexar imagem (opcional)<input type="file" accept="image/*" style="display:none" onchange="treeKeepText();classicUploadImage(${jsAttr(s.id)}, this)"/></label>`);
     return `<div class="ft-form"><label>Mensagem que o bot responde</label><textarea id="te-msg">${escHtml(c.message || '')}</textarea>${img}</div>`;
@@ -1010,7 +1032,7 @@
   function treeSetResponse(id, kind) {
     const r = findOptDeep(id); if (!r) return;
     if (kind === 'message') { r.opt.steps = [{ id: stepId(), type: 'send_whatsapp', config: { message: '' } }]; flowDirty = true; return treeEdit('opt:' + id); }
-    if (kind === 'task') { r.opt.steps = [{ id: stepId(), type: 'create_task', config: { title: 'Atendimento: ' + (r.opt.label || '') } }]; flowDirty = true; return treeEdit('opt:' + id); }
+    if (kind === 'task') { r.opt.steps = [{ id: stepId(), type: 'create_task', config: { title: 'Atendimento: ' + (r.opt.label || ''), message: HANDOFF_DEFAULT_MSG } }]; flowDirty = true; return treeEdit('opt:' + id); }
     const sm = { id: stepId(), type: 'menu', config: { message: 'Escolha uma das opções abaixo:', options: [] } };
     r.opt.steps = [sm]; treeOpen.add(id); flowDirty = true;
     treeEdit('step:' + sm.id);
@@ -1031,7 +1053,7 @@
     if (kw) r.opt.keywords = kw.value.split(',').map(k => k.trim()).filter(Boolean);
     const prevMsg = cur === 'send_whatsapp' ? r.opt.steps[0].config.message : '';
     if (target === 'send_whatsapp') r.opt.steps = [{ id: stepId(), type: 'send_whatsapp', config: { message: prevMsg || '' } }];
-    else if (target === 'create_task') r.opt.steps = [{ id: stepId(), type: 'create_task', config: { title: 'Atendimento: ' + (r.opt.label || '') } }];
+    else if (target === 'create_task') r.opt.steps = [{ id: stepId(), type: 'create_task', config: { title: 'Atendimento: ' + (r.opt.label || ''), message: HANDOFF_DEFAULT_MSG } }];
     else { r.opt.steps = [{ id: stepId(), type: 'menu', config: { message: 'Escolha uma das opções abaixo:', options: [] } }]; treeOpen.add(id); }
     flowDirty = true;
     renderSteps();
@@ -1186,6 +1208,7 @@
   function renderTriggerConfig() {
     const trigger = document.getElementById('f-trigger').value;
     const wrap = document.getElementById('triggerConfigWrap');
+    document.getElementById('timeoutWrap').style.display = trigger === 'whatsapp_message_received' ? 'block' : 'none';
     if (TRIGGER_NEEDS_STAGE.has(trigger)) {
       wrap.innerHTML = `<label>Estágio específico (opcional)</label><select id="f-trigger-stage">
         <option value="">— Qualquer estágio —</option>
@@ -1222,6 +1245,10 @@
         const sel = document.getElementById('f-trigger-stage');
         if (sel) sel.value = flow.triggerConfig.stageId;
       }
+      document.getElementById('f-menu-timeout').value = String(flow.triggerConfig?.menuTimeoutMin || 1440);
+      document.getElementById('f-human-timeout').value = String(flow.triggerConfig?.humanTimeoutMin || 120);
+      if (!document.getElementById('f-menu-timeout').value) document.getElementById('f-menu-timeout').value = '1440';
+      if (!document.getElementById('f-human-timeout').value) document.getElementById('f-human-timeout').value = '120';
       if (flow.triggerConfig?.keyword) {
         const kw = document.getElementById('f-trigger-keyword');
         if (kw) kw.value = flow.triggerConfig.keyword;
@@ -1234,6 +1261,8 @@
       document.getElementById('f-desc').value = '';
       document.getElementById('f-active').checked = true;
       document.getElementById('f-trigger').value = 'contact_created';
+      document.getElementById('f-menu-timeout').value = '1440';
+      document.getElementById('f-human-timeout').value = '120';
       renderTriggerConfig();
       steps = [];
     }
@@ -1267,6 +1296,10 @@
     const triggerConfig = stageSel && stageSel.value ? { stageId: stageSel.value }
       : keywordInp && keywordInp.value.trim() ? { keyword: keywordInp.value.trim() }
       : {};
+    if (triggerType === 'whatsapp_message_received') {
+      triggerConfig.menuTimeoutMin = Number(document.getElementById('f-menu-timeout').value) || 1440;
+      triggerConfig.humanTimeoutMin = Number(document.getElementById('f-human-timeout').value) || 120;
+    }
 
     const payload = {
       name,
@@ -1487,7 +1520,7 @@
         ...(prev.imagePath ? { imagePath: prev.imagePath, imageUrl: prev.imageUrl } : {}),
       } }];
     } else if (action === 'task') {
-      opt.steps = [{ id: wzStepId(), type: 'create_task', config: { title: opt.steps?.[0]?.config?.title || '' } }];
+      opt.steps = [{ id: wzStepId(), type: 'create_task', config: { title: opt.steps?.[0]?.config?.title || '', message: opt.steps?.[0]?.config?.message || HANDOFF_DEFAULT_MSG } }];
     } else if (action === 'submenu') {
       opt.steps = [{ id: wzStepId(), type: 'menu', config: { message: '', options: [] } }];
     }

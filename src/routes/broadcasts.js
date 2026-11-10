@@ -9,10 +9,10 @@ import prisma from '../lib/prisma.js'
 import { requireAuth } from '../middleware/auth.js'
 import { kickBroadcastWorker } from '../lib/broadcastWorker.js'
 import { planLimits } from '../lib/plans.js'
-import { tenantPlan } from '../lib/planGuard.js'
+import { tenantPlan, requireModule } from '../lib/planGuard.js'
 
 const router = Router()
-router.use(requireAuth)
+router.use(requireAuth, requireModule('broadcasts'))
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const IMG_ROOT = path.join(__dirname, '../../public/uploads/broadcasts')

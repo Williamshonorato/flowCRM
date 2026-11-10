@@ -25,10 +25,10 @@
   const NAV = [
     { section: 'Principal' },
     { href: 'crm-dashboard',      ico: '📊', label: 'Dashboard' },
-    { href: 'crm-pipeline',       ico: '🗂️', label: 'Pipeline' },
+    { href: 'crm-pipeline',       ico: '🗂️', label: 'Pipeline', module: 'pipeline' },
     { href: 'crm-contatos',       ico: '👥', label: 'Contatos' },
     { href: 'crm-conversas',      ico: '💬', label: 'Conversas', unread: true },
-    { href: 'crm-disparos',       ico: '📣', label: 'Disparos' },
+    { href: 'crm-disparos',       ico: '📣', label: 'Disparos', module: 'broadcasts' },
     { href: 'crm-tarefas',        ico: '✅', label: 'Tarefas', badge: true },
     { section: 'Sistema' },
     { href: 'crm-relatorios',     ico: '📈', label: 'Relatórios' },
@@ -37,6 +37,24 @@
     { href: 'crm-integracoes',    ico: '🔌', label: 'Integrações' },
     { href: 'crm-configuracoes',  ico: '⚙️', label: 'Configurações' },
   ];
+
+  // Módulos fora do plano (ex: Starter não tem Pipeline nem Disparos). Fica guardado no navegador
+  // pra montar o menu já certo no carregamento, sem o item aparecer e sumir; /auth/me confirma depois.
+  const BLOCKED_KEY = 'flowcrm_blocked_modules';
+  function cachedBlocked() {
+    try { return JSON.parse(localStorage.getItem(BLOCKED_KEY) || '[]'); } catch (_) { return []; }
+  }
+  let blockedModules = cachedBlocked();
+
+  // Esconde o menu e qualquer atalho marcado com data-module (ex: "+ Novo negócio" no Dashboard),
+  // e tira a pessoa da tela se ela abriu o endereço de um módulo que o plano não tem.
+  function applyBlockedModules() {
+    const page = NAV.find((it) => it.href === currentPage());
+    if (page && page.module && blockedModules.includes(page.module)) { location.replace('crm-dashboard'); return; }
+    document.querySelectorAll('[data-module]').forEach((el) => {
+      el.style.display = blockedModules.includes(el.getAttribute('data-module')) ? 'none' : '';
+    });
+  }
 
   function currentPage() {
     return (location.pathname.split('/').pop() || 'crm-dashboard').toLowerCase().replace(/\.html$/, '');
@@ -51,6 +69,7 @@
     const here = currentPage();
     nav.innerHTML = NAV.map((it) => {
       if (it.section) return `<div class="sb-section">${it.section}</div>`;
+      if (it.module && blockedModules.includes(it.module)) return '';
       const active = it.href.toLowerCase() === here ? ' active' : '';
       // O menu inteiro é reconstruído aqui, então o badge de não lidas (#sbUnread, preenchido pela
       // tela de Conversas) precisa nascer junto — senão ele sumia e a tela dava erro de JS.
@@ -81,6 +100,14 @@
     const me = await api('/auth/me');
     if (!me || !me.user) return;
 
+    const fresh = (me.tenant && me.tenant.limits && me.tenant.limits.blockedModules) || [];
+    if (fresh.join() !== blockedModules.join()) {
+      blockedModules = fresh;
+      try { localStorage.setItem(BLOCKED_KEY, JSON.stringify(fresh)); } catch (_) { /* sem storage: só não fica em cache */ }
+      renderNav();
+    }
+    applyBlockedModules();
+
     const name = me.user.name || '';
     const plan = PLAN_LABELS[me.tenant && me.tenant.plan] || (me.tenant && me.tenant.plan) || '';
 
@@ -106,9 +133,12 @@
   };
 
   window.hydrateSidebar = hydrate;
+  // Pra telas que desenham botões depois de carregar (ex: lista de Contatos) saberem o que esconder.
+  window.fcModuleBlocked = (module) => blockedModules.includes(module);
 
   // Menu montado o quanto antes (o script carrega no fim do <body>, a .sb-nav já existe).
   renderNav();
+  applyBlockedModules();
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hydrate);
   else hydrate();

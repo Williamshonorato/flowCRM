@@ -5,9 +5,10 @@ import { patchSchema } from '../lib/patchSchema.js'
 import { requireAuth } from '../middleware/auth.js'
 import { dispatchWebhook } from '../lib/webhooks.js'
 import { triggerFlows } from '../lib/automationEngine.js'
+import { requireModule } from '../lib/planGuard.js'
 
 const router = Router()
-router.use(requireAuth)
+router.use(requireAuth, requireModule('pipeline'))
 
 const schema = z.object({
   title:     z.string().min(1),

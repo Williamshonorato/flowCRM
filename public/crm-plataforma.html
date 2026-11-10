@@ -355,6 +355,29 @@
   </div>
 </div>
 
+<!-- USUÁRIOS DO CLIENTE -->
+<div class="overlay" id="tenantUsersOverlay" onclick="if(event.target===this)closeTenantUsers()">
+  <div class="modal" style="width:520px">
+    <h3 id="tu-title">👥 Usuários</h3>
+    <div id="tu-list"></div>
+    <div id="tu-form" style="display:none;margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
+      <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:12px" id="tu-form-title"></div>
+      <div class="inp-g"><label>E-mail de acesso</label><input type="email" id="tu-email"/></div>
+      <div class="inp-g" style="margin-bottom:0"><label>Nova senha</label>
+        <div style="display:flex;gap:8px"><input type="text" id="tu-pass" placeholder="Deixe em branco pra manter a atual" autocomplete="new-password" style="flex:1"/>
+        <button class="btn-sm" type="button" onclick="generateTenantUserPass()">🎲 Gerar</button></div>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-cancel" onclick="document.getElementById('tu-form').style.display='none'">Cancelar</button>
+        <button class="modal-save" onclick="saveTenantUser()">Salvar</button>
+      </div>
+    </div>
+    <div class="modal-actions" id="tu-close-row">
+      <button class="modal-cancel" onclick="closeTenantUsers()">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script src="flowcrm-api.js"></script>
@@ -526,6 +549,7 @@
             <button class="btn-sm danger" onclick="rejectTenant(${jsAttr(t.id)},${jsAttr(t.name)})">Recusar</button>` : ''}
             <button class="btn-sm primary" onclick="enterAsTenant(${jsAttr(t.id)})">Entrar como admin</button>
             <button class="btn-sm" onclick="openEdit(${jsAttr(t.id)})">Editar</button>
+            <button class="btn-sm" onclick="openTenantUsers(${jsAttr(t.id)})">Usuários</button>
             <button class="btn-sm" onclick="toggleActive(${jsAttr(t.id)}, ${!t.active})">${t.active ? 'Suspender' : 'Reativar'}</button>
             <button class="btn-sm danger" onclick="deleteTenant(${jsAttr(t.id)},${jsAttr(t.name)})">Excluir</button>
           </div>
@@ -690,6 +714,72 @@
       document.getElementById('na-pass').value = '';
       loadAdmins();
     }
+  }
+
+  // ── USUÁRIOS DO CLIENTE (ver e-mail de acesso / definir senha nova) ───────────
+  let usersTenantId = null, tenantUsers = [], editingTenantUserId = null;
+  async function openTenantUsers(id) {
+    const t = tenants.find(x => x.id === id);
+    if (!t) return;
+    usersTenantId = id;
+    document.getElementById('tu-title').textContent = '👥 Usuários — ' + t.name;
+    document.getElementById('tu-form').style.display = 'none';
+    document.getElementById('tu-list').innerHTML = '<div style="font-size:13px;color:var(--muted)">Carregando...</div>';
+    document.getElementById('tenantUsersOverlay').classList.add('open');
+    const detail = await api('/platform/tenants/' + id);
+    tenantUsers = detail?.users || [];
+    renderTenantUsers();
+  }
+  function closeTenantUsers() { document.getElementById('tenantUsersOverlay').classList.remove('open'); usersTenantId = null; editingTenantUserId = null; }
+
+  function renderTenantUsers() {
+    const box = document.getElementById('tu-list');
+    if (!tenantUsers.length) { box.innerHTML = '<div style="font-size:13px;color:var(--muted)">Nenhum usuário nessa empresa.</div>'; return; }
+    box.innerHTML = tenantUsers.map(u => `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13.5px;font-weight:700;color:var(--text)">${esc(u.name || '')}${u.active ? '' : ' <span style="font-size:11px;color:var(--red)">(desativado)</span>'}</div>
+          <div style="font-size:12.5px;color:var(--muted);word-break:break-all">${esc(u.email)} · ${esc(u.role)}</div>
+        </div>
+        <button class="btn-sm primary" onclick="openTenantUserForm(${jsAttr(u.id)})">🔑 E-mail / senha</button>
+      </div>`).join('');
+  }
+
+  function openTenantUserForm(userId) {
+    const u = tenantUsers.find(x => x.id === userId);
+    if (!u) return;
+    editingTenantUserId = userId;
+    document.getElementById('tu-form-title').textContent = 'Acesso de ' + (u.name || u.email);
+    document.getElementById('tu-email').value = u.email || '';
+    document.getElementById('tu-pass').value = '';
+    document.getElementById('tu-form').style.display = 'block';
+  }
+
+  function generateTenantUserPass() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    const bytes = crypto.getRandomValues(new Uint8Array(10));
+    document.getElementById('tu-pass').value = 'Flow@' + Array.from(bytes, b => chars[b % chars.length]).join('');
+  }
+
+  async function saveTenantUser() {
+    if (!usersTenantId || !editingTenantUserId) return;
+    const u = tenantUsers.find(x => x.id === editingTenantUserId);
+    const email = document.getElementById('tu-email').value.trim();
+    const password = document.getElementById('tu-pass').value.trim();
+    if (!email) { showToast('Informe o e-mail.'); return; }
+    if (password && password.length < 6) { showToast('A senha nova precisa ter pelo menos 6 caracteres.'); return; }
+    const body = {};
+    if (email.toLowerCase() !== (u?.email || '').toLowerCase()) body.email = email;
+    if (password) body.password = password;
+    if (!Object.keys(body).length) { showToast('Nada mudou.'); return; }
+    const result = await api(`/platform/tenants/${usersTenantId}/users/${editingTenantUserId}`, { method: 'PATCH', body: JSON.stringify(body) });
+    if (!result) return;
+    Object.assign(u, result);
+    renderTenantUsers();
+    // Com senha nova, o formulário continua aberto pra dar tempo de copiar a senha e passar pra pessoa.
+    if (password) { showToast('Senha salva! Copie do campo e passe pra pessoa.'); return; }
+    document.getElementById('tu-form').style.display = 'none';
+    showToast('E-mail atualizado.');
   }
 
   // ── EDITAR ADMIN ─────────────────────────────────────────────────────────────

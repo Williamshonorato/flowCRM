@@ -181,6 +181,39 @@ router.get('/tenants/:id', async (req, res) => {
   res.json(tenant)
 })
 
+// PATCH /platform/tenants/:id/users/:userId — trocar e-mail e/ou definir senha nova de um
+// usuário da empresa cliente (ex: a pessoa esqueceu a senha). A antiga nunca dá pra mostrar: é bcrypt.
+const updateTenantUserSchema = z.object({
+  email:    z.string().email().optional(),
+  password: z.string().min(6).optional(),
+})
+router.patch('/tenants/:id/users/:userId', async (req, res) => {
+  const parsed = updateTenantUserSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ error: 'Informe um e-mail válido e/ou uma senha com pelo menos 6 caracteres.' })
+  const { email, password } = parsed.data
+
+  const user = await prisma.user.findFirst({ where: { id: req.params.userId, tenantId: req.params.id } })
+  if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' })
+  // Quem também é admin da plataforma só tem a conta mexida pelo owner (via "Admins"),
+  // senão um superadmin poderia trocar a senha do owner por aqui.
+  if (user.platformRole && req.user.platformRole !== 'owner') {
+    return res.status(403).json({ error: 'Esse usuário é admin da plataforma — só o owner pode alterar.' })
+  }
+
+  const data = {}
+  if (email) {
+    const normalized = email.trim().toLowerCase()
+    const taken = await prisma.user.findFirst({ where: { email: { equals: normalized, mode: 'insensitive' }, id: { not: user.id } } })
+    if (taken) return res.status(409).json({ error: 'E-mail já cadastrado.' })
+    data.email = normalized
+  }
+  if (password) data.password = await bcrypt.hash(password, 10)
+  if (!Object.keys(data).length) return res.status(400).json({ error: 'Nada para alterar.' })
+
+  const updated = await prisma.user.update({ where: { id: user.id }, data, select: { id: true, name: true, email: true, role: true, active: true } })
+  res.json(updated)
+})
+
 // PATCH /platform/tenants/:id — editar empresa: ativar/desativar, plano, cobrança
 const updateTenantSchema = z.object({
   name:          z.string().min(1).optional(),

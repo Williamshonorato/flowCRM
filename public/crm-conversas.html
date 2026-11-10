@@ -256,6 +256,7 @@
     const data = await api('/whatsapp/conversations');
     conversations = data || [];
     renderConvList();
+    loadAvatars();
     const totalUnread = conversations.reduce((s, c) => s + c.unreadCount, 0);
     const badge = document.getElementById('sbUnread');
     if (!badge) return;
@@ -264,6 +265,31 @@
   }
 
   function escapeHtml(s) { return String(s || '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c])); }
+
+  // Foto de perfil do WhatsApp por contato (contactId -> url ou null). Busca só quem ainda não
+  // foi buscado; sem foto (ou se a imagem falhar) fica com as iniciais.
+  const avatarUrls = {};
+  async function loadAvatars() {
+    const missing = conversations.filter(c => !c.isGroup && c.contactId && !(c.contactId in avatarUrls)).map(c => c.contactId);
+    if (!missing.length) return;
+    missing.forEach(id => { avatarUrls[id] = null; });
+    const data = await api('/whatsapp/avatars', { method: 'POST', body: JSON.stringify({ contactIds: missing }) });
+    if (!data) return;
+    let changed = false;
+    for (const [id, url] of Object.entries(data)) if (url) { avatarUrls[id] = url; changed = true; }
+    if (changed) {
+      renderConvList();
+      const head = document.querySelector('.thread-header [data-avatar-id]');
+      if (head && avatarUrls[head.dataset.avatarId]) head.innerHTML = avatarImg(avatarUrls[head.dataset.avatarId]);
+    }
+  }
+  function avatarImg(url) {
+    return `<img src="${escapeHtml(url)}" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:50%;object-fit:cover" onerror="this.parentNode.textContent=this.parentNode.dataset.initials||''">`;
+  }
+  function avatarInner(contactId, name) {
+    const url = avatarUrls[contactId];
+    return url ? avatarImg(url) : escapeHtml(initials(name));
+  }
 
   function renderConvList() {
     const box = document.getElementById('convItems');
@@ -277,7 +303,7 @@
       const snippet = c.lastMessage ? (c.lastMessage.direction === 'out' ? 'Você: ' : '') + c.lastMessage.body : '';
       return `
       <div class="conv-item ${currentConv === key ? 'active' : ''}" onclick="openConversation(${jsAttr(key)})">
-        <div class="conv-avatar" style="background:${c.isGroup ? '#8b5cf6' : palColor(i)}">${c.isGroup ? '👥' : escapeHtml(initials(c.name))}</div>
+        <div class="conv-avatar" data-initials="${escapeHtml(initials(c.name))}" style="background:${c.isGroup ? '#8b5cf6' : palColor(i)}">${c.isGroup ? '👥' : avatarInner(c.contactId, c.name)}</div>
         <div class="conv-body">
           <div class="conv-top"><div class="conv-name">${escapeHtml(c.name)}${c.isGroup ? '<span class="conv-tag">GRUPO</span>' : ''}</div><div class="conv-time">${c.lastMessage ? fmtTime(c.lastMessage.createdAt) : ''}</div></div>
           <div class="conv-preview">
@@ -319,7 +345,7 @@
       currentChat = { type: 'direct', contactId: data.contact.id, name: data.contact.name };
       area.innerHTML = `
         <div class="thread-header">
-          <div class="conv-avatar" style="background:${palColor(0)}">${initials(data.contact.name)}</div>
+          <div class="conv-avatar" data-avatar-id="${escapeHtml(data.contact.id)}" data-initials="${escapeHtml(initials(data.contact.name))}" style="background:${palColor(0)}">${avatarInner(data.contact.id, data.contact.name)}</div>
           <div><div class="thread-header-name">${escapeHtml(data.contact.name)}</div><div class="thread-header-sub">${escapeHtml(data.contact.phone || '')}</div></div>
           <button class="th-btn" onclick="openProfileModal('${data.contact.id}')">Ver ficha do contato</button>
         </div>

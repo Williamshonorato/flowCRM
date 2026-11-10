@@ -18,6 +18,12 @@ const MENU_TTL_MS = 24 * 60 * 60 * 1000 // quanto tempo um menu espera a respost
 // que o fluxo acabou, ou o fluxo terminou passando pra um humano (criou tarefa / escalou). Aí o bot
 // fica quieto por esse prazo pra não interromper o atendimento. "menu" sempre traz o menu.
 const HUMAN_QUIET_MS = 2 * 60 * 60 * 1000
+// Os dois prazos acima podem ser ajustados por fluxo (tela do fluxo → "Tempo de espera"):
+// triggerConfig.menuTimeoutMin e triggerConfig.humanTimeoutMin, em minutos.
+function flowMs(flow, key, fallback) {
+  const min = Number(flow?.triggerConfig?.[key])
+  return Number.isFinite(min) && min >= 1 && min <= 7 * 24 * 60 ? min * 60000 : fallback
+}
 const MENU_RESTART_WORDS = ['menu', 'inicio', 'início']
 // Em submenu, "0" ou "voltar" sobe pro menu de cima (a linha "0. Voltar" entra sozinha no texto).
 const MENU_BACK_WORDS = ['0', 'voltar']
@@ -55,6 +61,9 @@ async function executeStep(step, ctx) {
     case 'create_task': {
       if (!contact) return { skipped: 'sem contato' }
       const dueDays = Number(step.config?.dueInDays) || 0
+      // Mensagem opcional pra pessoa ("Aguarde, um atendente já vai falar com você") antes da tarefa.
+      const notice = String(step.config?.message || '').trim()
+      if (notice) await sendWhatsappText(tenantId, contact, notice).catch(() => {})
       await prisma.task.create({
         data: {
           tenantId, userId: null, contactId: contact.id,
@@ -362,7 +371,7 @@ export async function resolveMenuReply(tenantId, contactId, messageBody) {
   // erros, escalava pra um atendente) em vez de disparar os fluxos normais.
   const lastLog = Array.isArray(run.log) && run.log.length ? run.log[run.log.length - 1] : null
   const lastAt = new Date(lastLog?.at || run.startedAt).getTime()
-  if (Date.now() - lastAt > MENU_TTL_MS) {
+  if (Date.now() - lastAt > flowMs(run.flow, 'menuTimeoutMin', MENU_TTL_MS)) {
     const log = [...(Array.isArray(run.log) ? run.log : []), { stepId: null, type: 'menu_expired', at: new Date().toISOString(), result: { skipped: 'sem resposta a tempo' } }]
     await prisma.automationFlowRun.update({ where: { id: run.id }, data: { status: 'completed', log, finishedAt: new Date() } })
     return false
@@ -427,16 +436,16 @@ export async function resolveMenuReply(tenantId, contactId, messageBody) {
 }
 
 // true = não abrir o bot agora: ainda tem execução em andamento, ou tem atendente humano na conversa.
-async function humanOrBotBusy(tenantId, flowId, contactId) {
+async function humanOrBotBusy(tenantId, flow, contactId) {
   const last = await prisma.automationFlowRun.findFirst({
-    where: { flowId, contactId },
+    where: { flowId: flow.id, contactId },
     orderBy: { startedAt: 'desc' },
     select: { status: true, finishedAt: true, log: true },
   })
   if (!last) return false
   if (['running', 'waiting'].includes(last.status)) return true
   if (!last.finishedAt) return false
-  const quietSince = new Date(Date.now() - HUMAN_QUIET_MS)
+  const quietSince = new Date(Date.now() - flowMs(flow, 'humanTimeoutMin', HUMAN_QUIET_MS))
   if (last.finishedAt > quietSince) {
     const log = Array.isArray(last.log) ? last.log : []
     const handedOff = log.some(e => e.type === 'menu_escalated' || (e.type === 'create_task' && e.result?.done))
@@ -463,7 +472,7 @@ export async function triggerFlows(tenantId, triggerType, { contactId, dealId, s
         const keyword = String(flow.triggerConfig.keyword).toLowerCase()
         if (!String(messageBody || '').toLowerCase().includes(keyword)) continue
       } else if (triggerType === 'whatsapp_message_received' && contactId && !MENU_RESTART_WORDS.includes(String(messageBody || '').trim().toLowerCase())) {
-        if (await humanOrBotBusy(tenantId, flow.id, contactId)) continue
+        if (await humanOrBotBusy(tenantId, flow, contactId)) continue
       }
       startFlowRun(flow, { contactId, dealId }).catch(err => console.error('triggerFlows: startFlowRun falhou', err.message))
     }

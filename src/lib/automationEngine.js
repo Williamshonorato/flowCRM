@@ -18,6 +18,25 @@ const MENU_TTL_MS = 24 * 60 * 60 * 1000 // quanto tempo um menu espera a respost
 // o menu inteiro de novo. A pessoa pode pedir o menu de volta a qualquer hora escrevendo "menu".
 const BOT_COOLDOWN_MS = 6 * 60 * 60 * 1000
 const MENU_RESTART_WORDS = ['menu', 'inicio', 'início']
+// Em submenu, "0" ou "voltar" sobe pro menu de cima (a linha "0. Voltar" entra sozinha no texto).
+const MENU_BACK_WORDS = ['0', 'voltar']
+const MENU_BACK_LABEL = '⬅️ Voltar ao menu anterior'
+
+// Acha o menu "pai" de um submenu dentro da árvore do fluxo: devolve a lista de passos onde ele
+// está e a posição dele, ou null se o menu já é de primeiro nível (ou não existe mais no fluxo).
+function findParentMenu(steps, targetId, parent = null) {
+  for (let i = 0; i < (steps || []).length; i++) {
+    const s = steps[i]
+    if (s.id === targetId) return parent
+    if (s.type === 'menu') {
+      for (const opt of s.config?.options || []) {
+        const hit = findParentMenu(opt.steps, targetId, { list: steps, index: i })
+        if (hit !== undefined) return hit
+      }
+    }
+  }
+  return undefined
+}
 
 // Executa um passo do fluxo. Cada tipo sabe seu próprio formato de "config" —
 // isso é o que permite passos e opções ilimitados sem mexer no schema.
@@ -99,7 +118,7 @@ async function executeStep(step, ctx) {
       if (!contact?.phone) return { skipped: 'contato sem telefone' }
       const options = Array.isArray(step.config?.options) ? step.config.options : []
       if (!options.length) return { skipped: 'menu sem opções configuradas' }
-      const text = formatMenuMessage(step.config?.message || '', options)
+      const text = formatMenuMessage(step.config?.message || '', options, ctx.isSubmenu?.(step))
       const sent = await sendWhatsappText(tenantId, contact, text)
       if (!sent.ok) return { skipped: sent.error }
       return { menu: true }
@@ -205,9 +224,9 @@ async function sendWhatsappMedia(tenantId, contact, imagePath, caption) {
   }
 }
 
-function formatMenuMessage(message, options) {
+function formatMenuMessage(message, options, isSubmenu = false) {
   const list = options.map((o, i) => `${i + 1}. ${o.label}`).join('\n')
-  return `${message}\n\n${list}`
+  return `${message}\n\n${list}${isSubmenu ? `\n0. ${MENU_BACK_LABEL}` : ''}`
 }
 
 // Casa a resposta da pessoa com uma das opções do menu: por palavra-chave configurada,
@@ -289,7 +308,7 @@ export async function advanceRun(runId) {
     const step = steps[i]
     let result
     try {
-      result = await executeStep(step, ctx)
+      result = await executeStep(step, { ...ctx, isSubmenu: (st) => !!findParentMenu(run.flow.steps, st.id) })
     } catch (err) {
       result = { skipped: err.message }
     }
@@ -353,6 +372,25 @@ export async function resolveMenuReply(tenantId, contactId, messageBody) {
   if (!menuStep || menuStep.type !== 'menu') return false
 
   const options = Array.isArray(menuStep.config?.options) ? menuStep.config.options : []
+  const reply = String(messageBody || '').trim().toLowerCase()
+  const flowSteps = Array.isArray(run.flow.steps) ? run.flow.steps : []
+
+  // "menu" em qualquer ponto: recomeça o fluxo do início (menu principal).
+  if (MENU_RESTART_WORDS.includes(reply)) {
+    const log = [...(Array.isArray(run.log) ? run.log : []), { stepId: menuStep.id, type: 'menu_restart', at: new Date().toISOString(), result: { reply: messageBody } }]
+    await prisma.automationFlowRun.update({ where: { id: run.id }, data: { status: 'running', currentSteps: flowSteps, stepIndex: 0, log } })
+    await advanceRun(run.id)
+    return true
+  }
+  // "0"/"voltar" num submenu: reenvia o menu de cima e espera a resposta dele.
+  const parent = findParentMenu(flowSteps, menuStep.id)
+  if (parent && MENU_BACK_WORDS.includes(reply)) {
+    const log = [...(Array.isArray(run.log) ? run.log : []), { stepId: menuStep.id, type: 'menu_back', at: new Date().toISOString(), result: { reply: messageBody } }]
+    await prisma.automationFlowRun.update({ where: { id: run.id }, data: { status: 'running', currentSteps: parent.list, stepIndex: parent.index, log } })
+    await advanceRun(run.id)
+    return true
+  }
+
   const match = matchMenuOption(options, messageBody)
   const contact = await prisma.contact.findUnique({ where: { id: contactId } })
   const log = Array.isArray(run.log) ? [...run.log] : []
@@ -371,7 +409,7 @@ export async function resolveMenuReply(tenantId, contactId, messageBody) {
     }
 
     log.push({ stepId: menuStep.id, type: 'menu_invalid_reply', at: new Date().toISOString(), result: { reply: messageBody } })
-    const retryText = `Não reconheci essa resposta. Por favor, escolha uma opção válida (pelo número ou nome):\n\n${formatMenuMessage('', options).trim()}`
+    const retryText = `Não reconheci essa resposta. Por favor, escolha uma opção válida (pelo número ou nome):\n\n${formatMenuMessage('', options, !!parent).trim()}`
     if (contact) await sendWhatsappText(tenantId, contact, retryText)
     await prisma.automationFlowRun.update({ where: { id: run.id }, data: { log } })
     return true

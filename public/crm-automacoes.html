@@ -976,7 +976,9 @@
       box.innerHTML = '<div class="wp-empty">A prévia aparece aqui enquanto você configura o bot.</div>';
       return;
     }
-    const list = opts.map((o, i) => `${i + 1}. ${o.label || '(sem nome)'}`).join('\n');
+    // Submenu ganha sozinho a linha "0. Voltar" no WhatsApp (o motor do bot adiciona) — a prévia mostra igual.
+    const list = opts.map((o, i) => `${i + 1}. ${o.label || '(sem nome)'}`).join('\n')
+      + (wzNode.step !== wzRoot && opts.length ? '\n0. ⬅️ Voltar ao menu anterior' : '');
     const safeMsg = (msg || '(sem mensagem)').replace(/</g, '&lt;');
     const safeList = list.replace(/</g, '&lt;');
     box.innerHTML = `<div class="wp-bubble">${safeMsg}${safeList ? '\n\n' + safeList : ''}</div>`;

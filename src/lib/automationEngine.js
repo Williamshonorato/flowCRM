@@ -13,6 +13,11 @@ const UPLOADS_DIR = path.join(__dirname, '../../public/uploads')
 const MIME_BY_EXT = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' }
 
 const MENU_TTL_MS = 24 * 60 * 60 * 1000 // quanto tempo um menu espera a resposta da pessoa
+// Bot sem palavra-chave ("qualquer mensagem") não recomeça pra mesma pessoa dentro desse prazo:
+// antes, depois de atendida, cada "obrigado" — ou cada mensagem trocada com o atendente — mandava
+// o menu inteiro de novo. A pessoa pode pedir o menu de volta a qualquer hora escrevendo "menu".
+const BOT_COOLDOWN_MS = 6 * 60 * 60 * 1000
+const MENU_RESTART_WORDS = ['menu', 'inicio', 'início']
 
 // Executa um passo do fluxo. Cada tipo sabe seu próprio formato de "config" —
 // isso é o que permite passos e opções ilimitados sem mexer no schema.
@@ -393,6 +398,15 @@ export async function triggerFlows(tenantId, triggerType, { contactId, dealId, s
       if (triggerType === 'whatsapp_message_received' && flow.triggerConfig?.keyword) {
         const keyword = String(flow.triggerConfig.keyword).toLowerCase()
         if (!String(messageBody || '').toLowerCase().includes(keyword)) continue
+      } else if (triggerType === 'whatsapp_message_received' && contactId && !MENU_RESTART_WORDS.includes(String(messageBody || '').trim().toLowerCase())) {
+        const recent = await prisma.automationFlowRun.findFirst({
+          where: {
+            flowId: flow.id, contactId,
+            OR: [{ startedAt: { gte: new Date(Date.now() - BOT_COOLDOWN_MS) } }, { status: { in: ['running', 'waiting'] } }],
+          },
+          select: { id: true },
+        })
+        if (recent) continue
       }
       startFlowRun(flow, { contactId, dealId }).catch(err => console.error('triggerFlows: startFlowRun falhou', err.message))
     }

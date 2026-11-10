@@ -133,6 +133,41 @@
     .mo-fields input{width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:12.5px;outline:none;font-family:inherit}
     .mo-then{font-size:11.5px;font-weight:700;color:var(--muted);margin:12px 0 6px;text-transform:uppercase;letter-spacing:.03em}
     .steps-tools{display:flex;gap:8px;margin:-6px 0 14px}
+    /* EDITOR EM ÁRVORE */
+    .ft{display:flex;flex-direction:column;gap:6px}
+    .ft-node{margin-left:calc(var(--d,0) * 26px);border-radius:11px;padding:10px 12px;background:#fff;border:1.5px solid var(--border);position:relative}
+    .ft-node.menu{background:#eef6ff;border-color:#cfe1fb}
+    .ft-node.opt{border-left:4px solid var(--green)}
+    .ft-node.auto{background:none;border:1.5px dashed var(--border);color:var(--muted);font-size:12.5px;padding:7px 12px}
+    .ft-node.add{background:none;border:1.5px dashed #9fd8b5;color:#166534;font-weight:700;font-size:13px;cursor:pointer;padding:8px 12px}
+    .ft-node.add:hover{background:#f0fbf4}
+    .ft-node.warn{border-color:#f59e0b;background:#fffbeb}
+    .ft-node.editing{border-color:var(--green);box-shadow:0 0 0 3px #dcfce7}
+    .ft-line{display:flex;align-items:flex-start;gap:10px}
+    .ft-num{width:26px;height:26px;border-radius:50%;background:var(--green);color:#fff;font-weight:800;font-size:12.5px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .ft-main{flex:1;min-width:0}
+    .ft-title{font-weight:800;font-size:14px;color:var(--text)}
+    .ft-kind{font-size:11px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px}
+    .ft-msg{font-size:13px;color:#334155;white-space:pre-wrap;word-break:break-word;margin-top:3px}
+    .ft-msg.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+    .ft-btns{display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
+    .ft-b{padding:5px 10px;border:1.5px solid var(--border);border-radius:8px;background:#fff;font-size:12px;font-weight:700;color:var(--text);cursor:pointer;white-space:nowrap}
+    .ft-b:hover{border-color:var(--green);color:var(--green)}
+    .ft-b.icon{padding:5px 8px}
+    .ft-b.del:hover{border-color:var(--red);color:var(--red)}
+    .ft-b.go{background:var(--green);border-color:var(--green);color:#fff}
+    .ft-b.go:hover{opacity:.9;color:#fff}
+    .ft-b:disabled{opacity:.35;cursor:default}
+    .ft-form{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+    .ft-form label{font-size:11.5px;font-weight:700;color:var(--muted)}
+    .ft-form input,.ft-form textarea{width:100%;padding:8px 11px;border:1.5px solid var(--border);border-radius:9px;font-size:13.5px;font-family:inherit;outline:none}
+    .ft-form textarea{min-height:90px;resize:vertical}
+    .ft-form input:focus,.ft-form textarea:focus{border-color:var(--green)}
+    .ft-choose{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+    .ft-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+    .ft-dirty{font-size:12.5px;font-weight:700;color:#92400e;background:#fef3c7;border-radius:9px;padding:8px 12px;margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+    .adv-hidden{display:none}
+    @media (max-width:640px){.ft-node{margin-left:calc(var(--d,0) * 12px)}.ft-line{flex-wrap:wrap}.ft-btns{width:100%;justify-content:flex-start}}
     @media (max-width:640px){.mo-fields{grid-template-columns:1fr}.mo-sum{display:none}}
 
     .ed-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:4px}
@@ -288,12 +323,19 @@
       </div>
 
       <div class="ed-card">
-        <div class="ed-title">🗺️ Mapa do fluxo</div>
-        <div class="fm-sub">O caminho completo da conversa, do jeito que a pessoa vê no WhatsApp. Clique em qualquer linha para ir direto editar.</div>
+        <div class="ft-top">
+          <div class="ed-title" style="margin:0">🗺️ Conversa do bot</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="ft-b" onclick="treeAll(true)">▾ Abrir tudo</button>
+            <button class="ft-b" onclick="treeAll(false)">▸ Fechar tudo</button>
+          </div>
+        </div>
+        <div class="fm-sub">Do jeito que a pessoa vê no WhatsApp. Use <b>✏️ Editar</b> para mudar um texto e <b>+ Adicionar opção</b> para criar uma nova. Depois clique em <b>Salvar fluxo</b>.</div>
         <div id="flowMap"></div>
+        <div style="margin-top:14px"><button class="ft-b" onclick="toggleAdvanced()" id="advBtn">⚙️ Mostrar modo avançado (todos os campos)</button></div>
       </div>
 
-      <div class="ed-card">
+      <div class="ed-card" id="stepsCard">
         <div class="ed-title">Passos <span style="font-weight:400;color:var(--muted);font-size:12px">— adicione quantos quiser, na ordem que devem rodar</span></div>
         <div class="steps-tools">
           <button class="mo-toggle" onclick="setAllOptions(true)">↕ Abrir todas as opções</button>
@@ -534,10 +576,12 @@
   }
 
   function addStep(targetArray) {
+    flowDirty = true;
     (targetArray || steps).push({ id: stepId(), type: 'send_whatsapp', config: {} });
     renderSteps();
   }
   function addStepToOption(parentStepId, optionId) {
+    flowDirty = true;
     const s = findStepDeep(parentStepId);
     const opt = s.config.options.find(o => o.id === optionId);
     if (!opt.steps) opt.steps = [];
@@ -546,11 +590,13 @@
     renderSteps();
   }
   function removeStep(id) {
+    flowDirty = true;
     const c = findContainerDeep(id);
     if (c) c.array.splice(c.index, 1);
     renderSteps();
   }
   function moveStep(id, dir) {
+    flowDirty = true;
     const c = findContainerDeep(id);
     if (!c) return;
     const j = c.index + dir;
@@ -559,6 +605,7 @@
     renderSteps();
   }
   function setStepType(id, type) {
+    flowDirty = true;
     const s = findStepDeep(id);
     s.type = type; s.config = {};
     renderSteps();
@@ -566,10 +613,12 @@
   function setStepConfig(id, key, value) {
     const s = findStepDeep(id);
     s.config[key] = value;
+    flowDirty = true;
     renderFlowMap();
   }
 
   function addMenuOption(parentStepId) {
+    flowDirty = true;
     const s = findStepDeep(parentStepId);
     if (!Array.isArray(s.config.options)) s.config.options = [];
     const nid = optId();
@@ -578,6 +627,7 @@
     renderSteps();
   }
   function removeMenuOption(parentStepId, optionId) {
+    flowDirty = true;
     const s = findStepDeep(parentStepId);
     s.config.options = s.config.options.filter(o => o.id !== optionId);
     renderSteps();
@@ -587,6 +637,7 @@
     const opt = s.config.options.find(o => o.id === optionId);
     if (key === 'keywords') opt.keywords = value.split(',').map(k => k.trim()).filter(Boolean);
     else opt[key] = value;
+    flowDirty = true;
     renderFlowMap();
   }
 
@@ -618,6 +669,7 @@
   }
 
   async function classicUploadImage(stepId, fileInput) {
+    flowDirty = true;
     const file = fileInput.files[0];
     if (!file) return;
     const formData = new FormData();
@@ -640,6 +692,7 @@
     }
   }
   function classicRemoveImage(stepId) {
+    flowDirty = true;
     setStepConfig(stepId, 'imagePath', undefined);
     setStepConfig(stepId, 'imageUrl', undefined);
     renderSteps();
@@ -730,36 +783,239 @@
     return out;
   }
   function warnHtml(list) { return list.map(w => `<span class="fm-warn">⚠️ ${escHtml(w)}</span>`).join(''); }
-  function mapArray(arr, depth, inOption, acc) { return arr.map(s => mapStep(s, depth, inOption, acc)).join(''); }
-  function mapStep(s, depth, inOption, acc) {
-    const issues = stepIssues(s); acc.n += issues.length;
+
+  // ---------- Editor em árvore: edita direto no "mapa" ----------
+  let treeOpen = new Set();   // opções com submenu que estão abertas
+  let editKey = null;         // 'opt:<id>' ou 'step:<id>' — só um formulário aberto por vez
+  let newOptId = null;        // opção recém-criada (cancelar = remover)
+  let flowDirty = false;
+  let advancedOpen = false;
+
+  function findOptDeep(id, arr = steps) {
+    for (const s of arr) {
+      if (s.type !== 'menu') continue;
+      const opts = s.config?.options || [];
+      const i = opts.findIndex(o => o.id === id);
+      if (i !== -1) return { menu: s, opt: opts[i], index: i };
+      for (const o of opts) { const r = findOptDeep(id, o.steps || []); if (r) return r; }
+    }
+    return null;
+  }
+  function optKind(o) {
+    const st = o.steps || [];
+    if (!st.length) return 'empty';
+    if (st.some(x => x.type === 'menu')) return 'submenu';
+    if (st.length === 1 && (st[0].type === 'send_whatsapp' || st[0].type === 'create_task')) return st[0].type;
+    return 'multi';
+  }
+  function touch() { flowDirty = true; renderSteps(); }
+
+  // Conta problemas na árvore inteira (inclusive dentro de ramos fechados)
+  function countIssues(arr) {
+    let n = 0;
+    for (const s of arr) {
+      n += stepIssues(s).length;
+      if (s.type === 'menu') for (const o of (s.config?.options || [])) {
+        if (!String(o.label || '').trim()) n++;
+        if (!(o.steps || []).length) n++;
+        n += countIssues(o.steps || []);
+      }
+    }
+    return n;
+  }
+
+  function treeArray(arr, depth, inOption, acc) { return arr.map(s => treeStep(s, depth, inOption, acc)).join(''); }
+
+  function treeStep(s, depth, inOption, acc) {
     const c = s.config || {};
-    const txt = s.type === 'menu'
-      ? '📋 <b>Menu:</b> <span class="fm-txt">“' + escHtml(clip(c.message, 70)) + '”</span>'
-      : escHtml(stepShort(s));
-    let html = `<div class="fm-row" style="--d:${depth}" onclick="focusTarget(${jsAttr(s.id)})">${txt}${warnHtml(issues)}</div>`;
-    if (s.type !== 'menu') return html;
-    (c.options || []).forEach((o, i) => {
-      const w = [];
-      if (!String(o.label || '').trim()) w.push('opção sem nome');
-      if (!(o.steps || []).length) w.push('sem resposta');
-      acc.n += w.length;
-      html += `<div class="fm-row fm-opt" style="--d:${depth + 1}" onclick="focusTarget(${jsAttr(o.id || '')})">${i + 1}. ${escHtml(o.label || '(sem nome)')}${warnHtml(w)}</div>`;
-      html += mapArray(o.steps || [], depth + 2, true, acc);
-    });
-    if (inOption && (c.options || []).length) html += `<div class="fm-row fm-auto" style="--d:${depth + 1}">0. ⬅️ Voltar ao menu anterior <i>(automático)</i></div>`;
+    const issues = stepIssues(s); acc.n += issues.length;
+    const editing = editKey === 'step:' + s.id;
+    const sid = jsAttr(s.id);
+    if (s.type === 'menu') {
+      if (!Array.isArray(c.options)) c.options = [];
+      let html = `<div class="ft-node menu ${issues.length ? 'warn' : ''} ${editing ? 'editing' : ''}" style="--d:${depth}" id="tn-${escHtml(s.id)}">
+        <div class="ft-line"><div class="ft-main">
+          <div class="ft-kind">📋 ${inOption ? 'Submenu' : 'Menu'} — mensagem que o bot manda</div>
+          ${editing ? '' : `<div class="ft-msg">${escHtml(c.message || '(sem mensagem)')}</div>`}${warnHtml(issues)}
+        </div>
+        <div class="ft-btns">${editing ? '' : `<button class="ft-b" onclick="treeEdit('step:'+${sid})">✏️ Editar</button>`}</div></div>
+        ${editing ? `<div class="ft-form"><label>Mensagem do menu (as opções numeradas aparecem embaixo sozinhas)</label>
+          <textarea id="te-msg">${escHtml(c.message || '')}</textarea>
+          <div class="ft-btns" style="justify-content:flex-start"><button class="ft-b go" onclick="treeSaveStep(${sid})">✓ Pronto</button><button class="ft-b" onclick="treeCancel()">Cancelar</button></div></div>` : ''}
+      </div>`;
+      c.options.forEach((o, i) => { html += treeOption(s, o, i, c.options.length, depth + 1, acc); });
+      html += `<div class="ft-node add" style="--d:${depth + 1}" onclick="treeAddOption(${sid})">+ Adicionar opção ${c.options.length + 1} neste ${inOption ? 'submenu' : 'menu'}</div>`;
+      if (inOption && c.options.length) html += `<div class="ft-node auto" style="--d:${depth + 1}">0. ⬅️ Voltar ao menu anterior <i>(automático)</i></div>`;
+      return html;
+    }
+    // passo comum (fora de opção simples)
+    const editable = s.type === 'send_whatsapp' || s.type === 'create_task';
+    return `<div class="ft-node ${issues.length ? 'warn' : ''} ${editing ? 'editing' : ''}" style="--d:${depth}" id="tn-${escHtml(s.id)}">
+      <div class="ft-line"><div class="ft-main">${treeStepBody(s, editing)}${warnHtml(issues)}</div>
+      <div class="ft-btns">${editing ? '' : (editable ? `<button class="ft-b" onclick="treeEdit('step:'+${sid})">✏️ Editar</button>` : `<button class="ft-b" onclick="openAdvancedAt(${sid})">⚙️ Editar</button>`)}
+        <button class="ft-b icon del" title="Remover este passo" onclick="treeRemoveStep(${sid})">🗑️</button></div></div>
+      ${editing ? treeStepForm(s) + `<div class="ft-btns" style="justify-content:flex-start;margin-top:8px"><button class="ft-b go" onclick="treeSaveStep(${sid})">✓ Pronto</button><button class="ft-b" onclick="treeCancel()">Cancelar</button></div>` : ''}
+    </div>`;
+  }
+  function treeStepBody(s, editing) {
+    const c = s.config || {};
+    if (editing) return `<div class="ft-kind">${s.type === 'create_task' ? '🙋 Passar pra equipe' : '💬 Resposta do bot'}</div>`;
+    if (s.type === 'send_whatsapp') return `<div class="ft-kind">💬 Resposta do bot</div><div class="ft-msg clamp">${escHtml(c.message || '(vazia)')}</div>${c.imagePath ? '<div class="ft-msg">🖼️ com imagem</div>' : ''}`;
+    if (s.type === 'create_task') return `<div class="ft-kind">🙋 Passa pra equipe</div><div class="ft-msg">Cria a tarefa “${escHtml(c.title || '')}” para um atendente responder.</div>`;
+    return `<div class="ft-msg">${escHtml(stepShort(s))}</div>`;
+  }
+  function treeStepForm(s) {
+    const c = s.config || {};
+    if (s.type === 'create_task') return `<div class="ft-form"><label>Título da tarefa que a equipe vai ver</label><input id="te-task" value="${escHtml(c.title || '')}" placeholder="Ex: Associado quer falar com atendente"/></div>`;
+    const img = c.imageUrl ? `<div class="wz-img-preview"><img src="${escHtml(c.imageUrl)}"/><button class="step-btn danger" type="button" title="Remover imagem" onclick="treeKeepText();classicRemoveImage(${jsAttr(s.id)})">✕</button></div>`
+      : (c.imagePath ? '<div class="ft-msg">🖼️ com imagem</div>' : `<label class="wz-img-upload">📷 Anexar imagem (opcional)<input type="file" accept="image/*" style="display:none" onchange="treeKeepText();classicUploadImage(${jsAttr(s.id)}, this)"/></label>`);
+    return `<div class="ft-form"><label>Mensagem que o bot responde</label><textarea id="te-msg">${escHtml(c.message || '')}</textarea>${img}</div>`;
+  }
+
+  function treeOption(menu, o, i, total, depth, acc) {
+    if (!o.id) o.id = optId();
+    if (!Array.isArray(o.steps)) o.steps = [];
+    const kind = optKind(o);
+    const warns = [];
+    if (!String(o.label || '').trim()) warns.push('opção sem nome');
+    if (kind === 'empty') warns.push('sem resposta');
+    acc.n += warns.length;
+    const editing = editKey === 'opt:' + o.id;
+    const oid = jsAttr(o.id), mid = jsAttr(menu.id);
+    const single = (kind === 'send_whatsapp' || kind === 'create_task') ? o.steps[0] : null;
+    let body = '';
+    if (!editing) {
+      if (single) { const iss = stepIssues(single); acc.n += iss.length; body = treeStepBody(single, false) + warnHtml(iss); }
+      else if (kind === 'submenu') { const sm = o.steps.find(x => x.type === 'menu'); body = `<div class="ft-msg">📋 Abre um submenu com ${(sm.config?.options || []).length} opções</div>`; }
+      else if (kind === 'multi') body = `<div class="ft-msg">${o.steps.map(x => escHtml(stepShort(x))).join('<br>→ ')}</div>`;
+      else body = `<div class="ft-msg" style="color:#92400e">O que o bot faz quando a pessoa escolher esta opção?</div>
+        <div class="ft-choose"><button class="ft-b" onclick="treeSetResponse(${oid},'message')">💬 Responder com mensagem</button>
+        <button class="ft-b" onclick="treeSetResponse(${oid},'submenu')">📋 Abrir submenu</button>
+        <button class="ft-b" onclick="treeSetResponse(${oid},'task')">🙋 Passar pra equipe</button></div>`;
+    }
+    const isOpen = treeOpen.has(o.id);
+    const hasChildren = kind === 'submenu' || kind === 'multi';
+    if (hasChildren && !isOpen && !editing) { const inner = countIssues(o.steps); if (inner) { warns.push(inner + (inner === 1 ? ' coisa para corrigir aqui dentro' : ' coisas para corrigir aqui dentro')); } }
+    let html = `<div class="ft-node opt ${warns.length ? 'warn' : ''} ${editing ? 'editing' : ''}" style="--d:${depth}" id="tn-${escHtml(o.id)}">
+      <div class="ft-line"><div class="ft-num">${i + 1}</div><div class="ft-main">
+        <div class="ft-title">${escHtml(o.label || '(sem nome)')}</div>${warnHtml(warns)}${body}
+      </div>
+      <div class="ft-btns">${editing ? '' : `
+        ${hasChildren ? `<button class="ft-b" onclick="treeToggle(${oid})">${isOpen ? '▾ Fechar' : '▸ Abrir'}</button>` : ''}
+        <button class="ft-b" onclick="treeEdit('opt:'+${oid})">✏️ Editar</button>
+        <button class="ft-b icon" title="Subir" ${i === 0 ? 'disabled' : ''} onclick="treeMoveOpt(${oid},-1)">↑</button>
+        <button class="ft-b icon" title="Descer" ${i === total - 1 ? 'disabled' : ''} onclick="treeMoveOpt(${oid},1)">↓</button>
+        <button class="ft-b icon del" title="Remover opção" onclick="treeRemoveOpt(${oid})">🗑️</button>`}</div></div>
+      ${editing ? `<div class="ft-form">
+        <label>Nome da opção (aparece no WhatsApp como “${i + 1}. …”)</label>
+        <input id="te-label" value="${escHtml(o.label || '')}" placeholder="Ex: Diretor de Aposentados"/>
+        <label>Palavras que também escolhem esta opção (opcional, separe por vírgula)</label>
+        <input id="te-kw" value="${escHtml((o.keywords || []).join(', '))}" placeholder="Ex: aposentados, aposentado"/>
+      </div>${single ? treeStepForm(single) : ''}
+      <div class="ft-btns" style="justify-content:flex-start;margin-top:10px"><button class="ft-b go" onclick="treeSaveOpt(${oid})">✓ Pronto</button><button class="ft-b" onclick="treeCancel()">Cancelar</button></div>` : ''}
+    </div>`;
+    if (hasChildren && (isOpen || editing)) html += treeArray(o.steps, depth + 1, true, acc);
     return html;
   }
+
   function renderFlowMap() {
     const el = document.getElementById('flowMap');
     if (!el) return;
-    if (!steps.length) { el.innerHTML = '<div class="steps-empty">Ainda não tem passos — adicione abaixo e o mapa aparece aqui.</div>'; return; }
     const acc = { n: 0 };
-    const tree = mapArray(steps, 0, false, acc);
-    el.innerHTML = `<div class="fm-box">${tree}</div>` + (acc.n
-      ? `<div class="fm-bad">⚠️ ${acc.n} ${acc.n === 1 ? 'ponto precisa' : 'pontos precisam'} de atenção — clique na linha marcada para corrigir.</div>`
-      : `<div class="fm-ok">✓ Tudo preenchido. Toda opção tem uma resposta.</div>`);
+    const tree = steps.length ? treeArray(steps, 0, false, acc) : '';
+    acc.n = countIssues(steps);
+    el.innerHTML = (tree ? `<div class="ft">${tree}</div>` : `<div class="ft"><div class="ft-node add" onclick="treeStartMenu()">+ Começar com um menu no WhatsApp</div></div>`)
+      + (acc.n ? `<div class="fm-bad">⚠️ ${acc.n} ${acc.n === 1 ? 'ponto precisa' : 'pontos precisam'} de atenção (marcados em amarelo).</div>` : (tree ? `<div class="fm-ok">✓ Tudo preenchido. Toda opção tem uma resposta.</div>` : ''))
+      + (flowDirty ? `<div class="ft-dirty"><span>Você tem alterações que ainda não foram salvas.</span><button class="ft-b go" onclick="saveFlow()">💾 Salvar fluxo</button></div>` : '');
   }
+
+  // Ações da árvore
+  let keptText = null; // preserva o que foi digitado quando um upload de imagem re-renderiza
+  function treeKeepText() { const m = document.getElementById('te-msg'); keptText = m ? m.value : null; }
+  function treeEdit(key) {
+    if (editKey && newOptId) dropNewOpt();
+    editKey = key; renderSteps();
+    const f = document.getElementById('te-label') || document.getElementById('te-msg') || document.getElementById('te-task');
+    if (f) { f.focus(); f.closest('.ft-node')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  }
+  function dropNewOpt() {
+    const r = findOptDeep(newOptId);
+    if (r && !String(r.opt.label || '').trim()) r.menu.config.options.splice(r.index, 1);
+    newOptId = null;
+  }
+  function treeCancel() { if (newOptId) dropNewOpt(); editKey = null; keptText = null; renderSteps(); }
+  function readStepForm(s) {
+    const m = document.getElementById('te-msg'), t = document.getElementById('te-task');
+    if (m) s.config.message = m.value.trim();
+    if (t) s.config.title = t.value.trim();
+  }
+  function treeSaveStep(id) {
+    const s = findStepDeep(id); if (!s) return;
+    readStepForm(s);
+    editKey = null; keptText = null; touch();
+  }
+  function treeSaveOpt(id) {
+    const r = findOptDeep(id); if (!r) return;
+    const label = document.getElementById('te-label').value.trim();
+    if (!label) { showToast('Dê um nome pra opção.'); return; }
+    r.opt.label = label;
+    r.opt.keywords = document.getElementById('te-kw').value.split(',').map(k => k.trim()).filter(Boolean);
+    const k = optKind(r.opt);
+    if (k === 'send_whatsapp' || k === 'create_task') readStepForm(r.opt.steps[0]);
+    editKey = null; newOptId = null; keptText = null; touch();
+  }
+  function treeAddOption(menuId) {
+    if (newOptId) dropNewOpt();
+    const m = findStepDeep(menuId); if (!m) return;
+    const id = optId();
+    m.config.options.push({ id, label: '', keywords: [], steps: [{ id: stepId(), type: 'send_whatsapp', config: { message: '' } }] });
+    newOptId = id;
+    treeEdit('opt:' + id);
+  }
+  function treeSetResponse(id, kind) {
+    const r = findOptDeep(id); if (!r) return;
+    if (kind === 'message') { r.opt.steps = [{ id: stepId(), type: 'send_whatsapp', config: { message: '' } }]; flowDirty = true; return treeEdit('opt:' + id); }
+    if (kind === 'task') { r.opt.steps = [{ id: stepId(), type: 'create_task', config: { title: 'Atendimento: ' + (r.opt.label || '') } }]; flowDirty = true; return treeEdit('opt:' + id); }
+    const sm = { id: stepId(), type: 'menu', config: { message: 'Escolha uma das opções abaixo:', options: [] } };
+    r.opt.steps = [sm]; treeOpen.add(id); flowDirty = true;
+    treeEdit('step:' + sm.id);
+  }
+  function treeMoveOpt(id, dir) {
+    const r = findOptDeep(id); if (!r) return;
+    const arr = r.menu.config.options, j = r.index + dir;
+    if (j < 0 || j >= arr.length) return;
+    [arr[r.index], arr[j]] = [arr[j], arr[r.index]];
+    touch();
+  }
+  function treeRemoveOpt(id) {
+    const r = findOptDeep(id); if (!r) return;
+    const extra = optKind(r.opt) === 'submenu' ? ' e todo o submenu dentro dela' : '';
+    if (!confirm('Remover a opção “' + (r.opt.label || '') + '”' + extra + '?')) return;
+    r.menu.config.options.splice(r.index, 1);
+    touch();
+  }
+  function treeRemoveStep(id) {
+    if (!confirm('Remover este passo?')) return;
+    const c = findContainerDeep(id); if (c) c.array.splice(c.index, 1);
+    touch();
+  }
+  function treeToggle(id) { if (treeOpen.has(id)) treeOpen.delete(id); else treeOpen.add(id); renderSteps(); }
+  function treeAll(open) {
+    treeOpen = new Set();
+    if (open) (function walk(arr) { for (const s of arr) if (s.type === 'menu') for (const o of (s.config?.options || [])) { treeOpen.add(o.id); walk(o.steps || []); } })(steps);
+    renderSteps();
+  }
+  function treeStartMenu() {
+    const m = { id: stepId(), type: 'menu', config: { message: '', options: [] } };
+    steps.push(m); flowDirty = true; treeEdit('step:' + m.id);
+  }
+  function toggleAdvanced(force) {
+    advancedOpen = typeof force === 'boolean' ? force : !advancedOpen;
+    document.getElementById('stepsCard').classList.toggle('adv-hidden', !advancedOpen);
+    document.getElementById('advBtn').textContent = advancedOpen ? '⚙️ Esconder modo avançado' : '⚙️ Mostrar modo avançado (todos os campos)';
+  }
+  function openAdvancedAt(id) { toggleAdvanced(true); focusTarget(id); }
+
   // Caminho de opções (ids) até um passo/opção — pra abrir as opções "pai" antes de rolar até ele.
   function optTrail(target, arr = steps, trail = []) {
     for (const s of arr) {
@@ -799,6 +1055,7 @@
   function renderSteps() {
     document.getElementById('stepsList').innerHTML = renderStepArray(steps);
     renderFlowMap();
+    if (keptText != null) { const m = document.getElementById('te-msg'); if (m) m.value = keptText; keptText = null; }
   }
 
   function renderTriggerConfig() {
@@ -818,7 +1075,7 @@
 
   async function openEditor(id) {
     editingId = id || null;
-    openOpts = new Set();
+    openOpts = new Set(); treeOpen = new Set(); editKey = null; newOptId = null; keptText = null;
     document.getElementById('listView').classList.add('hidden');
     document.getElementById('editorView').classList.add('open');
     document.getElementById('newFlowBtn').style.display = 'none';
@@ -855,10 +1112,14 @@
       renderTriggerConfig();
       steps = [];
     }
+    flowDirty = false;
+    toggleAdvanced(!steps.some(x => x.type === 'menu'));
     renderSteps();
   }
 
-  function closeEditor() {
+  function closeEditor(force) {
+    if (force !== true && flowDirty && !confirm('Você tem alterações não salvas. Sair mesmo assim?')) return;
+    flowDirty = false;
     document.getElementById('listView').classList.remove('hidden');
     document.getElementById('editorView').classList.remove('open');
     document.getElementById('newFlowBtn').style.display = 'inline-block';
@@ -868,6 +1129,11 @@
   }
 
   async function saveFlow() {
+    // se tem um formulário da árvore aberto, aplica o que foi digitado antes de salvar
+    if (editKey) {
+      const k = editKey.slice(0, editKey.indexOf(':')), id = editKey.slice(editKey.indexOf(':') + 1);
+      if (k === 'opt') { treeSaveOpt(id); if (editKey) return; } else treeSaveStep(id);
+    }
     const name = document.getElementById('f-name').value.trim();
     if (!name) { showToast('Dê um nome pro fluxo.'); return; }
     const triggerType = document.getElementById('f-trigger').value;
@@ -890,14 +1156,14 @@
       ? await api('/automations/flows/' + editingId, { method: 'PATCH', body: JSON.stringify(payload) })
       : await api('/automations/flows', { method: 'POST', body: JSON.stringify(payload) });
 
-    if (result) { showToast('Fluxo salvo.'); closeEditor(); }
+    if (result) { showToast('Fluxo salvo.'); closeEditor(true); }
   }
 
   async function deleteFlow() {
     if (!editingId || !confirm('Excluir esse fluxo? Isso não pode ser desfeito.')) return;
     await api('/automations/flows/' + editingId, { method: 'DELETE' });
     showToast('Fluxo excluído.');
-    closeEditor();
+    closeEditor(true);
   }
 
   async function runFlowTest() {

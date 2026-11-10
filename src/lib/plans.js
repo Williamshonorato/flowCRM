@@ -26,9 +26,10 @@ export const PLAN_LIMITS = {
   starter: {
     integrations: ['whatsapp'],        // só WhatsApp; Gmail, Outlook, Agenda, Zapier, Make, banco próprio e API ficam de fora
     broadcastRecipientsPerMonth: 100,  // pessoas que podem receber Disparos (envio em massa) por mês
+    blockedModules: ['pipeline', 'broadcasts'], // telas que o plano não tem: somem do menu e a API recusa
   },
 }
-const NO_LIMITS = { integrations: null, broadcastRecipientsPerMonth: null }
+const NO_LIMITS = { integrations: null, broadcastRecipientsPerMonth: null, blockedModules: [] }
 
 export function planLimits(plan) {
   return PLAN_LIMITS[plan] || NO_LIMITS
@@ -37,4 +38,9 @@ export function planLimits(plan) {
 export function integrationAllowed(plan, type) {
   const allowed = planLimits(plan).integrations
   return !allowed || allowed.includes(type)
+}
+
+// Módulos (telas inteiras) que podem ficar de fora de um plano: 'pipeline' (negócios), 'broadcasts' (Disparos).
+export function moduleAllowed(plan, module) {
+  return !(planLimits(plan).blockedModules || []).includes(module)
 }

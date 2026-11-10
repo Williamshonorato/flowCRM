@@ -269,7 +269,7 @@
       </div>
 
       <div class="dp-actions">
-        <button class="dp-btn dp-btn-primary" onclick="window.location.href='crm-pipeline'">🗂️ Pipeline</button>
+        <button class="dp-btn dp-btn-primary" data-module="pipeline" onclick="window.location.href='crm-pipeline'">🗂️ Pipeline</button>
         <button class="dp-btn dp-btn-sec" id="dp-wpp-btn" onclick="openWhatsapp()">💬 WhatsApp</button>
         <button class="dp-btn dp-btn-sec" id="dp-email-btn" onclick="openEmail()">✉️ E-mail</button>
       </div>
@@ -459,7 +459,7 @@
         <div class="ct-cell muted" style="font-size:12px">${new Date(c.createdAt).toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})}</div>
         <div class="ct-actions">
           <button class="act-btn" title="WhatsApp" onclick="event.stopPropagation();quickWhatsapp(${jsAttr(c.phone || '')},${jsAttr(c.id)},${jsAttr(c.name)})">💬</button>
-          <button class="act-btn" title="Pipeline" onclick="event.stopPropagation();window.location.href='crm-pipeline'">🗂️</button>
+          ${window.fcModuleBlocked && fcModuleBlocked('pipeline') ? '' : `<button class="act-btn" title="Pipeline" onclick="event.stopPropagation();window.location.href='crm-pipeline'">🗂️</button>`}
         </div>
       </div>`;
     }).join('') || '<div style="padding:30px;text-align:center;color:#94a3b8">Nenhum contato encontrado.</div>';

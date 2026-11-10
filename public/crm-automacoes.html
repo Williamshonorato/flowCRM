@@ -326,6 +326,8 @@
         <div class="ft-top">
           <div class="ed-title" style="margin:0">🗺️ Conversa do bot</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="ft-b" onclick="openFlowText('copy')">📤 Copiar fluxo</button>
+            <button class="ft-b" onclick="openFlowText('paste')">📥 Colar textos</button>
             <button class="ft-b" onclick="treeAll(true)">▾ Abrir tudo</button>
             <button class="ft-b" onclick="treeAll(false)">▸ Fechar tudo</button>
           </div>
@@ -375,6 +377,19 @@
     <div class="rs-cards" id="rsCards"></div>
     <div id="rsPaths"></div>
     <div style="display:flex;justify-content:flex-end;margin-top:18px"><button class="btn-cancel" onclick="closeResults()">Fechar</button></div>
+  </div>
+</div>
+
+<!-- COPIAR / COLAR TEXTOS DO FLUXO -->
+<div class="wizard-overlay" id="flowTextOverlay" onclick="if(event.target===this)closeFlowText()">
+  <div class="rs-modal" style="max-width:720px">
+    <div class="rs-title" id="ftxTitle"></div>
+    <div class="rs-sub" id="ftxSub" style="margin:6px 0 12px"></div>
+    <textarea id="ftxArea" spellcheck="false" style="width:100%;height:320px;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:ui-monospace,Menlo,monospace;font-size:12px;outline:none"></textarea>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+      <button class="btn-cancel" onclick="closeFlowText()">Fechar</button>
+      <button class="btn-save" id="ftxBtn"></button>
+    </div>
   </div>
 </div>
 
@@ -1052,6 +1067,72 @@
     const m = { id: stepId(), type: 'menu', config: { message: '', options: [] } };
     steps.push(m); flowDirty = true; treeEdit('step:' + m.id);
   }
+  // ---------- Copiar fluxo / colar textos ----------
+  // "Colar textos" NUNCA muda a estrutura: só atualiza nome/palavras/mensagens de itens que já existem (casados pelo id).
+  function openFlowText(mode) {
+    if (editKey) treeCancel();
+    const area = document.getElementById('ftxArea'), btn = document.getElementById('ftxBtn');
+    if (mode === 'copy') {
+      document.getElementById('ftxTitle').textContent = '📤 Copiar fluxo';
+      document.getElementById('ftxSub').textContent = 'Este é o fluxo inteiro em texto. Clique em Copiar e cole onde quiser (por exemplo, na conversa com o Claude).';
+      ensureIds(steps);
+      area.value = JSON.stringify(steps, null, 1); area.readOnly = true;
+      btn.textContent = '📋 Copiar'; btn.onclick = copyFlowText;
+    } else {
+      document.getElementById('ftxTitle').textContent = '📥 Colar textos';
+      document.getElementById('ftxSub').textContent = 'Cole aqui o fluxo revisado. Só os textos mudam (nomes das opções, palavras e mensagens) — nenhuma opção é criada, apagada ou mudada de lugar.';
+      area.value = ''; area.readOnly = false;
+      btn.textContent = '✓ Aplicar textos'; btn.onclick = applyFlowText;
+    }
+    document.getElementById('flowTextOverlay').classList.add('open');
+    if (mode === 'paste') area.focus();
+  }
+  function closeFlowText() { document.getElementById('flowTextOverlay').classList.remove('open'); }
+  async function copyFlowText() {
+    const area = document.getElementById('ftxArea');
+    try { await navigator.clipboard.writeText(area.value); showToast('Fluxo copiado!'); }
+    catch { area.select(); document.execCommand('copy'); showToast('Fluxo copiado!'); }
+  }
+  function applyFlowText() {
+    let incoming;
+    try { incoming = JSON.parse(document.getElementById('ftxArea').value); } catch { showToast('Esse texto não está no formato certo. Cole exatamente o que recebeu.'); return; }
+    if (!Array.isArray(incoming)) { showToast('Esse texto não está no formato certo.'); return; }
+    const byId = new Map();
+    (function walk(arr) {
+      for (const s of arr || []) {
+        if (s && s.id) byId.set(s.id, s);
+        if (s?.type === 'menu') for (const o of (s.config?.options || [])) { if (o && o.id) byId.set(o.id, o); walk(o.steps || []); }
+      }
+    })(incoming);
+    let matched = 0, changed = 0;
+    const str = v => typeof v === 'string';
+    (function walk(arr) {
+      for (const s of arr) {
+        const n = byId.get(s.id);
+        if (n && n.type === s.type) {
+          matched++;
+          for (const k of ['message', 'title', 'subject', 'body']) {
+            if (str(n.config?.[k]) && n.config[k] !== s.config[k]) { s.config[k] = n.config[k]; changed++; }
+          }
+        }
+        if (s.type === 'menu') for (const o of (s.config?.options || [])) {
+          const no = byId.get(o.id);
+          if (no) {
+            matched++;
+            if (str(no.label) && no.label.trim() && no.label !== o.label) { o.label = no.label.trim(); changed++; }
+            if (Array.isArray(no.keywords) && no.keywords.every(str) && JSON.stringify(no.keywords) !== JSON.stringify(o.keywords || [])) { o.keywords = no.keywords.map(k => k.trim()).filter(Boolean); changed++; }
+          }
+          walk(o.steps || []);
+        }
+      }
+    })(steps);
+    if (!matched) { showToast('Esse texto não é deste fluxo — nada foi alterado.'); return; }
+    closeFlowText();
+    if (!changed) { showToast('Nenhum texto diferente encontrado.'); return; }
+    flowDirty = true; renderSteps();
+    showToast(changed + (changed === 1 ? ' texto atualizado' : ' textos atualizados') + ' — confira e clique em Salvar fluxo.');
+  }
+
   function toggleAdvanced(force) {
     advancedOpen = typeof force === 'boolean' ? force : !advancedOpen;
     document.getElementById('stepsCard').classList.toggle('adv-hidden', !advancedOpen);

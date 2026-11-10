@@ -141,4 +141,70 @@ router.get('/flows/:id/runs', async (req, res) => {
   res.json(withNames)
 })
 
+// GET /automations/flows/:id/stats?days=30 — resultado do bot: quantos atendimentos, quantos o bot
+// resolveu sozinho, quantos foram pra um humano e por qual caminho do menu cada pessoa terminou.
+// Tudo sai do log de cada execução (menu_reply = opção escolhida, menu_back/menu_restart = voltou).
+function indexSteps(steps, map = {}) {
+  for (const s of steps || []) {
+    map[s.id] = s
+    if (s.type === 'menu') for (const o of s.config?.options || []) indexSteps(o.steps, map)
+  }
+  return map
+}
+const URL_RE = /https?:\/\/[^\s]+/i
+
+router.get('/flows/:id/stats', async (req, res) => {
+  const { tenantId } = req.user
+  const flow = await prisma.automationFlow.findFirst({ where: { id: req.params.id, tenantId } })
+  if (!flow) return res.status(404).json({ error: 'Fluxo não encontrado.' })
+  const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365)
+  const since = new Date(Date.now() - days * 86400000)
+
+  const runs = await prisma.automationFlowRun.findMany({
+    where: { flowId: flow.id, tenantId, startedAt: { gte: since }, status: { not: 'failed' } },
+    orderBy: { startedAt: 'desc' },
+    select: { contactId: true, status: true, log: true, startedAt: true },
+  })
+  const stepById = indexSteps(Array.isArray(flow.steps) ? flow.steps : [])
+  const contactIds = [...new Set(runs.map(r => r.contactId).filter(Boolean))]
+  const contacts = contactIds.length ? await prisma.contact.findMany({ where: { id: { in: contactIds }, tenantId }, select: { id: true, name: true, phone: true } }) : []
+  const contactMap = Object.fromEntries(contacts.map(c => [c.id, c]))
+
+  const totals = { atendimentos: runs.length, pessoas: contactIds.length, resolvidos: 0, humano: 0, semResposta: 0, emAndamento: 0 }
+  const groups = new Map() // caminho+resultado -> grupo
+  for (const run of runs) {
+    const log = Array.isArray(run.log) ? run.log : []
+    let path = []
+    let human = false, link = null
+    for (const e of log) {
+      if (e.type === 'menu_reply' && e.result?.chosen) path.push(e.result.chosen)
+      else if (e.type === 'menu_back') path.pop()
+      else if (e.type === 'menu_restart') { path = []; link = null }
+      else if (e.type === 'menu_escalated' || (e.type === 'create_task' && e.result?.done)) human = true
+      else if (e.type === 'send_whatsapp' && e.result?.done) {
+        const m = String(stepById[e.stepId]?.config?.message || '').match(URL_RE)
+        if (m) link = m[0]
+      }
+    }
+    const expired = log.some(e => e.type === 'menu_expired')
+    let outcome
+    if (['running', 'waiting', 'waiting_reply'].includes(run.status)) outcome = 'emAndamento'
+    else if (human) outcome = 'humano'
+    else if (expired || !path.length) outcome = 'semResposta'
+    else outcome = 'resolvidos'
+    totals[outcome]++
+
+    const label = path.join(' › ') || '(não escolheu opção)'
+    const key = outcome + '|' + label
+    if (!groups.has(key)) groups.set(key, { caminho: label, resultado: outcome, link: null, total: 0, pessoas: [] })
+    const g = groups.get(key)
+    g.total++
+    if (link && !g.link) g.link = link
+    const c = run.contactId ? contactMap[run.contactId] : null
+    if (g.pessoas.length < 50) g.pessoas.push({ nome: c?.name || c?.phone || 'Contato removido', telefone: c?.phone || null, em: run.startedAt })
+  }
+  const caminhos = [...groups.values()].sort((a, b) => b.total - a.total)
+  res.json({ dias: days, totals, caminhos })
+})
+
 export default router

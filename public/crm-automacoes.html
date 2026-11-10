@@ -824,6 +824,19 @@
     return n;
   }
 
+  // Fluxos antigos podem ter passos/opções sem id — sem id não dá pra achar o item pra editar.
+  function ensureIds(arr) {
+    for (const s of arr || []) {
+      if (!s.id) s.id = stepId();
+      if (!s.config) s.config = {};
+      if (s.type === 'menu') for (const o of (s.config.options || [])) {
+        if (!o.id) o.id = optId();
+        if (!Array.isArray(o.steps)) o.steps = [];
+        ensureIds(o.steps);
+      }
+    }
+  }
+
   function treeArray(arr, depth, inOption, acc) { return arr.map(s => treeStep(s, depth, inOption, acc)).join(''); }
 
   function treeStep(s, depth, inOption, acc) {
@@ -911,7 +924,13 @@
         <input id="te-label" value="${escHtml(o.label || '')}" placeholder="Ex: Diretor de Aposentados"/>
         <label>Palavras que também escolhem esta opção (opcional, separe por vírgula)</label>
         <input id="te-kw" value="${escHtml((o.keywords || []).join(', '))}" placeholder="Ex: aposentados, aposentado"/>
-      </div>${single ? treeStepForm(single) : ''}
+        <label>O que o bot faz quando a pessoa escolher esta opção</label>
+        <div class="ft-choose" style="margin-top:0">
+          <button class="ft-b ${kind === 'send_whatsapp' ? 'go' : ''}" onclick="treeChangeResponse(${oid},'message')">💬 Responder com mensagem</button>
+          <button class="ft-b ${kind === 'submenu' ? 'go' : ''}" onclick="treeChangeResponse(${oid},'submenu')">📋 Abrir submenu</button>
+          <button class="ft-b ${kind === 'create_task' ? 'go' : ''}" onclick="treeChangeResponse(${oid},'task')">🙋 Passar pra equipe</button>
+        </div>
+      </div>${single ? treeStepForm(single) : ''}${kind === 'submenu' ? '<div class="ft-msg" style="margin-top:8px;color:var(--muted)">As opções do submenu aparecem logo abaixo — edite cada uma pelo ✏️ Editar dela.</div>' : ''}
       <div class="ft-btns" style="justify-content:flex-start;margin-top:10px"><button class="ft-b go" onclick="treeSaveOpt(${oid})">✓ Pronto</button><button class="ft-b" onclick="treeCancel()">Cancelar</button></div>` : ''}
     </div>`;
     if (hasChildren && (isOpen || editing)) html += treeArray(o.steps, depth + 1, true, acc);
@@ -979,6 +998,29 @@
     const sm = { id: stepId(), type: 'menu', config: { message: 'Escolha uma das opções abaixo:', options: [] } };
     r.opt.steps = [sm]; treeOpen.add(id); flowDirty = true;
     treeEdit('step:' + sm.id);
+  }
+  // Troca o tipo de resposta de uma opção (ex.: submenu → mensagem), mantendo o que já foi digitado no nome/palavras.
+  function treeChangeResponse(id, kind) {
+    const r = findOptDeep(id); if (!r) return;
+    const cur = optKind(r.opt);
+    const target = kind === 'message' ? 'send_whatsapp' : kind === 'task' ? 'create_task' : 'submenu';
+    if (cur === target) return;
+    if (cur === 'submenu' || cur === 'multi') {
+      const sm = r.opt.steps.find(x => x.type === 'menu');
+      const n = sm ? (sm.config?.options || []).length : 0;
+      if (n && !confirm('Isso apaga o submenu e as ' + n + ' opções que estão dentro dele. Continuar?')) return;
+    }
+    const lbl = document.getElementById('te-label'), kw = document.getElementById('te-kw');
+    if (lbl) r.opt.label = lbl.value.trim();
+    if (kw) r.opt.keywords = kw.value.split(',').map(k => k.trim()).filter(Boolean);
+    const prevMsg = cur === 'send_whatsapp' ? r.opt.steps[0].config.message : '';
+    if (target === 'send_whatsapp') r.opt.steps = [{ id: stepId(), type: 'send_whatsapp', config: { message: prevMsg || '' } }];
+    else if (target === 'create_task') r.opt.steps = [{ id: stepId(), type: 'create_task', config: { title: 'Atendimento: ' + (r.opt.label || '') } }];
+    else { r.opt.steps = [{ id: stepId(), type: 'menu', config: { message: 'Escolha uma das opções abaixo:', options: [] } }]; treeOpen.add(id); }
+    flowDirty = true;
+    renderSteps();
+    const f = document.getElementById('te-msg') || document.getElementById('te-task');
+    if (f) f.focus();
   }
   function treeMoveOpt(id, dir) {
     const r = findOptDeep(id); if (!r) return;
@@ -1053,6 +1095,7 @@
   }
 
   function renderSteps() {
+    ensureIds(steps);
     document.getElementById('stepsList').innerHTML = renderStepArray(steps);
     renderFlowMap();
     if (keptText != null) { const m = document.getElementById('te-msg'); if (m) m.value = keptText; keptText = null; }

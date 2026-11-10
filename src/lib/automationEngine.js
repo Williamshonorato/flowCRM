@@ -442,19 +442,22 @@ async function humanOrBotBusy(tenantId, flow, contactId) {
     orderBy: { startedAt: 'desc' },
     select: { status: true, finishedAt: true, log: true },
   })
-  if (!last) return false
-  if (['running', 'waiting'].includes(last.status)) return true
-  if (!last.finishedAt) return false
   const quietSince = new Date(Date.now() - flowMs(flow, 'humanTimeoutMin', HUMAN_QUIET_MS))
-  if (last.finishedAt > quietSince) {
-    const log = Array.isArray(last.log) ? last.log : []
-    const handedOff = log.some(e => e.type === 'menu_escalated' || (e.type === 'create_task' && e.result?.done))
-    if (handedOff) return true
+  let since = quietSince
+  if (last) {
+    if (['running', 'waiting'].includes(last.status)) return true
+    if (!last.finishedAt) return false
+    if (last.finishedAt > quietSince) {
+      const log = Array.isArray(last.log) ? last.log : []
+      const handedOff = log.some(e => e.type === 'menu_escalated' || (e.type === 'create_task' && e.result?.done))
+      if (handedOff) return true
+      since = last.finishedAt // mensagens do próprio bot são gravadas antes do finishedAt — não contam
+    }
   }
-  // Mensagem da equipe (enviada pelo FlowCRM) depois que o fluxo acabou = atendimento humano.
-  // As mensagens do próprio bot são todas gravadas antes do finishedAt, então não contam aqui.
+  // Mensagem da equipe (enviada pelo FlowCRM) dentro do prazo = atendimento humano em andamento.
+  // Vale também quando o atendente puxou a conversa com alguém que nunca passou pelo bot.
   const human = await prisma.message.findFirst({
-    where: { tenantId, contactId, direction: 'out', from: 'me', createdAt: { gt: last.finishedAt > quietSince ? last.finishedAt : quietSince } },
+    where: { tenantId, contactId, direction: 'out', from: 'me', createdAt: { gt: since } },
     select: { id: true },
   })
   return !!human

@@ -13,10 +13,11 @@ const UPLOADS_DIR = path.join(__dirname, '../../public/uploads')
 const MIME_BY_EXT = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' }
 
 const MENU_TTL_MS = 24 * 60 * 60 * 1000 // quanto tempo um menu espera a resposta da pessoa
-// Bot sem palavra-chave ("qualquer mensagem") não recomeça pra mesma pessoa dentro desse prazo:
-// antes, depois de atendida, cada "obrigado" — ou cada mensagem trocada com o atendente — mandava
-// o menu inteiro de novo. A pessoa pode pedir o menu de volta a qualquer hora escrevendo "menu".
-const BOT_COOLDOWN_MS = 6 * 60 * 60 * 1000
+// Bot sem palavra-chave ("qualquer mensagem"): terminou o fluxo, a próxima mensagem abre o menu de
+// novo — MENOS quando tem gente da equipe na conversa: um atendente respondeu pelo FlowCRM depois
+// que o fluxo acabou, ou o fluxo terminou passando pra um humano (criou tarefa / escalou). Aí o bot
+// fica quieto por esse prazo pra não interromper o atendimento. "menu" sempre traz o menu.
+const HUMAN_QUIET_MS = 2 * 60 * 60 * 1000
 const MENU_RESTART_WORDS = ['menu', 'inicio', 'início']
 // Em submenu, "0" ou "voltar" sobe pro menu de cima (a linha "0. Voltar" entra sozinha no texto).
 const MENU_BACK_WORDS = ['0', 'voltar']
@@ -425,6 +426,31 @@ export async function resolveMenuReply(tenantId, contactId, messageBody) {
   return true
 }
 
+// true = não abrir o bot agora: ainda tem execução em andamento, ou tem atendente humano na conversa.
+async function humanOrBotBusy(tenantId, flowId, contactId) {
+  const last = await prisma.automationFlowRun.findFirst({
+    where: { flowId, contactId },
+    orderBy: { startedAt: 'desc' },
+    select: { status: true, finishedAt: true, log: true },
+  })
+  if (!last) return false
+  if (['running', 'waiting'].includes(last.status)) return true
+  if (!last.finishedAt) return false
+  const quietSince = new Date(Date.now() - HUMAN_QUIET_MS)
+  if (last.finishedAt > quietSince) {
+    const log = Array.isArray(last.log) ? last.log : []
+    const handedOff = log.some(e => e.type === 'menu_escalated' || (e.type === 'create_task' && e.result?.done))
+    if (handedOff) return true
+  }
+  // Mensagem da equipe (enviada pelo FlowCRM) depois que o fluxo acabou = atendimento humano.
+  // As mensagens do próprio bot são todas gravadas antes do finishedAt, então não contam aqui.
+  const human = await prisma.message.findFirst({
+    where: { tenantId, contactId, direction: 'out', from: 'me', createdAt: { gt: last.finishedAt > quietSince ? last.finishedAt : quietSince } },
+    select: { id: true },
+  })
+  return !!human
+}
+
 // Dispara todos os fluxos ativos de um tenant que casam com o gatilho informado.
 export async function triggerFlows(tenantId, triggerType, { contactId, dealId, stageId, messageBody } = {}) {
   // As rotas chamam sem await (é fire-and-forget): um erro solto aqui derrubaria o processo,
@@ -437,14 +463,7 @@ export async function triggerFlows(tenantId, triggerType, { contactId, dealId, s
         const keyword = String(flow.triggerConfig.keyword).toLowerCase()
         if (!String(messageBody || '').toLowerCase().includes(keyword)) continue
       } else if (triggerType === 'whatsapp_message_received' && contactId && !MENU_RESTART_WORDS.includes(String(messageBody || '').trim().toLowerCase())) {
-        const recent = await prisma.automationFlowRun.findFirst({
-          where: {
-            flowId: flow.id, contactId,
-            OR: [{ startedAt: { gte: new Date(Date.now() - BOT_COOLDOWN_MS) } }, { status: { in: ['running', 'waiting'] } }],
-          },
-          select: { id: true },
-        })
-        if (recent) continue
+        if (await humanOrBotBusy(tenantId, flow.id, contactId)) continue
       }
       startFlowRun(flow, { contactId, dealId }).catch(err => console.error('triggerFlows: startFlowRun falhou', err.message))
     }

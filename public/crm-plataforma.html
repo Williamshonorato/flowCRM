@@ -331,6 +331,15 @@
         <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-weight:500;cursor:pointer"><input type="checkbox" id="e-nodue" style="width:auto" onchange="toggleNoDue('e')"/> Sem vencimento (não vence)</label></div>
     </div>
     <div class="inp-g" style="margin-bottom:0"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="e-active" style="width:auto"/> Empresa ativa (login liberado)</label></div>
+    <div id="e-access" style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
+      <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:12px">🔑 Acesso (login)</div>
+      <div class="inp-g" id="e-acc-user-wrap" style="display:none"><label>Usuário</label><select id="e-acc-user" onchange="fillAccessUser()"></select></div>
+      <div class="inp-g"><label>E-mail de acesso</label><input type="email" id="e-acc-email" placeholder="Carregando..."/></div>
+      <div class="row2">
+        <div class="inp-g" style="margin-bottom:0"><label>Nova senha</label><input type="password" id="e-acc-pass" placeholder="Em branco = mantém a atual" autocomplete="new-password"/></div>
+        <div class="inp-g" style="margin-bottom:0"><label>Confirmar nova senha</label><input type="password" id="e-acc-pass2" placeholder="Repita a senha" autocomplete="new-password"/></div>
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="modal-cancel" onclick="closeEdit()">Cancelar</button>
       <button class="modal-save" onclick="saveEdit()">Salvar alterações</button>
@@ -575,6 +584,31 @@
     toggleNoDue('e');
     document.getElementById('e-active').checked = !!t.active;
     document.getElementById('editOverlay').classList.add('open');
+    loadAccessUsers(id);
+  }
+
+  // Bloco "Acesso" do Editar empresa: e-mail de login já preenchido + troca de senha com confirmação.
+  // Com mais de um usuário na empresa aparece um seletor; o padrão é o admin mais antigo (o dono).
+  let editUsers = [];
+  async function loadAccessUsers(id) {
+    editUsers = [];
+    const email = document.getElementById('e-acc-email');
+    email.value = ''; email.placeholder = 'Carregando...';
+    document.getElementById('e-acc-pass').value = '';
+    document.getElementById('e-acc-pass2').value = '';
+    const detail = await api('/platform/tenants/' + id);
+    if (editingId !== id) return;
+    const rank = (u) => (u.role === 'admin' ? 0 : 1);
+    editUsers = (detail?.users || []).slice().sort((a, b) => rank(a) - rank(b) || new Date(a.createdAt) - new Date(b.createdAt));
+    const sel = document.getElementById('e-acc-user');
+    sel.innerHTML = editUsers.map(u => `<option value="${esc(u.id)}">${esc(u.name || u.email)} (${esc(u.role)})</option>`).join('');
+    document.getElementById('e-acc-user-wrap').style.display = editUsers.length > 1 ? 'block' : 'none';
+    email.placeholder = editUsers.length ? '' : 'Nenhum usuário nessa empresa';
+    fillAccessUser();
+  }
+  function fillAccessUser() {
+    const u = editUsers.find(x => x.id === document.getElementById('e-acc-user').value);
+    document.getElementById('e-acc-email').value = u ? u.email : '';
   }
   function closeEdit() { document.getElementById('editOverlay').classList.remove('open'); editingId = null; }
 
@@ -594,8 +628,34 @@
       nextDueDate: dueValue('e'),
       active: document.getElementById('e-active').checked,
     };
-    const result = await api('/platform/tenants/' + editingId, { method: 'PATCH', body: JSON.stringify(body) });
-    if (result) { showToast('Empresa atualizada.'); closeEdit(); loadTenants(); }
+
+    // Acesso: confere tudo ANTES de salvar qualquer coisa, pra não gravar metade.
+    const accUser = editUsers.find(x => x.id === document.getElementById('e-acc-user').value);
+    const accEmail = document.getElementById('e-acc-email').value.trim();
+    const pass = document.getElementById('e-acc-pass').value;
+    const pass2 = document.getElementById('e-acc-pass2').value;
+    const access = {};
+    if (accUser) {
+      if (!accEmail) { showToast('Informe o e-mail de acesso.'); return; }
+      if (accEmail.toLowerCase() !== (accUser.email || '').toLowerCase()) access.email = accEmail;
+      if (pass || pass2) {
+        if (pass.length < 6) { showToast('A nova senha precisa ter pelo menos 6 caracteres.'); return; }
+        if (pass !== pass2) { showToast('As senhas não conferem. Digite a mesma senha nos dois campos.'); return; }
+        access.password = pass;
+      }
+    }
+
+    const id = editingId;
+    const result = await api('/platform/tenants/' + id, { method: 'PATCH', body: JSON.stringify(body) });
+    if (!result) return;
+    if (Object.keys(access).length) {
+      const saved = await api(`/platform/tenants/${id}/users/${accUser.id}`, { method: 'PATCH', body: JSON.stringify(access) });
+      if (!saved) { loadTenants(); return; } // erro (ex: e-mail já usado) já apareceu; o modal fica aberto pra corrigir
+      showToast(access.password ? 'Empresa atualizada e senha de acesso trocada.' : 'Empresa e e-mail de acesso atualizados.');
+    } else {
+      showToast('Empresa atualizada.');
+    }
+    closeEdit(); loadTenants();
   }
 
   // ── APROVAR / RECUSAR CADASTRO DO SITE ───────────────────────────────────────

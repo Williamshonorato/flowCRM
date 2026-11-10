@@ -100,6 +100,49 @@ function evoConfigFrom(integration, tenantId) {
   }
 }
 
+// Foto de perfil do WhatsApp de cada contato, pra Conversas mostrar a foto em vez das iniciais.
+// A URL que o WhatsApp devolve expira depois de um tempo, então fica só num cache em memória (6h);
+// quem não tem foto (ou deixou privada) volta null e a tela mantém as iniciais.
+const avatarCache = new Map() // `${tenantId}:${telefone}` -> { url, at }
+const AVATAR_TTL_MS = 6 * 60 * 60 * 1000
+async function fetchAvatar(evo, phone) {
+  try {
+    const r = await fetch(`${evo.apiUrl}/chat/fetchProfilePictureUrl/${evo.instance}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(evo.apiKey ? { apikey: evo.apiKey } : {}) },
+      body: JSON.stringify({ number: phone }),
+      signal: AbortSignal.timeout(8000),
+    })
+    const data = await r.json().catch(() => ({}))
+    const url = data?.profilePictureUrl || null
+    return typeof url === 'string' && url.startsWith('https://') ? url : null
+  } catch { return null }
+}
+
+// POST /whatsapp/avatars { contactIds: [...] } -> { [contactId]: url | null }
+router.post('/avatars', requireAuth, async (req, res) => {
+  const { tenantId } = req.user
+  const ids = Array.isArray(req.body?.contactIds) ? req.body.contactIds.filter(id => typeof id === 'string').slice(0, 100) : []
+  if (!ids.length) return res.json({})
+  const integration = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId, type: 'whatsapp' } } })
+  const evo = evoConfigFrom(integration, tenantId)
+  if (!integration || integration.status !== 'connected' || !evo.apiUrl) return res.json({})
+
+  const contacts = await prisma.contact.findMany({ where: { tenantId, id: { in: ids } }, select: { id: true, phone: true } })
+  const out = {}
+  await Promise.all(contacts.map(async (c) => {
+    const phone = digits(c.phone || '')
+    if (!phone) { out[c.id] = null; return }
+    const key = `${tenantId}:${phone}`
+    const hit = avatarCache.get(key)
+    if (hit && Date.now() - hit.at < AVATAR_TTL_MS) { out[c.id] = hit.url; return }
+    const url = await fetchAvatar(evo, phone)
+    avatarCache.set(key, { url, at: Date.now() })
+    out[c.id] = url
+  }))
+  res.json(out)
+})
+
 // GET /whatsapp/stats — status real da integração + total de mensagens capturadas do tenant
 router.get('/stats', requireAuth, async (req, res) => {
   const { tenantId } = req.user

@@ -526,7 +526,15 @@
   }
 
   checkWppStatus();
-  loadConversations();
+  // Vindo de outra tela (ex.: Tarefas) com ?contato=<id>: abre direto a conversa dessa pessoa.
+  (async () => {
+    const alvo = new URLSearchParams(location.search).get('contato');
+    await loadConversations();
+    if (alvo) {
+      history.replaceState(null, '', location.pathname);
+      openConversation(alvo);
+    }
+  })();
 </script>
 </body>
 </html>

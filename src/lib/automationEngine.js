@@ -25,6 +25,18 @@ function flowMs(flow, key, fallback) {
   return Number.isFinite(min) && min >= 1 && min <= 7 * 24 * 60 ? min * 60000 : fallback
 }
 const MENU_RESTART_WORDS = ['menu', 'inicio', 'início']
+// Normaliza o que a pessoa digitou: minúsculas, sem acento e sem pontuação/símbolos soltos
+// ("Menu!", "menu\\", "Início." viram "menu"/"inicio").
+function normalizeReply(text) {
+  return String(text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim()
+}
+const RESTART_SET = new Set(['menu', 'inicio', 'menu inicial', 'menu principal', 'voltar ao menu', 'voltar ao inicio', 'voltar menu', 'comecar', 'recomecar'])
+const isRestartWord = (text) => RESTART_SET.has(normalizeReply(text))
+// Saudação no meio de um menu = a pessoa voltou e quer começar de novo, não é "resposta errada".
+const GREETINGS = ['oi', 'oie', 'oii', 'ola', 'opa', 'bom dia', 'boa tarde', 'boa noite', 'hello', 'hi']
+const isGreeting = (text) => { const n = normalizeReply(text); return !!n && n.length <= 25 && GREETINGS.some(g => n === g || n.startsWith(g + ' ')) }
+const BACK_TO_MENU_HINT = '💡 Para voltar ao menu inicial, é só digitar *menu*.'
 // Em submenu, "0" ou "voltar" sobe pro menu de cima (a linha "0. Voltar" entra sozinha no texto).
 const MENU_BACK_WORDS = ['0', 'voltar']
 const MENU_BACK_LABEL = '⬅️ Voltar ao menu anterior'
@@ -56,6 +68,8 @@ function findStepById(steps, id) {
   }
   return null
 }
+
+function parent0(flowSteps, menuStep) { return !!findParentMenu(flowSteps, menuStep.id) }
 
 // Executa um passo do fluxo. Cada tipo sabe seu próprio formato de "config" —
 // isso é o que permite passos e opções ilimitados sem mexer no schema.
@@ -269,7 +283,7 @@ function matchMenuOption(options, reply) {
 async function handoffToHuman(tenantId, contact, runId, log, logType, logResult) {
   log.push({ stepId: null, type: logType, at: new Date().toISOString(), result: logResult })
   if (contact) {
-    await sendWhatsappText(tenantId, contact, 'Entendido! Um atendente da nossa equipe vai continuar por aqui. 🙋')
+    await sendWhatsappText(tenantId, contact, `Entendido! Um atendente da nossa equipe vai continuar por aqui. 🙋\n\n${BACK_TO_MENU_HINT}`)
     await prisma.task.create({
       data: {
         tenantId, userId: null, contactId: contact.id,
@@ -402,7 +416,7 @@ export async function resolveMenuReply(tenantId, contactId, messageBody) {
   const flowSteps = Array.isArray(run.flow.steps) ? run.flow.steps : []
 
   // "menu" em qualquer ponto: recomeça o fluxo do início (menu principal).
-  if (MENU_RESTART_WORDS.includes(reply)) {
+  if (isRestartWord(messageBody) || isGreeting(messageBody) || (!parent0(flowSteps, menuStep) && normalizeReply(messageBody) === 'voltar')) {
     const log = [...(Array.isArray(run.log) ? run.log : []), { stepId: menuStep.id, type: 'menu_restart', at: new Date().toISOString(), result: { reply: messageBody } }]
     await prisma.automationFlowRun.update({ where: { id: run.id }, data: { status: 'running', currentSteps: flowSteps, stepIndex: 0, log } })
     await advanceRun(run.id)
@@ -410,7 +424,7 @@ export async function resolveMenuReply(tenantId, contactId, messageBody) {
   }
   // "0"/"voltar" num submenu: reenvia o menu de cima e espera a resposta dele.
   const parent = findParentMenu(flowSteps, menuStep.id)
-  if (parent && MENU_BACK_WORDS.includes(reply)) {
+  if (parent && MENU_BACK_WORDS.includes(normalizeReply(messageBody))) {
     const log = [...(Array.isArray(run.log) ? run.log : []), { stepId: menuStep.id, type: 'menu_back', at: new Date().toISOString(), result: { reply: messageBody } }]
     await prisma.automationFlowRun.update({ where: { id: run.id }, data: { status: 'running', currentSteps: parent.list, stepIndex: parent.index, log } })
     await advanceRun(run.id)
@@ -435,7 +449,7 @@ export async function resolveMenuReply(tenantId, contactId, messageBody) {
     }
 
     log.push({ stepId: menuStep.id, type: 'menu_invalid_reply', at: new Date().toISOString(), result: { reply: messageBody } })
-    const retryText = `Não reconheci essa resposta. Por favor, escolha uma opção válida (pelo número ou nome):\n\n${formatMenuMessage('', options, !!parent).trim()}`
+    const retryText = `Não reconheci essa resposta. Por favor, escolha uma opção válida (pelo número ou nome):\n\n${formatMenuMessage('', options, !!parent).trim()}${parent ? `\n\n${BACK_TO_MENU_HINT}` : ''}`
     if (contact) await sendWhatsappText(tenantId, contact, retryText)
     await prisma.automationFlowRun.update({ where: { id: run.id }, data: { log } })
     return true
@@ -490,7 +504,7 @@ export async function triggerFlows(tenantId, triggerType, { contactId, dealId, s
       if (triggerType === 'whatsapp_message_received' && flow.triggerConfig?.keyword) {
         const keyword = String(flow.triggerConfig.keyword).toLowerCase()
         if (!String(messageBody || '').toLowerCase().includes(keyword)) continue
-      } else if (triggerType === 'whatsapp_message_received' && contactId && !MENU_RESTART_WORDS.includes(String(messageBody || '').trim().toLowerCase())) {
+      } else if (triggerType === 'whatsapp_message_received' && contactId && !isRestartWord(messageBody) && normalizeReply(messageBody) !== 'voltar') {
         if (await humanOrBotBusy(tenantId, flow, contactId)) continue
       }
       startFlowRun(flow, { contactId, dealId }).catch(err => console.error('triggerFlows: startFlowRun falhou', err.message))

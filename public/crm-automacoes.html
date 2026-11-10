@@ -952,7 +952,8 @@
   let keptText = null; // preserva o que foi digitado quando um upload de imagem re-renderiza
   function treeKeepText() { const m = document.getElementById('te-msg'); keptText = m ? m.value : null; }
   function treeEdit(key) {
-    if (editKey && newOptId) dropNewOpt();
+    // descarta uma opção nova que ficou vazia — mas nunca a que estamos abrindo agora
+    if (newOptId && key !== 'opt:' + newOptId) dropNewOpt();
     editKey = key; renderSteps();
     const f = document.getElementById('te-label') || document.getElementById('te-msg') || document.getElementById('te-task');
     if (f) { f.focus(); f.closest('.ft-node')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }

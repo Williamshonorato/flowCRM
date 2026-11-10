@@ -457,7 +457,7 @@
       const label = t.doneAt ? 'Concluída' : late ? 'Atrasada' : t.dueDate ? new Date(t.dueDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
       return `<div class="task-row">
         <div class="task-check ${t.doneAt ? 'done' : ''}" onclick="toggleTask(${jsAttr(t.id)}, this)">${t.doneAt ? '✓' : ''}</div>
-        <div class="task-body"><div class="task-name ${t.doneAt ? 'done-text' : ''}">${escHtml(t.title)}</div><div class="task-contact">${escHtml(t.contact?.name || '')}</div></div>
+        <div class="task-body" ${t.contactId ? `style="cursor:pointer" title="Abrir a conversa no WhatsApp" onclick="location.href='crm-conversas?contato='+encodeURIComponent(${jsAttr(t.contactId)})"` : ''}><div class="task-name ${t.doneAt ? 'done-text' : ''}">${escHtml(t.title)}</div><div class="task-contact">${escHtml(t.contact?.name || '')}${t.contactId ? ' · 💬 abrir conversa' : ''}</div></div>
         <div class="task-time ${cls}">${label}</div>
       </div>`;
     }).join('') || '<div style="padding:20px;color:#94a3b8;text-align:center">Sem tarefas hoje 🎉</div>';

@@ -45,6 +45,18 @@ function findParentMenu(steps, targetId, parent = null) {
   return undefined
 }
 
+// Acha um passo pelo id em qualquer nível da árvore (menus dentro de opções).
+function findStepById(steps, id) {
+  for (const s of steps || []) {
+    if (s.id === id) return s
+    if (s.type === 'menu') for (const o of s.config?.options || []) {
+      const hit = findStepById(o.steps, id)
+      if (hit) return hit
+    }
+  }
+  return null
+}
+
 // Executa um passo do fluxo. Cada tipo sabe seu próprio formato de "config" —
 // isso é o que permite passos e opções ilimitados sem mexer no schema.
 async function executeStep(step, ctx) {
@@ -378,8 +390,12 @@ export async function resolveMenuReply(tenantId, contactId, messageBody) {
   }
 
   const steps = Array.isArray(run.currentSteps) ? run.currentSteps : []
-  const menuStep = steps[run.stepIndex]
-  if (!menuStep || menuStep.type !== 'menu') return false
+  const snapStep = steps[run.stepIndex]
+  if (!snapStep || snapStep.type !== 'menu') return false
+  // Usa a versão SALVA AGORA do menu (não a cópia de quando a conversa começou): assim uma
+  // correção no fluxo (texto, emoji, opção nova) vale na hora, até pra quem está no meio do menu.
+  const freshMenu = findStepById(Array.isArray(run.flow.steps) ? run.flow.steps : [], snapStep.id)
+  const menuStep = freshMenu && freshMenu.type === 'menu' ? freshMenu : snapStep
 
   const options = Array.isArray(menuStep.config?.options) ? menuStep.config.options : []
   const reply = String(messageBody || '').trim().toLowerCase()

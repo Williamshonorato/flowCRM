@@ -26,7 +26,7 @@
       --green:#27ae60;--blue:#2980b9;--purple:#8e44ad;--amber:#f39c12;--red:#e74c3c;
       --sidebar:#0f172a;--text:#1e293b;--muted:#64748b;--border:#e2e8f0;--bg:#f1f5f9;
     }
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);display:flex;min-height:100vh}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);display:flex;height:100vh;height:100dvh;overflow:hidden}
 
     /* SIDEBAR */
     .sidebar{width:230px;height:100vh;position:sticky;top:0;overflow-y:auto;background:var(--sidebar);display:flex;flex-direction:column;flex-shrink:0}
@@ -48,17 +48,17 @@
     .user-info .plan{font-size:11px;color:#64748b}
 
     /* MAIN */
-    .main{flex:1;display:flex;flex-direction:column;min-width:0}
+    .main{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
     .topbar{background:#fff;border-bottom:1px solid var(--border);padding:0 24px;height:58px;display:flex;align-items:center;gap:12px;flex-shrink:0}
     .page-title{font-size:17px;font-weight:800;color:var(--text);flex:1}
     .wpp-status{font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px}
     .wpp-on{background:#dcfce7;color:#166534}
     .wpp-off{background:#fee2e2;color:#991b1b}
 
-    .body{display:flex;flex:1;overflow:hidden}
+    .body{display:flex;flex:1;overflow:hidden;min-height:0}
 
     /* CONVERSATION LIST */
-    .conv-list{width:320px;background:#fff;border-right:1px solid var(--border);overflow-y:auto;flex-shrink:0}
+    .conv-list{width:320px;background:#fff;border-right:1px solid var(--border);overflow-y:auto;overscroll-behavior:contain;flex-shrink:0}
     .conv-search{padding:14px 16px;border-bottom:1px solid var(--border)}
     .conv-search input{width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;outline:none;background:var(--bg)}
     .conv-search input:focus{border-color:var(--green)}
@@ -76,7 +76,7 @@
     .conv-empty{padding:40px 20px;text-align:center;color:#94a3b8;font-size:13px}
 
     /* THREAD */
-    .thread{flex:1;display:flex;flex-direction:column;min-width:0}
+    .thread{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
     .thread-empty{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:#94a3b8}
     .thread-empty .ico{font-size:40px}
     .thread-header{background:#fff;border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0}
@@ -86,7 +86,7 @@
     .th-btn{margin-left:auto;padding:7px 14px;border:1.5px solid var(--border);border-radius:8px;background:#fff;font-size:12.5px;font-weight:700;color:var(--text);cursor:pointer}
     .th-btn:hover{border-color:var(--green);color:var(--green)}
 
-    .thread-messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:10px;background:#f8fafc}
+    .thread-messages{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:20px;display:flex;flex-direction:column;gap:10px;background:#f8fafc}
     .msg-row{display:flex}
     .msg-row.out{justify-content:flex-end}
     .msg-bubble{max-width:60%;padding:9px 13px;border-radius:14px;font-size:13.5px;line-height:1.45;position:relative}

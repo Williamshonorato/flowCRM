@@ -245,11 +245,19 @@
                    : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
   }
 
+  // Pergunta o estado REAL pro WhatsApp (antes lia só o que estava gravado no banco: o celular
+  // podia ter desconectado de madrugada e a tela seguia dizendo "conectado").
   async function checkWppStatus() {
-    const stats = await api('/whatsapp/stats');
     const badge = document.getElementById('wppStatusBadge');
-    if (stats?.connected) { badge.textContent = '✓ WhatsApp conectado'; badge.className = 'wpp-status wpp-on'; }
-    else { badge.textContent = 'WhatsApp desconectado'; badge.className = 'wpp-status wpp-off'; }
+    const s = await api('/whatsapp/status');
+    const state = s?.status;
+    if (state === 'open') { badge.innerHTML = '✓ WhatsApp conectado'; badge.className = 'wpp-status wpp-on'; return; }
+    if (state === 'unknown' || !state) {
+      const stats = await api('/whatsapp/stats');
+      if (stats?.connected) { badge.innerHTML = '✓ WhatsApp conectado'; badge.className = 'wpp-status wpp-on'; return; }
+    }
+    badge.innerHTML = '⚠️ WhatsApp desconectado — <a href="crm-integracoes" style="color:inherit;text-decoration:underline">clique para reconectar</a>';
+    badge.className = 'wpp-status wpp-off';
   }
 
   async function loadConversations() {
@@ -257,7 +265,9 @@
     conversations = data || [];
     renderConvList();
     loadAvatars();
-    const totalUnread = conversations.reduce((s, c) => s + c.unreadCount, 0);
+    // Conta CONVERSAS com mensagem nova (não a soma de mensagens: um grupo com 33 mensagens
+    // fazia o contador mostrar 50+ com poucas conversas pendentes).
+    const totalUnread = conversations.filter(c => c.unreadCount > 0).length;
     const badge = document.getElementById('sbUnread');
     if (!badge) return;
     if (totalUnread > 0) { badge.style.display = 'inline-block'; badge.textContent = totalUnread; }
@@ -389,9 +399,11 @@
       : { contactId: currentChat.contactId };
   }
 
+  let lastRenderedMsgKey = '';
   function renderMessages(messages, isGroup) {
     const box = document.getElementById('threadMessages');
     if (!box) return;
+    lastRenderedMsgKey = messages.length + ':' + (messages.at(-1)?.id || '');
     box.innerHTML = messages.map(m => {
       let inner = '';
       if (m.mediaUrl && m.mediaType === 'image') inner += `<div class="msg-media"><img src="${escapeHtml(m.mediaUrl)}" onclick="window.open(${jsAttr(m.mediaUrl)})"/></div>`;
@@ -526,6 +538,22 @@
   }
 
   checkWppStatus();
+
+  // Atualiza sozinha: lista a cada 10s e a conversa aberta (só re-desenha se chegou mensagem nova,
+  // sem apagar o que o atendente está digitando). Status do WhatsApp a cada 1 minuto.
+  async function refreshOpenThread() {
+    if (!currentConv || !currentChat) return;
+    const data = currentChat.type === 'group'
+      ? await api('/whatsapp/groups/' + encodeURIComponent(currentConv) + '/messages')
+      : await api('/whatsapp/conversations/' + currentConv + '/messages');
+    if (!data?.messages) return;
+    const key = data.messages.length + ':' + (data.messages.at(-1)?.id || '');
+    if (key !== lastRenderedMsgKey) renderMessages(data.messages, data.type === 'group');
+  }
+  setInterval(() => { if (!document.hidden) { loadConversations(); refreshOpenThread(); } }, 10000);
+  setInterval(() => { if (!document.hidden) checkWppStatus(); }, 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { loadConversations(); refreshOpenThread(); checkWppStatus(); } });
+
   // Vindo de outra tela (ex.: Tarefas) com ?contato=<id>: abre direto a conversa dessa pessoa.
   (async () => {
     const alvo = new URLSearchParams(location.search).get('contato');

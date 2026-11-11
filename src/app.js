@@ -41,6 +41,9 @@ const PUBLIC_DIR = join(__dirname, '../public')
 
 // ── MIDDLEWARES ───────────────────────────────────────────────────────────────
 app.use(cors({ origin: '*', methods: ['GET','POST','PATCH','DELETE','OPTIONS'] }))
+// Webhook do WhatsApp chega com mídia em base64 (vídeo/arquivo de grupo passa fácil de 10MB):
+// com o limite geral essas mensagens eram recusadas (413) e se perdiam.
+app.use('/whatsapp/webhook', express.json({ limit: '100mb' }))
 app.use(express.json({ limit: '10mb' }))
 
 // Extensões que podem ser abertas direto no navegador dentro de /uploads. Esse diretório

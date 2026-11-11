@@ -123,6 +123,39 @@ async function evoRestart(evo) {
   return false
 }
 const lastRestartTry = new Map() // tenantId -> timestamp (não martelar a Evolution)
+// ── Sessão "travada": conectada mas o WhatsApp não entrega nada ─────────────────
+// Aconteceu de verdade (sindicato, 10→11/11): estado "open", consultas funcionando, mas nenhuma
+// mensagem chegou por 16h — só QR novo resolveu. Não dá pra saber pela Evolution; o sinal é o
+// SILÊNCIO num número que normalmente recebe bastante. Durante o dia, 3h sem nada = travado.
+const lastInboundSeen = new Map() // tenantId -> timestamp da última mensagem recebida (webhook)
+const STALL_MS = 3 * 60 * 60 * 1000
+async function lastInboundAt(tenantId) {
+  const mem = lastInboundSeen.get(tenantId)
+  if (mem) return mem
+  const m = await prisma.message.findFirst({ where: { tenantId, direction: 'in' }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } }).catch(() => null)
+  return m ? m.createdAt.getTime() : null
+}
+function localHour() {
+  return Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Recife', hour: 'numeric', hour12: false }).format(new Date())) % 24
+}
+async function detectStall(tenantId) {
+  const last = await lastInboundAt(tenantId)
+  if (!last) return null
+  const silentMs = Date.now() - last
+  if (silentMs < STALL_MS) return null
+  // Só vale pra número movimentado (≥ 30 mensagens recebidas nos últimos 7 dias)…
+  const weekly = await prisma.message.count({ where: { tenantId, direction: 'in', createdAt: { gt: new Date(Date.now() - 7 * 86400000) } } }).catch(() => 0)
+  if (weekly < 30) return null
+  // …e conta só o silêncio em horário comercial (7h–22h de Recife): madrugada quieta é normal.
+  // Ex.: última mensagem 19h, celular "mudo" a noite toda → avisa às 10h (3h de dia sem nada).
+  if (silentMs < 24 * 3600000) {
+    const h = localHour()
+    if (h < 7 || h >= 22) return null
+    const sinceSeven = (h - 7) * 3600000 + new Date().getMinutes() * 60000
+    if (Math.min(silentMs, sinceSeven) < STALL_MS) return null
+  }
+  return { silentSinceMs: last, silentHours: Math.floor(silentMs / 3600000) }
+}
 // Conectado mas sem mensagens chegando = o WhatsApp não está avisando o FlowCRM (webhook apagado,
 // desligado ou com endereço velho). Confere e corrige sozinho, no máx. a cada 10 min por empresa.
 const lastWebhookCheck = new Map()
@@ -160,6 +193,7 @@ export async function syncWhatsappState(tenantId, { tryHeal = true } = {}) {
     }
   }
   if (state === 'open' && integration.status !== 'connected') {
+    lastInboundSeen.set(tenantId, Date.now()) // acabou de (re)conectar: zera o relógio do silêncio
     await prisma.integration.update({ where: { id: integration.id }, data: { status: 'connected' } })
   } else if (state === 'close' && integration.status === 'connected') {
     // 'connecting' é transitório (a própria Evolution tentando voltar): só marca caído no 'close'
@@ -167,8 +201,19 @@ export async function syncWhatsappState(tenantId, { tryHeal = true } = {}) {
     console.warn(`whatsapp: conexão caiu e não voltou sozinha — tenant ${tenantId}`)
   }
   const connected = state === 'open' || (state === 'unknown' && integration.status === 'connected')
-  if (state === 'open') await ensureWebhook(evo, tenantId)
-  return { configured: true, state, connected }
+  let stalled = null
+  if (state === 'open') {
+    await ensureWebhook(evo, tenantId)
+    stalled = await detectStall(tenantId)
+    // Primeiro socorro automático: reinicia a sessão (1x por hora). Se continuar mudo, o aviso
+    // pede o QR novo — que foi o que resolveu de verdade.
+    if (stalled && tryHeal && Date.now() - (lastRestartTry.get(tenantId) || 0) > 3600000) {
+      lastRestartTry.set(tenantId, Date.now())
+      console.warn(`whatsapp: sessão conectada mas sem receber há ${stalled.silentHours}h — reiniciando — tenant ${tenantId}`)
+      await evoRestart(evo)
+    }
+  }
+  return { configured: true, state, connected, stalled: !!stalled, silentHours: stalled?.silentHours || 0 }
 }
 // Ronda periódica (app.js): confere quem está marcado como conectado.
 export async function checkAllWhatsappConnections() {
@@ -227,7 +272,7 @@ router.get('/stats', requireAuth, async (req, res) => {
     syncWhatsappState(tenantId),
     prisma.message.count({ where: { OR: [{ contact: { tenantId } }, { tenantId }] } }),
   ])
-  res.json({ connected: live.connected, configured: live.configured, state: live.state, messageCount })
+  res.json({ connected: live.connected, configured: live.configured, state: live.state, stalled: !!live.stalled, silentHours: live.silentHours || 0, messageCount })
 })
 
 // GET /whatsapp/conversations — inbox: um item por chat (pessoa OU grupo), com a
@@ -432,6 +477,8 @@ router.get('/status', requireAuth, async (req, res) => {
     const state = data?.instance?.state || 'close' // 'open' | 'connecting' | 'close'
 
     if (state === 'open') {
+      const prev = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId, type: 'whatsapp' } }, select: { status: true } })
+      if (prev?.status !== 'connected') lastInboundSeen.set(tenantId, Date.now())
       await prisma.integration.updateMany({ where: { tenantId, type: 'whatsapp' }, data: { status: 'connected' } })
     } else if (state === 'close') {
       // O celular foi desvinculado (ou a instância sumiu): sem isto o CRM seguia dizendo "conectado"
@@ -794,6 +841,7 @@ router.post('/webhook/:tenantId', async (req, res) => {
     for (const m of messages) {
       // Ignora o eco das mensagens enviadas pela própria empresa
       if (m.key?.fromMe) continue
+      lastInboundSeen.set(tenant.id, Date.now()) // prova de vida: o WhatsApp está entregando
 
       const remoteJid = m.from || m.key?.remoteJid || m.chatId || ''
       const group = isGroupJid(remoteJid)

@@ -249,13 +249,8 @@
   // podia ter desconectado de madrugada e a tela seguia dizendo "conectado").
   async function checkWppStatus() {
     const badge = document.getElementById('wppStatusBadge');
-    const s = await api('/whatsapp/status');
-    const state = s?.status;
-    if (state === 'open') { badge.innerHTML = '✓ WhatsApp conectado'; badge.className = 'wpp-status wpp-on'; return; }
-    if (state === 'unknown' || !state) {
-      const stats = await api('/whatsapp/stats');
-      if (stats?.connected) { badge.innerHTML = '✓ WhatsApp conectado'; badge.className = 'wpp-status wpp-on'; return; }
-    }
+    const s = await api('/whatsapp/stats'); // o servidor consulta o estado real (e tenta reconectar)
+    if (s?.connected) { badge.innerHTML = '✓ WhatsApp conectado'; badge.className = 'wpp-status wpp-on'; return; }
     badge.innerHTML = '⚠️ WhatsApp desconectado — <a href="crm-integracoes" style="color:inherit;text-decoration:underline">clique para reconectar</a>';
     badge.className = 'wpp-status wpp-off';
   }

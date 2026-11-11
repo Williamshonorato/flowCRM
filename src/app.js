@@ -26,6 +26,7 @@ import datasourceRouter from './routes/datasource.js'
 import automationsRouter from './routes/automations.js'
 import platformAdminRouter from './routes/platformAdmin.js'
 import { resumeDueRuns } from './lib/automationEngine.js'
+import { checkAllWhatsappConnections } from './routes/whatsapp.js'
 import { processBroadcasts } from './lib/broadcastWorker.js'
 import { sendError, isBrowserNavigation, errorPageHtml } from './lib/errorPage.js'
 
@@ -168,6 +169,8 @@ app.listen(PORT, () => {
 
 // Retoma passos de automação em espera (ex: "wait") — checa a cada 30s
 setInterval(() => { resumeDueRuns().catch(err => console.error('resumeDueRuns falhou', err)) }, 30000)
+// Confere de verdade se cada WhatsApp segue conectado (e tenta reconectar sozinho) a cada 2 min
+setInterval(() => { checkAllWhatsappConnections().catch(err => console.error('checkAllWhatsappConnections falhou', err)) }, 120000)
 
 // Processa a fila de disparos em massa — checa a cada 20s
 setInterval(() => { processBroadcasts().catch(err => console.error('processBroadcasts falhou', err)) }, 20000)

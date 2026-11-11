@@ -100,6 +100,59 @@ function evoConfigFrom(integration, tenantId) {
   }
 }
 
+// ── Estado REAL da conexão ───────────────────────────────────────────────────
+// O "connected" do banco só mudava ao conectar/desconectar pelo FlowCRM: se o celular caía de
+// madrugada, todas as telas seguiam dizendo "conectado" e o bot ficava mudo sem ninguém saber.
+// Aqui pergunta pra Evolution; se caiu, tenta reabrir a sessão salva (sem QR) antes de desistir.
+async function evoState(evo) {
+  try {
+    const r = await fetch(`${evo.apiUrl}/instance/connectionState/${evo.instance}`, { headers: { apikey: evo.apiKey }, signal: AbortSignal.timeout(5000) })
+    if (r.status === 404) return 'close'
+    if (!r.ok) return 'unknown'
+    const data = await r.json().catch(() => ({}))
+    return data?.instance?.state || data?.state || 'unknown'
+  } catch { return 'unknown' }
+}
+async function evoRestart(evo) {
+  for (const method of ['POST', 'PUT']) {
+    try {
+      const r = await fetch(`${evo.apiUrl}/instance/restart/${evo.instance}`, { method, headers: { apikey: evo.apiKey }, signal: AbortSignal.timeout(8000) })
+      if (r.ok) return true
+    } catch {}
+  }
+  return false
+}
+const lastRestartTry = new Map() // tenantId -> timestamp (não martelar a Evolution)
+export async function syncWhatsappState(tenantId, { tryHeal = true } = {}) {
+  const integration = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId, type: 'whatsapp' } } }).catch(() => null)
+  if (!integration) return { configured: false, state: 'none', connected: false }
+  const evo = evoConfigFrom(integration, tenantId)
+  if (!evo.apiUrl || !evo.apiKey) return { configured: true, state: 'unknown', connected: integration.status === 'connected' }
+  let state = await evoState(evo)
+  // Caiu mas era pra estar conectado: tenta reabrir a sessão salva (no máx. 1x a cada 3 min)
+  if (state !== 'open' && state !== 'unknown' && integration.status === 'connected' && tryHeal && Date.now() - (lastRestartTry.get(tenantId) || 0) > 180000) {
+    lastRestartTry.set(tenantId, Date.now())
+    if (await evoRestart(evo)) {
+      for (let i = 0; i < 4 && state !== 'open'; i++) { await new Promise(r => setTimeout(r, 2500)); state = await evoState(evo) }
+      if (state === 'open') console.log(`whatsapp: reconectado automaticamente — tenant ${tenantId}`)
+    }
+  }
+  if (state === 'open' && integration.status !== 'connected') {
+    await prisma.integration.update({ where: { id: integration.id }, data: { status: 'connected' } })
+  } else if (state === 'close' && integration.status === 'connected') {
+    // 'connecting' é transitório (a própria Evolution tentando voltar): só marca caído no 'close'
+    await prisma.integration.update({ where: { id: integration.id }, data: { status: 'disconnected' } })
+    console.warn(`whatsapp: conexão caiu e não voltou sozinha — tenant ${tenantId}`)
+  }
+  const connected = state === 'open' || (state === 'unknown' && integration.status === 'connected')
+  return { configured: true, state, connected }
+}
+// Ronda periódica (app.js): confere quem está marcado como conectado.
+export async function checkAllWhatsappConnections() {
+  const list = await prisma.integration.findMany({ where: { type: 'whatsapp', status: 'connected' }, select: { tenantId: true } })
+  for (const { tenantId } of list) await syncWhatsappState(tenantId).catch(() => {})
+}
+
 // Foto de perfil do WhatsApp de cada contato, pra Conversas mostrar a foto em vez das iniciais.
 // A URL que o WhatsApp devolve expira depois de um tempo, então fica só num cache em memória (6h);
 // quem não tem foto (ou deixou privada) volta null e a tela mantém as iniciais.
@@ -146,11 +199,11 @@ router.post('/avatars', requireAuth, async (req, res) => {
 // GET /whatsapp/stats — status real da integração + total de mensagens capturadas do tenant
 router.get('/stats', requireAuth, async (req, res) => {
   const { tenantId } = req.user
-  const [integration, messageCount] = await Promise.all([
-    prisma.integration.findUnique({ where: { tenantId_type: { tenantId, type: 'whatsapp' } } }),
+  const [live, messageCount] = await Promise.all([
+    syncWhatsappState(tenantId),
     prisma.message.count({ where: { OR: [{ contact: { tenantId } }, { tenantId }] } }),
   ])
-  res.json({ connected: integration?.status === 'connected', messageCount })
+  res.json({ connected: live.connected, configured: live.configured, state: live.state, messageCount })
 })
 
 // GET /whatsapp/conversations — inbox: um item por chat (pessoa OU grupo), com a

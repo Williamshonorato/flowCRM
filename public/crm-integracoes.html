@@ -354,7 +354,7 @@
     const [list, stats] = await Promise.all([api('/settings/integrations'), api('/whatsapp/stats')]);
     const byType = Object.fromEntries((list || []).map(i => [i.type, i]));
 
-    const wppConnected = stats?.connected || byType.whatsapp?.status === 'connected';
+    const wppConnected = stats ? !!stats.connected : byType.whatsapp?.status === 'connected'; // stats = estado real
     document.getElementById('wppCard').classList.toggle('connected', wppConnected);
     document.getElementById('wppStatus').textContent = wppConnected ? '✓ Conectado' : 'Desconectado';
     document.getElementById('wppStatus').className = 'int-status ' + (wppConnected ? 'status-connected' : 'status-available');

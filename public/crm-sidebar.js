@@ -121,7 +121,29 @@
       const c = await api('/tasks/count');
       if (c && typeof c.pending === 'number') window.setTasksBadge(c.pending);
     } catch (_) { /* silencioso */ }
+
+    checkWhatsappAlert();
   }
+
+  // Aviso vermelho em TODAS as telas quando o WhatsApp cai de verdade (o servidor consulta o
+  // estado real e já tenta reconectar sozinho; se chegou aqui, precisa de alguém escanear o QR).
+  async function checkWhatsappAlert() {
+    if (typeof api !== 'function' || /crm-integracoes/.test(location.pathname)) return;
+    let s = null;
+    try { s = await api('/whatsapp/stats'); } catch (_) { return; }
+    let el = document.getElementById('fc-wpp-alert');
+    if (s && s.configured && !s.connected) {
+      if (el) return;
+      el = document.createElement('div');
+      el.id = 'fc-wpp-alert';
+      el.style.cssText = 'position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:400;background:#dc2626;color:#fff;padding:10px 12px 10px 16px;border-radius:12px;box-shadow:0 10px 30px rgba(220,38,38,.35);font-size:13.5px;font-weight:700;display:flex;align-items:center;gap:12px;max-width:calc(100vw - 32px);flex-wrap:wrap';
+      el.innerHTML = '<span>⚠️ WhatsApp desconectado — o bot e as mensagens estão parados.</span><a href="crm-integracoes" style="background:#fff;color:#dc2626;padding:6px 12px;border-radius:8px;text-decoration:none;font-weight:800">Reconectar agora</a>';
+      document.body.appendChild(el);
+    } else if (el) {
+      el.remove();
+    }
+  }
+  setInterval(function () { if (!document.hidden) checkWhatsappAlert(); }, 120000);
 
   // Atualiza o badge de tarefas ("3" vermelho no menu). Chamado pelas páginas que
   // sabem a contagem real (dashboard, tarefas). Sem contagem, fica escondido.

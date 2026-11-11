@@ -250,6 +250,7 @@
   async function checkWppStatus() {
     const badge = document.getElementById('wppStatusBadge');
     const s = await api('/whatsapp/stats'); // o servidor consulta o estado real (e tenta reconectar)
+    if (s?.connected && s.stalled) { badge.innerHTML = '⚠️ Sem receber mensagens há ' + (s.silentHours || 3) + 'h — <a href="crm-integracoes" style="color:inherit;text-decoration:underline">reconectar</a>'; badge.className = 'wpp-status wpp-off'; return; }
     if (s?.connected) { badge.innerHTML = '✓ WhatsApp conectado'; badge.className = 'wpp-status wpp-on'; return; }
     badge.innerHTML = '⚠️ WhatsApp desconectado — <a href="crm-integracoes" style="color:inherit;text-decoration:underline">clique para reconectar</a>';
     badge.className = 'wpp-status wpp-off';

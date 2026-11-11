@@ -356,7 +356,7 @@
 
     const wppConnected = stats ? !!stats.connected : byType.whatsapp?.status === 'connected'; // stats = estado real
     document.getElementById('wppCard').classList.toggle('connected', wppConnected);
-    document.getElementById('wppStatus').textContent = wppConnected ? '✓ Conectado' : 'Desconectado';
+    document.getElementById('wppStatus').textContent = wppConnected ? (stats?.stalled ? '⚠️ Sem receber há ' + (stats.silentHours || 3) + 'h' : '✓ Conectado') : 'Desconectado';
     document.getElementById('wppStatus').className = 'int-status ' + (wppConnected ? 'status-connected' : 'status-available');
     document.getElementById('wppMsgCount').textContent = `${stats?.messageCount ?? 0} msgs capturadas`;
     document.getElementById('wppBtn').textContent = wppConnected ? 'Desconectar' : 'Conectar';

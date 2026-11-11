@@ -132,12 +132,18 @@
     let s = null;
     try { s = await api('/whatsapp/stats'); } catch (_) { return; }
     let el = document.getElementById('fc-wpp-alert');
-    if (s && s.configured && !s.connected) {
-      if (el) return;
+    const down = s && s.configured && !s.connected;
+    const stalled = s && s.configured && s.connected && s.stalled;
+    if (down || stalled) {
+      const msg = down
+        ? '⚠️ WhatsApp desconectado — o bot e as mensagens estão parados.'
+        : '⚠️ O WhatsApp parece conectado, mas não recebe mensagens há ' + (s.silentHours || 3) + 'h. Reconecte pelo QR Code.';
+      if (el) { el.querySelector('span').textContent = msg; return; }
       el = document.createElement('div');
       el.id = 'fc-wpp-alert';
       el.style.cssText = 'position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:400;background:#dc2626;color:#fff;padding:10px 12px 10px 16px;border-radius:12px;box-shadow:0 10px 30px rgba(220,38,38,.35);font-size:13.5px;font-weight:700;display:flex;align-items:center;gap:12px;max-width:calc(100vw - 32px);flex-wrap:wrap';
-      el.innerHTML = '<span>⚠️ WhatsApp desconectado — o bot e as mensagens estão parados.</span><a href="crm-integracoes" style="background:#fff;color:#dc2626;padding:6px 12px;border-radius:8px;text-decoration:none;font-weight:800">Reconectar agora</a>';
+      el.innerHTML = '<span></span><a href="crm-integracoes" style="background:#fff;color:#dc2626;padding:6px 12px;border-radius:8px;text-decoration:none;font-weight:800">Reconectar agora</a>';
+      el.querySelector('span').textContent = msg;
       document.body.appendChild(el);
     } else if (el) {
       el.remove();

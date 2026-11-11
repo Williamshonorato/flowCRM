@@ -123,6 +123,28 @@ async function evoRestart(evo) {
   return false
 }
 const lastRestartTry = new Map() // tenantId -> timestamp (não martelar a Evolution)
+// Conectado mas sem mensagens chegando = o WhatsApp não está avisando o FlowCRM (webhook apagado,
+// desligado ou com endereço velho). Confere e corrige sozinho, no máx. a cada 10 min por empresa.
+const lastWebhookCheck = new Map()
+let knownPublicBase = '' // endereço público visto numa requisição real (fallback sem APP_PUBLIC_URL)
+async function ensureWebhook(evo, tenantId) {
+  const base = (process.env.APP_PUBLIC_URL || knownPublicBase || '').replace(/\/$/, '')
+  if (!base || Date.now() - (lastWebhookCheck.get(tenantId) || 0) < 600000) return
+  lastWebhookCheck.set(tenantId, Date.now())
+  try {
+    const r = await fetch(`${evo.apiUrl}/webhook/find/${evo.instance}`, { headers: { apikey: evo.apiKey }, signal: AbortSignal.timeout(5000) })
+    if (!r.ok) return
+    const d = await r.json().catch(() => null)
+    const w = d?.webhook || d || {}
+    const url = typeof w.url === 'string' ? w.url : null
+    const events = Array.isArray(w.events) ? w.events.map(e => String(e).toUpperCase().replace(/\./g, '_')) : null
+    const ok = url && url.includes(`/whatsapp/webhook/${tenantId}`) && w.enabled !== false && (!events || !events.length || events.includes('MESSAGES_UPSERT'))
+    if (ok) return
+    const cfg = { enabled: true, url: `${base}/whatsapp/webhook/${tenantId}?token=${webhookTokenFor(tenantId)}`, byEvents: false, base64: true, events: ['MESSAGES_UPSERT'] }
+    const set = await fetch(`${evo.apiUrl}/webhook/set/${evo.instance}`, { method: 'POST', headers: { apikey: evo.apiKey, 'Content-Type': 'application/json' }, body: JSON.stringify({ webhook: cfg }), signal: AbortSignal.timeout(8000) })
+    console.warn(`whatsapp: webhook estava ${url ? 'errado/desligado' : 'ausente'} — recadastrado (${set.ok ? 'ok' : 'falhou ' + set.status}) — tenant ${tenantId}`)
+  } catch (err) { console.error('whatsapp ensureWebhook falhou', err.message) }
+}
 export async function syncWhatsappState(tenantId, { tryHeal = true } = {}) {
   const integration = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId, type: 'whatsapp' } } }).catch(() => null)
   if (!integration) return { configured: false, state: 'none', connected: false }
@@ -145,6 +167,7 @@ export async function syncWhatsappState(tenantId, { tryHeal = true } = {}) {
     console.warn(`whatsapp: conexão caiu e não voltou sozinha — tenant ${tenantId}`)
   }
   const connected = state === 'open' || (state === 'unknown' && integration.status === 'connected')
+  if (state === 'open') await ensureWebhook(evo, tenantId)
   return { configured: true, state, connected }
 }
 // Ronda periódica (app.js): confere quem está marcado como conectado.
@@ -199,6 +222,7 @@ router.post('/avatars', requireAuth, async (req, res) => {
 // GET /whatsapp/stats — status real da integração + total de mensagens capturadas do tenant
 router.get('/stats', requireAuth, async (req, res) => {
   const { tenantId } = req.user
+  knownPublicBase = webhookBaseUrl(req)
   const [live, messageCount] = await Promise.all([
     syncWhatsappState(tenantId),
     prisma.message.count({ where: { OR: [{ contact: { tenantId } }, { tenantId }] } }),

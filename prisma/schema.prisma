@@ -225,6 +225,7 @@ model Contact {
   customData   Json     @default("{}")  // campos personalizados
   notes        String?
   assignedToId String?
+  botPaused    Boolean  @default(false) // bot desligado SÓ pra essa pessoa (chave na tela de Conversas)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

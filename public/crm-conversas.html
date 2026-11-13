@@ -60,6 +60,20 @@
     /* CONVERSATION LIST */
     .conv-list{width:320px;background:#fff;border-right:1px solid var(--border);overflow-y:auto;overscroll-behavior:contain;flex-shrink:0}
     .conv-search{padding:14px 16px;border-bottom:1px solid var(--border)}
+    .conv-head{position:sticky;top:0;z-index:2;background:#fff}
+    /* Chave do bot: geral (topo da lista) e por conversa (cabeçalho da conversa) */
+    .bot-global{display:none;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);font-size:12.5px;font-weight:700;color:var(--muted)}
+    .bot-switch{display:inline-flex;align-items:center;gap:8px;padding:5px 11px 5px 6px;border-radius:30px;border:1.5px solid var(--border);background:#fff;cursor:pointer;font-family:inherit;font-size:12px;font-weight:800;color:var(--muted);white-space:nowrap;flex-shrink:0}
+    .bot-switch .knob{width:34px;height:19px;border-radius:20px;background:#cbd5e1;position:relative;transition:background .2s;flex-shrink:0}
+    .bot-switch .knob::after{content:'';position:absolute;top:2.5px;left:3px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .2s}
+    .bot-switch.on{border-color:#86efac;background:#f0fdf4;color:#166534}
+    .bot-switch.on .knob{background:var(--green)}
+    .bot-switch.on .knob::after{left:17px}
+    .bot-switch:disabled{opacity:.6;cursor:wait}
+    .th-actions{margin-left:auto;display:flex;align-items:center;gap:8px}
+    .th-actions .th-btn{margin-left:0}
+    .bot-off-tag{display:inline-block;font-size:9.5px;font-weight:800;padding:1px 5px;border-radius:5px;background:#fef3c7;color:#92400e;margin-left:6px;vertical-align:middle}
+    .bot-paused-note{background:#fffbeb;border-bottom:1px solid #fde68a;color:#92400e;font-size:12.5px;font-weight:600;padding:8px 20px;flex-shrink:0}
     .conv-search input{width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;outline:none;background:var(--bg)}
     .conv-search input:focus{border-color:var(--green)}
     .conv-item{display:flex;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s}
@@ -190,7 +204,13 @@
 
   <div class="body">
     <div class="conv-list" id="convList">
-      <div class="conv-search"><input type="text" placeholder="Buscar conversa..." oninput="filterConvs(this.value)"/></div>
+      <div class="conv-head">
+        <div class="bot-global" id="botGlobal">
+          <span>🤖 Bot automático<br><span style="font-weight:600;font-size:11.5px">para todas as conversas</span></span>
+          <button class="bot-switch" id="botGlobalBtn" onclick="toggleGlobalBot()"><span class="knob"></span><span class="lbl"></span></button>
+        </div>
+        <div class="conv-search"><input type="text" placeholder="Buscar conversa..." oninput="filterConvs(this.value)"/></div>
+      </div>
       <div id="convItems"></div>
     </div>
 
@@ -327,7 +347,7 @@
       <div class="conv-item ${currentConv === key ? 'active' : ''}" onclick="openConversation(${jsAttr(key)})">
         <div class="conv-avatar" data-initials="${escapeHtml(initials(c.name))}" style="background:${c.isGroup ? '#8b5cf6' : palColor(i)}">${c.isGroup ? '👥' : avatarInner(c.contactId, c.name)}</div>
         <div class="conv-body">
-          <div class="conv-top"><div class="conv-name">${escapeHtml(c.name)}${c.isGroup ? '<span class="conv-tag">GRUPO</span>' : ''}</div><div class="conv-time">${c.lastMessage ? fmtTime(c.lastMessage.createdAt) : ''}</div></div>
+          <div class="conv-top"><div class="conv-name">${escapeHtml(c.name)}${c.isGroup ? '<span class="conv-tag">GRUPO</span>' : ''}${c.botPaused ? '<span class="bot-off-tag" title="Bot desligado nesta conversa">🤖 OFF</span>' : ''}</div><div class="conv-time">${c.lastMessage ? fmtTime(c.lastMessage.createdAt) : ''}</div></div>
           <div class="conv-preview">
             <div class="conv-snippet">${escapeHtml(snippet)}</div>
             ${c.unreadCount ? `<div class="conv-unread">${c.unreadCount}</div>` : ''}
@@ -370,8 +390,12 @@
         <div class="thread-header">
           <div class="conv-avatar" data-avatar-id="${escapeHtml(data.contact.id)}" data-initials="${escapeHtml(initials(data.contact.name))}" style="background:${palColor(0)}">${avatarInner(data.contact.id, data.contact.name)}</div>
           <div><div class="thread-header-name">${escapeHtml(data.contact.name)}</div><div class="thread-header-sub">${escapeHtml(data.contact.phone || '')}</div></div>
-          <button class="th-btn" onclick="openProfileModal('${data.contact.id}')">Ver ficha do contato</button>
+          <div class="th-actions">
+            ${botSwitchHtml(data.contact)}
+            <button class="th-btn" onclick="openProfileModal('${data.contact.id}')">Ver ficha do contato</button>
+          </div>
         </div>
+        <div class="bot-paused-note" id="botPausedNote" style="display:${data.contact.botPaused ? 'block' : 'none'}">🤫 Bot desligado nesta conversa — o robô não responde essa pessoa. Converse normalmente; ligue de novo quando quiser.</div>
         <div class="thread-messages" id="threadMessages"></div>
         ${replyBarHtml()}
       `;
@@ -379,6 +403,53 @@
     wireReplyBar();
     renderMessages(data.messages, data.type === 'group');
     loadConversations();
+  }
+
+  // ── Chave do bot ────────────────────────────────────────────────────────────
+  function botSwitchHtml(contact) {
+    const on = !contact.botPaused;
+    return `<button class="bot-switch ${on ? 'on' : ''}" id="botConvBtn" title="${on ? 'Desligar o bot só para esta pessoa' : 'Ligar o bot de novo para esta pessoa'}" onclick="toggleConvBot(${jsAttr(contact.id)}, ${on})"><span class="knob"></span>${on ? 'Bot ligado' : 'Bot desligado'}</button>`;
+  }
+
+  async function toggleConvBot(contactId, currentlyOn) {
+    const btn = document.getElementById('botConvBtn');
+    if (btn) btn.disabled = true;
+    const r = await api('/whatsapp/conversations/' + contactId + '/bot', { method: 'POST', body: JSON.stringify({ paused: currentlyOn }) });
+    if (btn) btn.disabled = false;
+    if (!r) return;
+    if (btn) btn.outerHTML = botSwitchHtml({ id: contactId, botPaused: r.botPaused });
+    const note = document.getElementById('botPausedNote');
+    if (note) note.style.display = r.botPaused ? 'block' : 'none';
+    const c = conversations.find(x => x.contactId === contactId);
+    if (c) { c.botPaused = r.botPaused; renderConvList(); }
+    showToast(r.botPaused ? '🤫 Bot desligado nesta conversa — pode conversar normalmente.' : '🤖 Bot ligado de novo nesta conversa.');
+  }
+
+  let botFlows = [];
+  async function loadGlobalBot() {
+    const flows = await api('/automations/flows');
+    botFlows = (flows || []).filter(f => f.triggerType === 'whatsapp_message_received');
+    const box = document.getElementById('botGlobal');
+    if (!box) return;
+    if (!botFlows.length) { box.style.display = 'none'; return; }
+    const on = botFlows.some(f => f.active);
+    const btn = document.getElementById('botGlobalBtn');
+    btn.classList.toggle('on', on);
+    btn.title = on ? 'Desligar o bot para TODAS as conversas' : 'Ligar o bot para todas as conversas';
+    btn.querySelector('.lbl').textContent = on ? 'Ligado' : 'Desligado';
+    box.style.display = 'flex';
+  }
+
+  async function toggleGlobalBot() {
+    const on = botFlows.some(f => f.active);
+    if (on && !confirm('Desligar o bot para TODAS as conversas?\n\nEle para de responder qualquer pessoa no WhatsApp até você ligar de novo.\n\n(Para desligar só para uma pessoa, use a chave dentro da conversa dela.)')) return;
+    const btn = document.getElementById('botGlobalBtn');
+    btn.disabled = true;
+    const targets = on ? botFlows.filter(f => f.active) : botFlows;
+    for (const f of targets) await api('/automations/flows/' + f.id, { method: 'PATCH', body: JSON.stringify({ active: !on }) });
+    btn.disabled = false;
+    showToast(on ? '⏸️ Bot desligado para todas as conversas.' : '🟢 Bot ligado para todas as conversas.');
+    loadGlobalBot();
   }
 
   function replyBarHtml() {
@@ -633,6 +704,7 @@
   }
 
   checkWppStatus();
+  loadGlobalBot();
 
   // Atualiza sozinha: lista a cada 10s e a conversa aberta (só re-desenha se chegou mensagem nova,
   // sem apagar o que o atendente está digitando). Status do WhatsApp a cada 1 minuto.
@@ -648,7 +720,7 @@
   }
   setInterval(() => { if (!document.hidden) { loadConversations(); refreshOpenThread(); } }, 10000);
   setInterval(() => { if (!document.hidden) checkWppStatus(); }, 60000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { loadConversations(); refreshOpenThread(); checkWppStatus(); } });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { loadConversations(); refreshOpenThread(); checkWppStatus(); loadGlobalBot(); } });
 
   // Vindo de outra tela (ex.: Tarefas) com ?contato=<id>: abre direto a conversa dessa pessoa.
   (async () => {

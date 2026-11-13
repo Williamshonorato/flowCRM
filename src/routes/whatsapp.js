@@ -591,6 +591,100 @@ router.post('/send', requireAuth, async (req, res) => {
   res.status(201).json(saved)
 })
 
+// ── Editar / apagar mensagem enviada ────────────────────────────────────────
+// O WhatsApp só deixa editar TEXTO até 15 min depois do envio, e apagar "para todos" até
+// ~2 dias depois. Passado o prazo, o celular do cliente simplesmente ignora o pedido — então
+// a gente barra antes, pra não mostrar "apagada" aqui enquanto lá continua aparecendo.
+const EDIT_WINDOW_MS = 15 * 60 * 1000
+const DELETE_WINDOW_MS = 48 * 60 * 60 * 1000
+
+// Acha a mensagem ENVIADA por nós (só dá pra mexer nas próprias) e monta a chave que a
+// Evolution precisa. A chave vem da resposta do envio (raw.key) — o remoteJid ali pode ser
+// @lid e precisa ir exatamente igual, senão a Evolution recusa a edição.
+async function ownSentMessage(tenantId, id) {
+  const msg = await prisma.message.findFirst({ where: { id, tenantId, channel: 'whatsapp', direction: 'out' } })
+  if (!msg) return { status: 404, error: 'Mensagem não encontrada.' }
+  if (msg.deletedAt) return { status: 400, error: 'Essa mensagem já foi apagada.' }
+  const rawKey = msg.raw && typeof msg.raw === 'object' ? msg.raw.key : null
+  const keyId = rawKey?.id || msg.whatsappMessageId
+  const remoteJid = rawKey?.remoteJid || msg.chatJid
+  if (!keyId || !remoteJid) return { status: 400, error: 'Essa mensagem não tem a identificação do WhatsApp (envio antigo) — não dá pra alterar.' }
+  return { msg, key: { id: keyId, remoteJid, fromMe: true } }
+}
+
+async function evoForTenant(tenantId) {
+  const integration = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId, type: 'whatsapp' } } })
+  const evo = evoConfigFrom(integration, tenantId)
+  if (!integration || integration.status !== 'connected' || !evo.apiUrl || !evo.instance) return null
+  return evo
+}
+
+function evoError(data, fallback) {
+  const m = data?.response?.message
+  return (Array.isArray(m) ? m.join(' ') : m) || data?.error || fallback
+}
+
+// PATCH /whatsapp/messages/:id — edita o texto de uma mensagem enviada (até 15 min)
+router.patch('/messages/:id', requireAuth, async (req, res) => {
+  const { tenantId } = req.user
+  const text = String(req.body?.text || '').trim()
+  if (!text) return res.status(400).json({ error: 'Escreva o novo texto da mensagem.' })
+
+  const found = await ownSentMessage(tenantId, req.params.id)
+  if (found.error) return res.status(found.status).json({ error: found.error })
+  const { msg, key } = found
+  if (msg.mediaType) return res.status(400).json({ error: 'O WhatsApp só permite editar mensagens de texto. Fotos, áudios e arquivos só podem ser apagados.' })
+  if (Date.now() - new Date(msg.createdAt).getTime() > EDIT_WINDOW_MS) {
+    return res.status(400).json({ error: 'O WhatsApp só permite editar até 15 minutos depois do envio. Você ainda pode apagar a mensagem e enviar de novo.' })
+  }
+  if (text === msg.body) return res.json(msg)
+
+  const evo = await evoForTenant(tenantId)
+  if (!evo) return res.status(400).json({ error: 'WhatsApp não conectado. Conecte o número em Integrações.' })
+  try {
+    const r = await fetch(`${evo.apiUrl}/chat/updateMessage/${evo.instance}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(evo.apiKey ? { apikey: evo.apiKey } : {}) },
+      body: JSON.stringify({ number: key.remoteJid, text, key }),
+    })
+    const data = await r.json().catch(() => ({}))
+    if (!r.ok) return res.status(502).json({ error: 'O WhatsApp não aceitou a edição: ' + evoError(data, 'erro desconhecido.'), detail: data })
+  } catch (err) {
+    return res.status(502).json({ error: 'Não foi possível falar com o WhatsApp agora. Tente de novo.', detail: err.message })
+  }
+
+  const updated = await prisma.message.update({ where: { id: msg.id }, data: { body: text, editedAt: new Date() } })
+  res.json(updated)
+})
+
+// DELETE /whatsapp/messages/:id — apaga "para todos" uma mensagem enviada (até ~2 dias)
+router.delete('/messages/:id', requireAuth, async (req, res) => {
+  const { tenantId } = req.user
+  const found = await ownSentMessage(tenantId, req.params.id)
+  if (found.error) return res.status(found.status).json({ error: found.error })
+  const { msg, key } = found
+  if (Date.now() - new Date(msg.createdAt).getTime() > DELETE_WINDOW_MS) {
+    return res.status(400).json({ error: 'O WhatsApp só permite apagar para todos até 2 dias depois do envio.' })
+  }
+
+  const evo = await evoForTenant(tenantId)
+  if (!evo) return res.status(400).json({ error: 'WhatsApp não conectado. Conecte o número em Integrações.' })
+  try {
+    const r = await fetch(`${evo.apiUrl}/chat/deleteMessageForEveryone/${evo.instance}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', ...(evo.apiKey ? { apikey: evo.apiKey } : {}) },
+      body: JSON.stringify(key),
+    })
+    const data = await r.json().catch(() => ({}))
+    if (!r.ok) return res.status(502).json({ error: 'O WhatsApp não aceitou apagar: ' + evoError(data, 'erro desconhecido.'), detail: data })
+  } catch (err) {
+    return res.status(502).json({ error: 'Não foi possível falar com o WhatsApp agora. Tente de novo.', detail: err.message })
+  }
+
+  const updated = await prisma.message.update({ where: { id: msg.id }, data: { deletedAt: new Date() } })
+  res.json(updated)
+})
+
 // POST /whatsapp/send-media — envia imagem / áudio / vídeo / documento (multipart, campo "file").
 // Body: contactId OU chatJid, opcional caption. Áudio vira nota de voz (PTT).
 router.post('/send-media', requireAuth, upload.single('file'), async (req, res) => {

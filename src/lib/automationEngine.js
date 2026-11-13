@@ -503,6 +503,11 @@ export async function triggerFlows(tenantId, triggerType, { contactId, dealId, s
   // As rotas chamam sem await (é fire-and-forget): um erro solto aqui derrubaria o processo,
   // então tudo é capturado e logado — uma falha de automação nunca pode afetar a requisição.
   try {
+    // Bot desligado pra essa pessoa (chave na conversa): nenhuma automação manda nada pra ela.
+    if (contactId) {
+      const c = await prisma.contact.findUnique({ where: { id: contactId }, select: { botPaused: true } })
+      if (c?.botPaused) return
+    }
     const flows = await prisma.automationFlow.findMany({ where: { tenantId, active: true, triggerType } })
     for (const flow of flows) {
       if (triggerType === 'deal_stage_changed' && flow.triggerConfig?.stageId && flow.triggerConfig.stageId !== stageId) continue

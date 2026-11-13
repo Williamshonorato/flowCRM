@@ -284,7 +284,7 @@ router.get('/conversations', requireAuth, async (req, res) => {
   const contacts = await prisma.contact.findMany({
     where: { tenantId, messages: { some: { channel: 'whatsapp', isGroup: false } } },
     select: {
-      id: true, name: true, phone: true,
+      id: true, name: true, phone: true, botPaused: true,
       messages: { where: { channel: 'whatsapp', isGroup: false }, orderBy: { createdAt: 'desc' }, take: 1 },
     },
   })
@@ -305,6 +305,7 @@ router.get('/conversations', requireAuth, async (req, res) => {
     isGroup: false,
     lastMessage: c.messages[0] || null,
     unreadCount: directUnreadMap[c.id] || 0,
+    botPaused: c.botPaused,
   }))
 
   // ── Conversas de grupo (chatJid @g.us, sem contato) ────────────────────────
@@ -355,7 +356,7 @@ router.get('/conversations/:contactId/messages', requireAuth, async (req, res) =
 
   res.json({
     type: 'direct',
-    contact: { id: contact.id, name: contact.name, phone: contact.phone },
+    contact: { id: contact.id, name: contact.name, phone: contact.phone, botPaused: contact.botPaused },
     messages,
   })
 })
@@ -589,6 +590,32 @@ router.post('/send', requireAuth, async (req, res) => {
   }
 
   res.status(201).json(saved)
+})
+
+// POST /whatsapp/conversations/:contactId/bot — liga/desliga o bot SÓ pra essa pessoa.
+// Desligando, encerra também o menu/fluxo que estiver em andamento com ela, senão a próxima
+// resposta dela ainda cairia no menu antigo (ou uma espera agendada mandaria mensagem).
+router.post('/conversations/:contactId/bot', requireAuth, async (req, res) => {
+  const { tenantId, userId } = req.user
+  const paused = !!req.body?.paused
+  const contact = await prisma.contact.findFirst({ where: { id: req.params.contactId, tenantId } })
+  if (!contact) return res.status(404).json({ error: 'Contato não encontrado.' })
+
+  await prisma.contact.update({ where: { id: contact.id }, data: { botPaused: paused } })
+  let stopped = 0
+  if (paused) {
+    const runs = await prisma.automationFlowRun.findMany({
+      where: { tenantId, contactId: contact.id, status: { in: ['running', 'waiting', 'waiting_reply'] } },
+      select: { id: true, log: true },
+    })
+    for (const r of runs) {
+      const log = [...(Array.isArray(r.log) ? r.log : []), { stepId: null, type: 'bot_paused', at: new Date().toISOString(), result: { skipped: 'bot desligado nesta conversa' } }]
+      await prisma.automationFlowRun.update({ where: { id: r.id }, data: { status: 'completed', finishedAt: new Date(), log } })
+      stopped += 1
+    }
+  }
+  await prisma.activity.create({ data: { tenantId, userId, contactId: contact.id, type: 'note', content: paused ? 'Bot desligado nesta conversa.' : 'Bot ligado de novo nesta conversa.' } }).catch(() => {})
+  res.json({ contactId: contact.id, botPaused: paused, stoppedRuns: stopped })
 })
 
 // ── Editar / apagar mensagem enviada ────────────────────────────────────────
@@ -1026,8 +1053,9 @@ router.post('/webhook/:tenantId', async (req, res) => {
         },
       })
 
-      // Automações com gatilho "mensagem recebida no WhatsApp"
-      const consumedByMenu = await resolveMenuReply(tenant.id, contact.id, body)
+      // Automações com gatilho "mensagem recebida no WhatsApp" — a não ser que o bot esteja
+      // desligado pra essa pessoa (chave na conversa): aí a equipe conversa normal, sem o robô.
+      const consumedByMenu = contact.botPaused ? true : await resolveMenuReply(tenant.id, contact.id, body)
       if (!consumedByMenu) {
         triggerFlows(tenant.id, 'whatsapp_message_received', { contactId: contact.id, messageBody: body })
       }

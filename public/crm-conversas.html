@@ -98,6 +98,22 @@
     .msg-media audio{max-width:240px;display:block}
     .msg-media a{color:inherit;font-weight:700;text-decoration:underline}
     .msg-media{margin-bottom:4px}
+    /* Editar / apagar mensagem enviada: botões aparecem ao passar o mouse (no celular ficam sempre visíveis) */
+    .msg-row.out{align-items:center;gap:6px}
+    .msg-actions{display:flex;gap:4px;opacity:0;transition:opacity .15s}
+    .msg-row.out:hover .msg-actions,.msg-actions:focus-within{opacity:1}
+    @media (hover:none){.msg-actions{opacity:.85}}
+    .msg-act{width:30px;height:30px;border:1px solid var(--border);border-radius:8px;background:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+    .msg-act:hover{border-color:var(--green)}
+    .msg-act.del:hover{border-color:var(--red);background:#fef2f2}
+    .msg-row.out .msg-bubble.deleted{background:#e2e8f0;color:#64748b;font-style:italic}
+    .msg-edited{font-style:italic;margin-left:4px}
+    .msg-bubble.editing{width:60%}
+    .msg-edit-box{width:100%;box-sizing:border-box;border:none;border-radius:8px;padding:8px 10px;font-size:13.5px;font-family:inherit;resize:vertical;min-height:60px;color:var(--text);outline:none}
+    .msg-edit-btns{display:flex;gap:6px;justify-content:flex-end;margin-top:6px}
+    .msg-edit-btns button{padding:5px 12px;border-radius:7px;border:none;font-weight:700;font-size:12.5px;cursor:pointer}
+    .msg-edit-btns .save{background:#fff;color:var(--green)}
+    .msg-edit-btns .cancel{background:rgba(255,255,255,.25);color:#fff}
 
     /* Selo de grupo no inbox e no cabeçalho da thread */
     .conv-tag{display:inline-block;font-size:9.5px;font-weight:800;padding:1px 5px;border-radius:5px;background:#ede9fe;color:#6d28d9;margin-left:6px;vertical-align:middle}
@@ -306,7 +322,7 @@
     }
     box.innerHTML = filtered.map((c, i) => {
       const key = convKey(c);
-      const snippet = c.lastMessage ? (c.lastMessage.direction === 'out' ? 'Você: ' : '') + c.lastMessage.body : '';
+      const snippet = c.lastMessage ? (c.lastMessage.direction === 'out' ? 'Você: ' : '') + (c.lastMessage.deletedAt ? '🚫 Mensagem apagada' : c.lastMessage.body) : '';
       return `
       <div class="conv-item ${currentConv === key ? 'active' : ''}" onclick="openConversation(${jsAttr(key)})">
         <div class="conv-avatar" data-initials="${escapeHtml(initials(c.name))}" style="background:${c.isGroup ? '#8b5cf6' : palColor(i)}">${c.isGroup ? '👥' : avatarInner(c.contactId, c.name)}</div>
@@ -324,6 +340,7 @@
   function filterConvs(v) { searchText = v.toLowerCase(); renderConvList(); }
 
   async function openConversation(key) {
+    editingMsgId = null;
     const conv = conversations.find(c => convKey(c) === key);
     const isGroup = conv ? conv.isGroup : String(key).endsWith('@g.us');
     currentConv = key;
@@ -396,11 +413,32 @@
   }
 
   let lastRenderedMsgKey = '';
+  let renderedMsgs = {};      // id -> mensagem, pra editar/apagar sem ir no servidor de novo
+  let editingMsgId = null;    // enquanto edita, a atualização automática não redesenha a conversa
+  const EDIT_WINDOW_MS = 15 * 60 * 1000;
+  const DELETE_WINDOW_MS = 48 * 60 * 60 * 1000;
+
+  // Chave que muda quando chega mensagem nova OU quando alguma é editada/apagada.
+  function msgsKey(messages) {
+    return messages.map(m => m.id + (m.deletedAt ? 'd' : '') + (m.editedAt || '')).join(',');
+  }
+
+  function canChange(m) {
+    return m.direction === 'out' && !m.deletedAt && (m.whatsappMessageId || (m.raw && m.raw.key && m.raw.key.id));
+  }
+
   function renderMessages(messages, isGroup) {
     const box = document.getElementById('threadMessages');
     if (!box) return;
-    lastRenderedMsgKey = messages.length + ':' + (messages.at(-1)?.id || '');
+    lastRenderedMsgKey = msgsKey(messages);
+    renderedMsgs = {};
+    const now = Date.now();
     box.innerHTML = messages.map(m => {
+      renderedMsgs[m.id] = m;
+      const time = `<div class="msg-time">${fmtTime(m.createdAt)}${m.editedAt && !m.deletedAt ? '<span class="msg-edited">· editada</span>' : ''}</div>`;
+      if (m.deletedAt) {
+        return `<div class="msg-row ${m.direction}" data-msg-id="${m.id}"><div class="msg-bubble deleted">🚫 Você apagou esta mensagem${time}</div></div>`;
+      }
       let inner = '';
       if (m.mediaUrl && m.mediaType === 'image') inner += `<div class="msg-media"><img src="${escapeHtml(m.mediaUrl)}" onclick="window.open(${jsAttr(m.mediaUrl)})"/></div>`;
       else if (m.mediaUrl && m.mediaType === 'audio') inner += `<div class="msg-media"><audio controls src="${escapeHtml(m.mediaUrl)}"></audio></div>`;
@@ -409,9 +447,70 @@
       const showCaption = m.body && !(m.mediaType && /^\[.+\]$/.test(m.body));
       if (showCaption || !m.mediaUrl) inner += escapeHtml(m.body);
       const sender = (isGroup && m.direction === 'in') ? `<div class="msg-sender">${escapeHtml(m.senderName || m.senderPhone || '')}</div>` : '';
-      return `<div class="msg-row ${m.direction}"><div class="msg-bubble">${sender}${inner}<div class="msg-time">${fmtTime(m.createdAt)}</div></div></div>`;
+      let actions = '';
+      if (canChange(m)) {
+        const age = now - new Date(m.createdAt).getTime();
+        const btns = [];
+        if (!m.mediaType && age <= EDIT_WINDOW_MS) btns.push(`<button class="msg-act" title="Editar (até 15 min após o envio)" onclick="startEditMsg('${m.id}')">✏️</button>`);
+        if (age <= DELETE_WINDOW_MS) btns.push(`<button class="msg-act del" title="Apagar para todos" onclick="deleteMsg('${m.id}')">🗑️</button>`);
+        if (btns.length) actions = `<div class="msg-actions">${btns.join('')}</div>`;
+      }
+      return `<div class="msg-row ${m.direction}" data-msg-id="${m.id}">${actions}<div class="msg-bubble">${sender}${inner}${time}</div></div>`;
     }).join('');
     box.scrollTop = box.scrollHeight;
+  }
+
+  function startEditMsg(id) {
+    const m = renderedMsgs[id];
+    const row = document.querySelector(`[data-msg-id="${id}"]`);
+    if (!m || !row) return;
+    if (Date.now() - new Date(m.createdAt).getTime() > EDIT_WINDOW_MS) { showToast('Passaram os 15 minutos — o WhatsApp não deixa mais editar. Você ainda pode apagar.'); refreshOpenThread(true); return; }
+    editingMsgId = id;
+    const actions = row.querySelector('.msg-actions');
+    if (actions) actions.style.display = 'none';
+    const bubble = row.querySelector('.msg-bubble');
+    bubble.classList.add('editing');
+    bubble.innerHTML = `<textarea class="msg-edit-box" id="editBox"></textarea>
+      <div class="msg-edit-btns"><button class="cancel" onclick="cancelEditMsg()">Cancelar</button><button class="save" id="editSaveBtn" onclick="saveEditMsg('${id}')">Salvar</button></div>`;
+    const ta = document.getElementById('editBox');
+    ta.value = m.body || '';
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+    ta.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEditMsg(id); }
+      if (e.key === 'Escape') cancelEditMsg();
+    });
+  }
+
+  function cancelEditMsg() {
+    editingMsgId = null;
+    refreshOpenThread(true);
+  }
+
+  async function saveEditMsg(id) {
+    const ta = document.getElementById('editBox');
+    const text = ta ? ta.value.trim() : '';
+    if (!text) { showToast('A mensagem não pode ficar vazia. Para tirar ela, use 🗑️ Apagar.'); return; }
+    const btn = document.getElementById('editSaveBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Salvando…'; }
+    const r = await api('/whatsapp/messages/' + id, { method: 'PATCH', body: JSON.stringify({ text }) });
+    if (!r) { if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; } return; }
+    editingMsgId = null;
+    showToast('Mensagem editada — o cliente vê o texto novo com a marca "Editada".');
+    refreshOpenThread(true);
+    loadConversations();
+  }
+
+  async function deleteMsg(id) {
+    const m = renderedMsgs[id];
+    if (!m) return;
+    const preview = (m.body || '').slice(0, 80);
+    if (!confirm('Apagar esta mensagem para todos?\n\n"' + preview + '"\n\nEla some do WhatsApp do cliente e aparece como "Mensagem apagada". Se ele já leu, pode ter visto antes.')) return;
+    const r = await api('/whatsapp/messages/' + id, { method: 'DELETE' });
+    if (!r) return;
+    showToast('Mensagem apagada para todos.');
+    refreshOpenThread(true);
+    loadConversations();
   }
 
   async function sendReply() {
@@ -537,14 +636,15 @@
 
   // Atualiza sozinha: lista a cada 10s e a conversa aberta (só re-desenha se chegou mensagem nova,
   // sem apagar o que o atendente está digitando). Status do WhatsApp a cada 1 minuto.
-  async function refreshOpenThread() {
+  async function refreshOpenThread(force) {
     if (!currentConv || !currentChat) return;
+    if (editingMsgId && !force) return; // não apaga o que o atendente está editando
     const data = currentChat.type === 'group'
       ? await api('/whatsapp/groups/' + encodeURIComponent(currentConv) + '/messages')
       : await api('/whatsapp/conversations/' + currentConv + '/messages');
     if (!data?.messages) return;
-    const key = data.messages.length + ':' + (data.messages.at(-1)?.id || '');
-    if (key !== lastRenderedMsgKey) renderMessages(data.messages, data.type === 'group');
+    if (editingMsgId && !force) return;
+    if (force || msgsKey(data.messages) !== lastRenderedMsgKey) renderMessages(data.messages, data.type === 'group');
   }
   setInterval(() => { if (!document.hidden) { loadConversations(); refreshOpenThread(); } }, 10000);
   setInterval(() => { if (!document.hidden) checkWppStatus(); }, 60000);

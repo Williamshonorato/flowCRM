@@ -256,6 +256,8 @@ model Message {
   trackingId        String?  @unique
   openedAt          DateTime?
   readAt            DateTime?
+  editedAt          DateTime? // mensagem nossa editada depois de enviada (WhatsApp deixa até 15 min)
+  deletedAt         DateTime? // mensagem nossa apagada "para todos" (o texto original fica guardado aqui)
   raw               Json?
   createdAt         DateTime @default(now())
 

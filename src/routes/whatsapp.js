@@ -275,6 +275,31 @@ router.get('/stats', requireAuth, async (req, res) => {
   res.json({ connected: live.connected, configured: live.configured, state: live.state, stalled: !!live.stalled, silentHours: live.silentHours || 0, messageCount })
 })
 
+// O campo raw (payload completo da Evolution) NÃO vai pra tela: com webhook base64 ele trazia o
+// arquivo inteiro de documentos/vídeos (até 10 MB por mensagem) e cada clique/atualização da
+// conversa baixava tudo de novo — a tela de Conversas travava. A tela só precisa do id da
+// mensagem no WhatsApp (pra editar/apagar); mensagens antigas sem whatsappMessageId pegam o id
+// de dentro do raw direto no banco, sem trazer o resto.
+async function withKeyIds(messages) {
+  const missing = messages.filter(m => m.direction === 'out' && !m.whatsappMessageId).map(m => m.id)
+  if (!missing.length) return messages
+  const rows = await prisma.$queryRaw`SELECT id, raw->'key'->>'id' AS kid FROM "Message" WHERE id = ANY(${missing})`
+  const kid = Object.fromEntries(rows.filter(r => r.kid).map(r => [r.id, r.kid]))
+  return messages.map(m => (kid[m.id] ? { ...m, whatsappMessageId: kid[m.id] } : m))
+}
+
+// Tira o base64 da mídia antes de guardar o payload: o arquivo já fica salvo em mediaUrl,
+// e o base64 duplicado deixava cada mensagem com vários MB no banco.
+function slimRaw(m) {
+  if (!m || typeof m !== 'object') return m
+  const { base64, mediaBase64, ...rest } = m
+  if (rest.message && typeof rest.message === 'object' && 'base64' in rest.message) {
+    const { base64: _b, ...msg } = rest.message
+    rest.message = msg
+  }
+  return rest
+}
+
 // GET /whatsapp/conversations — inbox: um item por chat (pessoa OU grupo), com a
 // última mensagem e a contagem de não-lidas.
 router.get('/conversations', requireAuth, async (req, res) => {
@@ -285,7 +310,7 @@ router.get('/conversations', requireAuth, async (req, res) => {
     where: { tenantId, messages: { some: { channel: 'whatsapp', isGroup: false } } },
     select: {
       id: true, name: true, phone: true, botPaused: true,
-      messages: { where: { channel: 'whatsapp', isGroup: false }, orderBy: { createdAt: 'desc' }, take: 1 },
+      messages: { where: { channel: 'whatsapp', isGroup: false }, orderBy: { createdAt: 'desc' }, take: 1, omit: { raw: true } },
     },
   })
 
@@ -317,7 +342,7 @@ router.get('/conversations', requireAuth, async (req, res) => {
 
   const groups = await Promise.all(groupJids.filter(g => g.chatJid).map(async (g) => {
     const [last, unreadCount] = await Promise.all([
-      prisma.message.findFirst({ where: { tenantId, chatJid: g.chatJid }, orderBy: { createdAt: 'desc' } }),
+      prisma.message.findFirst({ where: { tenantId, chatJid: g.chatJid }, orderBy: { createdAt: 'desc' }, omit: { raw: true } }),
       prisma.message.count({ where: { tenantId, chatJid: g.chatJid, direction: 'in', readAt: null } }),
     ])
     return {
@@ -344,10 +369,11 @@ router.get('/conversations/:contactId/messages', requireAuth, async (req, res) =
   const contact = await prisma.contact.findFirst({ where: { id: req.params.contactId, tenantId } })
   if (!contact) return res.status(404).json({ error: 'Contato não encontrado.' })
 
-  const messages = await prisma.message.findMany({
+  const messages = await withKeyIds(await prisma.message.findMany({
     where: { contactId: contact.id, channel: 'whatsapp', isGroup: false },
     orderBy: { createdAt: 'asc' },
-  })
+    omit: { raw: true },
+  }))
 
   await prisma.message.updateMany({
     where: { contactId: contact.id, channel: 'whatsapp', direction: 'in', readAt: null },
@@ -367,10 +393,11 @@ router.get('/groups/:jid/messages', requireAuth, async (req, res) => {
   const jid = decodeURIComponent(req.params.jid)
   if (!isGroupJid(jid)) return res.status(400).json({ error: 'Jid de grupo inválido.' })
 
-  const messages = await prisma.message.findMany({
+  const messages = await withKeyIds(await prisma.message.findMany({
     where: { tenantId, chatJid: jid, channel: 'whatsapp' },
     orderBy: { createdAt: 'asc' },
-  })
+    omit: { raw: true },
+  }))
   if (!messages.length) return res.status(404).json({ error: 'Grupo não encontrado.' })
 
   await prisma.message.updateMany({
@@ -1010,7 +1037,7 @@ router.post('/webhook/:tenantId', async (req, res) => {
             mediaType,
             mediaUrl,
             whatsappMessageId: whatsappId,
-            raw: m,
+            raw: slimRaw(m),
           },
         })
         processed += 1
@@ -1049,7 +1076,7 @@ router.post('/webhook/:tenantId', async (req, res) => {
           mediaType,
           mediaUrl,
           whatsappMessageId: whatsappId,
-          raw: m,
+          raw: slimRaw(m),
         },
       })
 

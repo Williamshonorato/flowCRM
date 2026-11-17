@@ -398,10 +398,17 @@
     const isGroup = conv ? conv.isGroup : String(key).endsWith('@g.us');
     currentConv = key;
     renderConvList();
+    // Resposta imediata ao clique: troca o topo pro nome da pessoa e mostra "carregando"
+    // enquanto as mensagens chegam (antes a tela ficava parada na conversa anterior).
+    const loadingArea = document.getElementById('threadArea');
+    if (loadingArea) loadingArea.innerHTML = `<div class="thread-header"><div class="conv-avatar" style="background:${isGroup ? '#8b5cf6' : palColor(0)}">${isGroup ? '👥' : escapeHtml(initials(conv ? conv.name : ''))}</div><div><div class="thread-header-name">${escapeHtml(conv ? conv.name : '')}</div><div class="thread-header-sub">Carregando mensagens…</div></div></div><div class="thread-messages" id="threadMessages"></div>`;
+    currentChat = null;
 
     const data = isGroup
       ? await api('/whatsapp/groups/' + encodeURIComponent(key) + '/messages')
       : await api('/whatsapp/conversations/' + key + '/messages');
+    // Clicou em outra conversa enquanto esta carregava: descarta, senão a tela "pulava" de volta.
+    if (currentConv !== key) return;
     if (!data) return;
 
     const area = document.getElementById('threadArea');
@@ -744,10 +751,11 @@
   async function refreshOpenThread(force) {
     if (!currentConv || !currentChat) return;
     if (editingMsgId && !force) return; // não apaga o que o atendente está editando
+    const conv = currentConv;
     const data = currentChat.type === 'group'
-      ? await api('/whatsapp/groups/' + encodeURIComponent(currentConv) + '/messages')
-      : await api('/whatsapp/conversations/' + currentConv + '/messages');
-    if (!data?.messages) return;
+      ? await api('/whatsapp/groups/' + encodeURIComponent(conv) + '/messages')
+      : await api('/whatsapp/conversations/' + conv + '/messages');
+    if (!data?.messages || conv !== currentConv) return;
     if (editingMsgId && !force) return;
     if (force || msgsKey(data.messages) !== lastRenderedMsgKey) renderMessages(data.messages, data.type === 'group');
   }

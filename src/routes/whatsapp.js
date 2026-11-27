@@ -4,6 +4,8 @@ import fs from 'fs/promises'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { randomUUID, createHmac, timingSafeEqual } from 'crypto'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import prisma from '../lib/prisma.js'
 import { extractName, extractEmail } from '../lib/whatsappParser.js'
 import { requireAuth } from '../middleware/auth.js'
@@ -86,7 +88,29 @@ async function saveMedia(tenantId, buffer, mime) {
   await fs.mkdir(dir, { recursive: true })
   const filename = randomUUID() + extForMime(mime)
   await fs.writeFile(path.join(dir, filename), buffer)
+  if (filename.endsWith('.ogg')) {
+    const mp3 = await oggToMp3(path.join(dir, filename))
+    if (mp3) return `/app/uploads/whatsapp/${tenantId}/${path.basename(mp3)}`
+  }
   return `/app/uploads/whatsapp/${tenantId}/${filename}`
+}
+
+// Áudio de voz do WhatsApp chega em OGG/Opus, que o Safari (até a versão 18.3, e o do
+// sindicato é 17.6) não toca: o player aparecia mas não reproduzia nada. Converte pra MP3,
+// que todo navegador toca; o .ogg original fica guardado do lado. Sem ffmpeg ou se a
+// conversão falhar, devolve null e segue com o .ogg (toca no Chrome/Firefox).
+const execFileP = promisify(execFile)
+export async function oggToMp3(oggPath) {
+  const mp3Path = oggPath.replace(/\.ogg$/i, '.mp3')
+  try {
+    await execFileP('ffmpeg', ['-y', '-loglevel', 'error', '-i', oggPath, '-vn', '-codec:a', 'libmp3lame', '-q:a', '5', mp3Path], { timeout: 60000 })
+    await fs.access(mp3Path)
+    return mp3Path
+  } catch (err) {
+    console.error('whatsapp: falha ao converter áudio para mp3', err.message)
+    await fs.rm(mp3Path, { force: true }).catch(() => {})
+    return null
+  }
 }
 
 // Config da Evolution pro tenant: instância compartilhada por padrão, ou a
